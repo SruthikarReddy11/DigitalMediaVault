@@ -1,0 +1,25 @@
+{
+  "name": "personal-digital-library",
+  "version": "1.0.0",
+  "description": "Production-grade Full-Stack Personal Digital Library & Media Gallery",
+  "scripts": {
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "build:backend": "npm --prefix backend run build",
+    "test:backend": "npm --prefix backend test",
+    "seed:backend": "npm --prefix backend run prisma:seed"
+  },
+  "keywords": [
+    "personal-library",
+    "media-gallery",
+    "music-player",
+    "react",
+    "typescript",
+    "express",
+    "postgresql",
+    "prisma"
+  ],
+  "author": "Google Deepmind Antigravity Pair Programmer",
+  "license": "MIT"
+}

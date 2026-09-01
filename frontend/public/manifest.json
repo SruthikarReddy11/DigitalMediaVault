@@ -1,0 +1,17 @@
+{
+  "short_name": "Digital Library",
+  "name": "Personal Digital Library & Media Gallery",
+  "description": "Private full-stack digital library for photos, videos, music, PDFs, and documents.",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "display": "standalone",
+  "orientation": "any"
+}
