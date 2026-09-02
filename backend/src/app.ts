@@ -36,7 +36,7 @@ app.use(
     crossOriginResourcePolicy: { policy: 'cross-origin' }, // Required for media range streaming
     crossOriginOpenerPolicy: { policy: 'same-origin' },
     dnsPrefetchControl: { allow: false },
-    frameguard: false,
+    frameguard: { action: 'sameorigin' },
     hidePoweredBy: true,
     hsts: {
       maxAge: 31536000,

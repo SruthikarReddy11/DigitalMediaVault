@@ -1,9 +1,12 @@
 import { Readable } from 'stream';
 import crypto from 'crypto';
 import path from 'path';
+import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../database/prisma';
+import { config } from '../config';
 import { IStorageService, StorageReadStreamOptions, StorageSaveOptions } from './IStorageService';
+import { LocalStorageService } from './LocalStorageService';
 
 const DANGEROUS_EXTENSIONS = new Set([
   '.exe',
@@ -33,10 +36,16 @@ const DANGEROUS_EXTENSIONS = new Set([
   '.svgz',
 ]);
 
+// Threshold to protect PostgreSQL & Node.js process RAM from 512MB OOM crashes on Render
+const POSTGRES_MAX_BLOB_SIZE = 15 * 1024 * 1024; // 15MB
+
 export class PostgresStorageService implements IStorageService {
-  /**
-   * Sanitizes file extension and neutralizes dangerous scripts.
-   */
+  private localStorage: LocalStorageService;
+
+  constructor() {
+    this.localStorage = new LocalStorageService(config.storage.localRoot);
+  }
+
   private sanitizeExtension(originalName: string): string {
     const ext = path.extname(originalName).toLowerCase().replace(/[^a-z0-9.]/g, '');
     if (!ext || DANGEROUS_EXTENSIONS.has(ext)) {
@@ -45,62 +54,47 @@ export class PostgresStorageService implements IStorageService {
     return ext;
   }
 
-  /**
-   * Sanitizes SVG buffer to prevent Stored Cross-Site Scripting (XSS) and XXE attacks.
-   */
   private sanitizeSvg(buffer: Buffer): Buffer {
     let content = buffer.toString('utf-8');
 
-    // Remove script tags and embedded scripts
     content = content.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
-    // Remove foreignObject tags
     content = content.replace(/<foreignObject\b[^<]*(?:(?!<\/foreignObject>)<[^<]*)*<\/foreignObject>/gi, '');
-    // Remove inline event handlers (onload, onerror, onclick, etc.)
     content = content.replace(/\s+on[a-z]+\s*=\s*(['"]).*?\1/gi, '');
     content = content.replace(/\s+on[a-z]+\s*=\s*[^ >]+/gi, '');
-    // Remove javascript: and data: pseudo-protocols in URLs
     content = content.replace(/href\s*=\s*(['"])javascript:.*?\1/gi, 'href="#"');
     content = content.replace(/xlink:href\s*=\s*(['"])javascript:.*?\1/gi, 'xlink:href="#"');
-    // Remove DOCTYPE / ENTITY declarations to prevent XXE
     content = content.replace(/<!DOCTYPE[^>]*>/gi, '');
     content = content.replace(/<!ENTITY[^>]*>/gi, '');
 
     return Buffer.from(content, 'utf-8');
   }
 
-  /**
-   * Converts a Readable stream into a complete Buffer.
-   */
-  private async streamToBuffer(stream: Readable): Promise<Buffer> {
-    const chunks: Buffer[] = [];
-    for await (const chunk of stream) {
-      chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-    }
-    return Buffer.concat(chunks);
-  }
-
   async save(
     data: Buffer | Readable,
     options: StorageSaveOptions
   ): Promise<{ storageKey: string; size: number; checksum?: string }> {
+    // If input is a Readable stream or a large buffer (> 15MB, e.g. 57MB video),
+    // save to disk storage via LocalStorageService to prevent 512MB RAM OOM crash on Render
+    if (!Buffer.isBuffer(data) || data.length > POSTGRES_MAX_BLOB_SIZE) {
+      return this.localStorage.save(data, options);
+    }
+
     const safeCategory = (options.category || 'other').toLowerCase().replace(/[^a-z0-9_-]/g, '');
     const safeUserId = options.userId.replace(/[^a-zA-Z0-9_-]/g, '');
     const extension = this.sanitizeExtension(options.originalName);
     const fileId = uuidv4();
     const fileName = `${fileId}${extension}`;
 
-    // Standardized storage key: users/:userId/:category/:fileName
     const storageKey = `users/${safeUserId}/${safeCategory}/${fileName}`;
 
-    let buffer = Buffer.isBuffer(data) ? data : await this.streamToBuffer(data);
-
+    let buffer = data;
     if (extension === '.svg' || options.mimeType === 'image/svg+xml') {
       buffer = this.sanitizeSvg(buffer);
     }
 
     const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
 
-    // Store binary bytea data directly into Postgres
+    // Small files <= 15MB: store binary bytea data in Postgres
     await prisma.storageBlob.create({
       data: {
         storageKey,
@@ -125,7 +119,8 @@ export class PostgresStorageService implements IStorageService {
       where: { storageKey },
       select: { id: true },
     });
-    return !!blob;
+    if (blob) return true;
+    return this.localStorage.exists(storageKey);
   }
 
   async getReadStream(
@@ -138,7 +133,8 @@ export class PostgresStorageService implements IStorageService {
     });
 
     if (!blob) {
-      throw new Error(`File not found in database storage for key: ${storageKey}`);
+      // Fallback to disk storage stream (for large videos > 15MB)
+      return this.localStorage.getReadStream(storageKey, options);
     }
 
     const totalSize = Number(blob.size);
@@ -164,32 +160,36 @@ export class PostgresStorageService implements IStorageService {
     });
 
     if (!blob) {
-      throw new Error(`File not found in database storage for key: ${storageKey}`);
+      return this.localStorage.getBuffer(storageKey);
     }
 
     return blob.data;
   }
 
   async delete(storageKey: string): Promise<boolean> {
+    let deleted = false;
     try {
       await prisma.storageBlob.delete({
         where: { storageKey },
       });
-      return true;
-    } catch (err) {
-      return false;
-    }
+      deleted = true;
+    } catch {}
+
+    const diskDeleted = await this.localStorage.delete(storageKey);
+    return deleted || diskDeleted;
   }
 
   async getTotalStorageUsage(userId?: string): Promise<number> {
     try {
-      const result = await prisma.storageBlob.aggregate({
+      const dbResult = await prisma.storageBlob.aggregate({
         _sum: { size: true },
         where: userId ? { userId } : undefined,
       });
-      return Number(result._sum.size || 0);
+      const dbUsage = Number(dbResult._sum.size || 0);
+      const diskUsage = await this.localStorage.getTotalStorageUsage(userId);
+      return dbUsage + diskUsage;
     } catch {
-      return 0;
+      return this.localStorage.getTotalStorageUsage(userId);
     }
   }
 }

@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import fs from 'fs';
 import { AuthenticatedRequest } from '../types';
 import { FileService } from '../services/file.service';
 import { StorageFactory } from '../storage/StorageFactory';
@@ -24,17 +25,27 @@ export class FileController {
       const uploadedResults = [];
 
       for (const file of files) {
-        const result = await FileService.uploadFile(
-          req.user!,
-          {
-            buffer: file.buffer,
-            originalname: Buffer.from(file.originalname, 'latin1').toString('utf8'), // handle utf8 filenames
-            mimetype: file.mimetype,
-            size: file.size,
-          },
-          folderId
-        );
-        uploadedResults.push(result);
+        try {
+          const originalName = Buffer.from(file.originalname, 'latin1').toString('utf8');
+          const result = await FileService.uploadFile(
+            req.user!,
+            {
+              buffer: file.buffer,
+              filePath: file.path,
+              originalname: originalName,
+              mimetype: file.mimetype,
+              size: file.size,
+            },
+            folderId
+          );
+          uploadedResults.push(result);
+        } finally {
+          if (file.path && fs.existsSync(file.path)) {
+            try {
+              fs.unlinkSync(file.path);
+            } catch {}
+          }
+        }
       }
 
       res.status(201).json({

@@ -7,9 +7,12 @@ import { isOwnerOrAdmin } from '../middleware/ownership';
 import { ActivityService } from './activity.service';
 import { FileType, Prisma } from '@prisma/client';
 import path from 'path';
+import fs from 'fs';
+import { Readable } from 'stream';
 
 export interface UploadFileItem {
-  buffer: Buffer;
+  buffer?: Buffer;
+  filePath?: string;
   originalname: string;
   mimetype: string;
   size: number;
@@ -47,8 +50,20 @@ export class FileService {
       }
     }
 
+    // Stream data from disk file if available to prevent V8 RAM memory bloat / Render OOM
+    let dataToSave: Buffer | Readable;
+    if (file.filePath && fs.existsSync(file.filePath)) {
+      if (file.size <= 10 * 1024 * 1024) {
+        dataToSave = fs.readFileSync(file.filePath);
+      } else {
+        dataToSave = fs.createReadStream(file.filePath);
+      }
+    } else {
+      dataToSave = file.buffer || Buffer.alloc(0);
+    }
+
     // Save actual file into storage abstraction
-    const { storageKey, size, checksum } = await storage.save(file.buffer, {
+    const { storageKey, size, checksum } = await storage.save(dataToSave, {
       userId: user.id,
       category: fileType.toLowerCase(),
       originalName: file.originalname,
@@ -77,46 +92,53 @@ export class FileService {
     // If AUDIO, extract metadata and create Music record
     if (fileType === FileType.AUDIO) {
       try {
-        const audioMeta = await extractAudioMetadata(file.buffer, file.originalname, mimeType);
+        const audioBuf =
+          file.filePath && fs.existsSync(file.filePath)
+            ? fs.readFileSync(file.filePath)
+            : file.buffer;
 
-        let coverArtFileId: string | null = null;
-        if (audioMeta.coverArtBuffer && audioMeta.coverArtMime) {
-          const coverStorage = await storage.save(audioMeta.coverArtBuffer, {
-            userId: user.id,
-            category: 'covers',
-            originalName: `${path.parse(file.originalname).name}-cover.jpg`,
-            mimeType: audioMeta.coverArtMime,
-          });
+        if (audioBuf) {
+          const audioMeta = await extractAudioMetadata(audioBuf, file.originalname, mimeType);
 
-          const coverFile = await prisma.file.create({
-            data: {
+          let coverArtFileId: string | null = null;
+          if (audioMeta.coverArtBuffer && audioMeta.coverArtMime) {
+            const coverStorage = await storage.save(audioMeta.coverArtBuffer, {
               userId: user.id,
-              originalName: `${audioMeta.title} Cover`,
-              storageKey: coverStorage.storageKey,
+              category: 'covers',
+              originalName: `${path.parse(file.originalname).name}-cover.jpg`,
               mimeType: audioMeta.coverArtMime,
-              fileType: FileType.IMAGE,
-              extension: '.jpg',
-              size: BigInt(coverStorage.size),
+            });
+
+            const coverFile = await prisma.file.create({
+              data: {
+                userId: user.id,
+                originalName: `${audioMeta.title} Cover`,
+                storageKey: coverStorage.storageKey,
+                mimeType: audioMeta.coverArtMime,
+                fileType: FileType.IMAGE,
+                extension: '.jpg',
+                size: BigInt(coverStorage.size),
+              },
+            });
+            coverArtFileId = coverFile.id;
+          }
+
+          await prisma.music.create({
+            data: {
+              fileId: dbFile.id,
+              title: audioMeta.title,
+              artist: audioMeta.artist,
+              album: audioMeta.album || null,
+              albumArtist: audioMeta.albumArtist || null,
+              genre: audioMeta.genre || null,
+              year: audioMeta.year || null,
+              trackNumber: audioMeta.trackNumber || null,
+              discNumber: audioMeta.discNumber || null,
+              duration: audioMeta.duration,
+              coverArtFileId,
             },
           });
-          coverArtFileId = coverFile.id;
         }
-
-        await prisma.music.create({
-          data: {
-            fileId: dbFile.id,
-            title: audioMeta.title,
-            artist: audioMeta.artist,
-            album: audioMeta.album || null,
-            albumArtist: audioMeta.albumArtist || null,
-            genre: audioMeta.genre || null,
-            year: audioMeta.year || null,
-            trackNumber: audioMeta.trackNumber || null,
-            discNumber: audioMeta.discNumber || null,
-            duration: audioMeta.duration,
-            coverArtFileId,
-          },
-        });
       } catch (err) {
         console.warn(`Failed to process music metadata for file ${dbFile.id}:`, err);
       }
