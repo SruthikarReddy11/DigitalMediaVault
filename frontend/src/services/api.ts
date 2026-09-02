@@ -20,3 +20,20 @@ api.interceptors.response.use(
     return Promise.reject(customError);
   }
 );
+export const getMediaUrl = (url: string | null | undefined): string => {
+  if (!url) return '';
+
+  // Already an absolute URL
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+
+  const baseUrl = (import.meta as any).env?.VITE_API_URL || '/api';
+
+  // VITE_API_URL already ends with /api
+  if (url.startsWith('/api/')) {
+    return `${baseUrl}${url.substring(4)}`;
+  }
+
+  return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+};

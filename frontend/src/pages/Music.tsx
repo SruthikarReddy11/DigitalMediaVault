@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getMediaUrl } from '../services/api';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import {
   Music as MusicIcon,
@@ -330,7 +331,7 @@ export const Music: React.FC = () => {
                       <div className="col-span-5 sm:col-span-4 flex items-center gap-3 min-w-0">
                         <div className="w-9 h-9 rounded-lg bg-slate-800 shrink-0 overflow-hidden flex items-center justify-center border border-slate-800">
                           {song.coverUrl ? (
-                            <img src={song.coverUrl} alt="" className="w-full h-full object-cover" />
+                            <img src={getMediaUrl(song.coverUrl)} alt="" className="w-full h-full object-cover" />
                           ) : (
                             <MusicIcon className="w-4 h-4 text-slate-500" />
                           )}
@@ -435,7 +436,7 @@ export const Music: React.FC = () => {
             >
               <div className="aspect-square w-full rounded-xl bg-slate-950 flex items-center justify-center overflow-hidden mb-3 border border-slate-800">
                 {album.coverUrl ? (
-                  <img src={album.coverUrl} alt="" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                  <img src={getMediaUrl(album.coverUrl)} alt="" className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
                 ) : (
                   <Disc className="w-12 h-12 text-slate-600 group-hover:text-amber-400 transition" />
                 )}
@@ -469,7 +470,7 @@ export const Music: React.FC = () => {
             >
               <div className="w-24 h-24 mx-auto rounded-full bg-slate-950 flex items-center justify-center overflow-hidden mb-3 border-2 border-slate-800 group-hover:border-brand-500 transition">
                 {artist.coverUrl ? (
-                  <img src={artist.coverUrl} alt="" className="w-full h-full object-cover" />
+                  <img src={getMediaUrl(artist.coverUrl)} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <Mic2 className="w-10 h-10 text-brand-400" />
                 )}

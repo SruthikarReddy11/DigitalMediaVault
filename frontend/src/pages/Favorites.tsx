@@ -3,6 +3,7 @@ import { Heart, Play, Download, Trash2, FileText, Image, Video, Music, Sparkles 
 import { favoritesApi } from '../services/favoritesApi';
 import { FileItem } from '../types';
 import { formatBytes, formatDate } from '../utils/formatters';
+import { getMediaUrl } from '../services/api';
 import { FileTypeBadge } from '../components/common/Badge';
 import { FilePreviewModal } from '../components/files/FilePreviewModal';
 import { EmptyState } from '../components/common/EmptyState';
@@ -93,7 +94,7 @@ export const Favorites: React.FC = () => {
                 <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden">
                   {isImg ? (
                     <img
-                      src={file.streamUrl}
+                      src={getMediaUrl(file.streamUrl)}
                       alt=""
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />

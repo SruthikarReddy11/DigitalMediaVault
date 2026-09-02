@@ -21,6 +21,7 @@ import { DashboardStats, FileItem } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useAudioPlayer } from '../contexts/AudioPlayerContext';
 import { formatBytes, formatDate } from '../utils/formatters';
+import { getMediaUrl } from '../services/api';
 import { Skeleton } from '../components/common/Skeleton';
 import { ImageLightbox } from '../components/gallery/ImageLightbox';
 import { FilePreviewModal } from '../components/files/FilePreviewModal';
@@ -262,7 +263,7 @@ export const Dashboard: React.FC = () => {
                   <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden">
                     {isImg ? (
                       <img
-                        src={file.streamUrl}
+                        src={getMediaUrl(file.streamUrl)}
                         alt={file.originalName}
                         className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                       />

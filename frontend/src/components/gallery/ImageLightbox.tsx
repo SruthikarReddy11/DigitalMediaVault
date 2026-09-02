@@ -13,6 +13,8 @@ import {
 } from 'lucide-react';
 import { FileItem } from '../../types';
 import { formatBytes, formatDate } from '../../utils/formatters';
+import { getMediaUrl } from '../../services/api';
+
 
 interface ImageLightboxProps {
   images: FileItem[];
@@ -189,7 +191,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
           style={{ transform: `scale(${zoom})` }}
         >
           <img
-            src={currentImage.streamUrl}
+            src={getMediaUrl(currentImage.streamUrl)}
             alt={currentImage.originalName}
             className="max-h-[80vh] max-w-[90vw] object-contain rounded-lg shadow-2xl"
           />
@@ -257,7 +259,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
                 isSelected ? 'border-brand-500 scale-110 shadow-lg' : 'border-transparent opacity-60 hover:opacity-100'
               }`}
             >
-              <img src={img.streamUrl} alt="" className="w-full h-full object-cover" />
+              <img src={getMediaUrl(img.streamUrl)} alt="" className="w-full h-full object-cover" />
             </button>
           );
         })}

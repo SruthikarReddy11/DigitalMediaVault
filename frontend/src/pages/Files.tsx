@@ -30,6 +30,7 @@ import { foldersApi } from '../services/foldersApi';
 import { favoritesApi } from '../services/favoritesApi';
 import { FileItem, FolderItem, FileType } from '../types';
 import { formatBytes, formatDate } from '../utils/formatters';
+import { getMediaUrl } from '../services/api';
 import { FileTypeBadge } from '../components/common/Badge';
 import { FilePreviewModal } from '../components/files/FilePreviewModal';
 import { MoveFileModal } from '../components/files/MoveFileModal';
@@ -448,7 +449,7 @@ export const Files: React.FC = () => {
                 <div className="aspect-video w-full rounded-xl bg-slate-950 flex items-center justify-center overflow-hidden mb-3 border border-slate-800 relative">
                   {file.fileType === 'IMAGE' ? (
                     <img
-                      src={file.streamUrl}
+                      src={getMediaUrl(file.streamUrl)}
                       alt={file.originalName}
                       className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                     />

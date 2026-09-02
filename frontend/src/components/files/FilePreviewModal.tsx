@@ -3,7 +3,7 @@ import { Modal } from '../common/Modal';
 import { FileItem } from '../../types';
 import { Download, FileText, FileCode, FileSpreadsheet, Eye, ExternalLink } from 'lucide-react';
 import { formatBytes, formatDate } from '../../utils/formatters';
-import { api } from '../../services/api';
+import { api, getMediaUrl } from '../../services/api';
 
 interface FilePreviewModalProps {
   file: FileItem | null;
@@ -36,7 +36,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
     if (isTextOrCode) {
       setLoadingText(true);
-      fetch(file.streamUrl)
+      fetch(getMediaUrl(file.streamUrl))
         .then((res) => res.text())
         .then((text) => {
           setTextContent(text);
@@ -73,25 +73,25 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
         <div className="min-h-[360px] max-h-[65vh] bg-slate-950 border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center p-2">
           {isPdf ? (
             <iframe
-              src={file.streamUrl}
+              src={getMediaUrl(file.streamUrl)}
               title={file.originalName}
               className="w-full h-[60vh] rounded-xl bg-white border-0"
             />
           ) : isImage ? (
             <img
-              src={file.streamUrl}
+              src={getMediaUrl(file.streamUrl)}
               alt={file.originalName}
               className="max-h-[60vh] max-w-full object-contain rounded-xl"
             />
           ) : isVideo ? (
             <video
-              src={file.streamUrl}
+              src={getMediaUrl(file.streamUrl)}
               controls
               className="w-full max-h-[60vh] object-contain rounded-xl"
             />
           ) : isAudio ? (
             <div className="p-8 text-center w-full max-w-md">
-              <audio src={file.streamUrl} controls className="w-full" />
+              <audio src={getMediaUrl(file.streamUrl)} controls className="w-full" />
             </div>
           ) : textContent !== null ? (
             <div className="w-full h-[55vh] overflow-y-auto p-4 bg-slate-950 text-slate-300 font-mono text-xs whitespace-pre-wrap selection:bg-brand-500">

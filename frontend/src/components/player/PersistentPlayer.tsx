@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getMediaUrl } from '../../services/api';
 import {
   Play,
   Pause,
@@ -129,7 +130,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               <div className="relative w-64 h-64 sm:w-80 sm:h-80 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex items-center justify-center">
                 {currentTrack.coverUrl ? (
                   <img
-                    src={currentTrack.coverUrl}
+                    src={getMediaUrl(currentTrack.coverUrl)}
                     alt={currentTrack.title}
                     className="w-full h-full object-cover"
                   />
@@ -392,7 +393,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                   <div className="flex items-center gap-2.5 truncate">
                     <div className="w-7 h-7 rounded bg-slate-800 flex items-center justify-center shrink-0 overflow-hidden">
                       {song.coverUrl ? (
-                        <img src={song.coverUrl} alt="" className="w-full h-full object-cover" />
+                        <img src={getMediaUrl(song.coverUrl)} alt="" className="w-full h-full object-cover" />
                       ) : (
                         <Music className="w-3.5 h-3.5 text-slate-400" />
                       )}
@@ -453,7 +454,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
             >
               {currentTrack.coverUrl ? (
                 <img
-                  src={currentTrack.coverUrl}
+                  src={getMediaUrl(currentTrack.coverUrl)}
                   alt={currentTrack.title}
                   className="w-full h-full object-cover group-hover:scale-105 transition"
                 />

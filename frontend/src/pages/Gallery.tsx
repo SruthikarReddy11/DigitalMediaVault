@@ -17,6 +17,7 @@ import { foldersApi } from '../services/foldersApi';
 import { favoritesApi } from '../services/favoritesApi';
 import { FileItem, FolderItem } from '../types';
 import { formatBytes, formatDate } from '../utils/formatters';
+import { getMediaUrl } from '../services/api';
 import { ImageLightbox } from '../components/gallery/ImageLightbox';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Modal } from '../components/common/Modal';
@@ -229,7 +230,7 @@ export const Gallery: React.FC = () => {
               className="group relative aspect-square bg-slate-900 border border-slate-800 hover:border-brand-500/60 rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-2xl transition-all duration-300"
             >
               <img
-                src={image.streamUrl}
+                src={getMediaUrl(image.streamUrl)}
                 alt={image.originalName}
                 className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                 loading="lazy"

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { MusicItem } from '../types';
+import { getMediaUrl } from '../services/api';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 export type EqualizerPreset = 'flat' | 'bass' | 'vocal' | 'treble' | 'electronic';
@@ -140,7 +141,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
 
-    audioRef.current.src = currentTrack.streamUrl;
+    audioRef.current.src = getMediaUrl(currentTrack.streamUrl);
     audioRef.current.playbackRate = playbackRate;
     audioRef.current.volume = isMuted ? 0 : volume;
 

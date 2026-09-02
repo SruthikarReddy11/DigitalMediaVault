@@ -15,6 +15,7 @@ import { filesApi } from '../services/filesApi';
 import { favoritesApi } from '../services/favoritesApi';
 import { FileItem } from '../types';
 import { formatBytes, formatDate } from '../utils/formatters';
+import { getMediaUrl } from '../services/api';
 import { VideoPlayerModal } from '../components/video/VideoPlayerModal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Modal } from '../components/common/Modal';
@@ -174,7 +175,7 @@ export const Videos: React.FC = () => {
               {/* Thumbnail / Video Preview Canvas */}
               <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden">
                 <video
-                  src={video.streamUrl}
+                  src={getMediaUrl(video.streamUrl)}
                   className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                   preload="metadata"
                 />

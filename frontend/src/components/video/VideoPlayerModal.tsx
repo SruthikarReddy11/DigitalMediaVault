@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { FileItem } from '../../types';
 import { formatDuration, formatBytes } from '../../utils/formatters';
+import { getMediaUrl } from '../../services/api';
 
 interface VideoPlayerModalProps {
   video: FileItem | null;
@@ -149,7 +150,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
         <div className="relative bg-black flex items-center justify-center aspect-video max-h-[70vh]">
           <video
             ref={videoRef}
-            src={video.streamUrl}
+            src={getMediaUrl(video.streamUrl)}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onPlay={() => setIsPlaying(true)}
