@@ -22,7 +22,7 @@ app.use(
         baseUri: ["'self'"],
         fontSrc: ["'self'", 'https:', 'data:'],
         formAction: ["'self'"],
-        frameAncestors: ["'self'"],
+        frameAncestors: ["'self'", "https://digital-media-vault.vercel.app"],
         imgSrc: ["'self'", 'data:', 'blob:', 'http:', 'https:'],
         mediaSrc: ["'self'", 'data:', 'blob:', 'http:', 'https:'],
         objectSrc: ["'none'"],
@@ -36,7 +36,7 @@ app.use(
     crossOriginResourcePolicy: { policy: 'cross-origin' }, // Required for media range streaming
     crossOriginOpenerPolicy: { policy: 'same-origin' },
     dnsPrefetchControl: { allow: false },
-    frameguard: { action: 'sameorigin' },
+    frameguard: false,
     hidePoweredBy: true,
     hsts: {
       maxAge: 31536000,
