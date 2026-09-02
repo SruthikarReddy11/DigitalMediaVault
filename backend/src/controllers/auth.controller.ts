@@ -6,7 +6,7 @@ import { config } from '../config';
 const cookieOptions = {
   httpOnly: true,
   secure: config.isProduction,
-  sameSite: 'lax' as const,
+  sameSite: config.isProduction ? 'none' : 'lax',
   maxAge: config.session.maxAgeDays * 24 * 60 * 60 * 1000,
   path: '/',
 };
