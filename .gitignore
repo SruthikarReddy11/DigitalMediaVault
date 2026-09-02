@@ -14,7 +14,7 @@ build/
 **/build/
 
 # Local/demo uploaded files
-storage/
+/storage/
 backend/storage/
 frontend/storage/
 
@@ -37,3 +37,6 @@ Thumbs.db
 
 # Test coverage
 coverage/
+
+
+**/storage/uploads/
