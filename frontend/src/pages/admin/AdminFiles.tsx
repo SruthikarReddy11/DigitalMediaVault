@@ -20,6 +20,7 @@ import { FilePreviewModal } from '../../components/files/FilePreviewModal';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { filesApi } from '../../services/filesApi';
 import { useToast } from '../../contexts/ToastContext';
+import { getMediaUrl } from '../../services/api';
 
 export const AdminFiles: React.FC = () => {
   const { success, error } = useToast();
@@ -194,7 +195,7 @@ export const AdminFiles: React.FC = () => {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <a
-                    href={file.downloadUrl}
+                    href={getMediaUrl(file.downloadUrl)}
                     download={file.originalName}
                     className="p-1.5 text-slate-400 hover:text-white rounded-lg transition"
                     title="Download"

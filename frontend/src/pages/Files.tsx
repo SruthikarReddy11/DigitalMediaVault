@@ -513,7 +513,7 @@ export const Files: React.FC = () => {
 
                   <div className="flex items-center gap-1">
                     <a
-                      href={file.downloadUrl}
+                      href={getMediaUrl(file.downloadUrl)}
                       download={file.originalName}
                       className="p-1 text-slate-400 hover:text-white rounded transition"
                       title="Download"

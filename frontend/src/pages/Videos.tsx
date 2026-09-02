@@ -230,7 +230,7 @@ export const Videos: React.FC = () => {
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <a
-                    href={video.downloadUrl}
+                    href={getMediaUrl(video.downloadUrl)}
                     download={video.originalName}
                     onClick={(e) => e.stopPropagation()}
                     className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"

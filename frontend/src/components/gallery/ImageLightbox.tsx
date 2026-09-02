@@ -129,7 +129,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
 
           {/* Download */}
           <a
-            href={currentImage.downloadUrl}
+            href={getMediaUrl(currentImage.downloadUrl)}
             download={currentImage.originalName}
             className="p-2 text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl transition"
             title="Download original"

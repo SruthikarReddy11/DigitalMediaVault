@@ -231,6 +231,7 @@ export const Gallery: React.FC = () => {
             >
               <img
                 src={getMediaUrl(image.streamUrl)}
+
                 alt={image.originalName}
                 className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                 loading="lazy"

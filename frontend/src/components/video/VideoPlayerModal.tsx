@@ -129,7 +129,7 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
           <div className="flex items-center gap-2">
             <a
-              href={video.downloadUrl}
+              href={getMediaUrl(video.downloadUrl)}
               download={video.originalName}
               className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
               title="Download"

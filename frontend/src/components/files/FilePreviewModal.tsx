@@ -110,7 +110,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
                 the browser preview. You can download the file directly.
               </p>
               <a
-                href={file.downloadUrl}
+                href={getMediaUrl(file.downloadUrl)}
                 download={file.originalName}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-xl transition shadow-lg shadow-brand-600/20"
               >
@@ -139,7 +139,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           </div>
 
           <a
-            href={file.downloadUrl}
+            href={getMediaUrl(file.downloadUrl)}
             download={file.originalName}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition"
           >
