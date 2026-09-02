@@ -1,5 +1,6 @@
 # Production Dockerfile for Backend
 FROM node:20-alpine AS builder
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
@@ -13,6 +14,7 @@ COPY . .
 RUN npm run build
 
 FROM node:20-alpine AS runner
+RUN apk add --no-cache openssl
 
 WORKDIR /app
 
