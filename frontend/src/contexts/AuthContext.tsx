@@ -39,6 +39,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const res = await authApi.login(data);
+      if (res.token) {
+        localStorage.setItem('pdl_auth_token', res.token);
+      }
       setUser(res.user);
     } finally {
       setIsLoading(false);
@@ -49,6 +52,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setIsLoading(true);
     try {
       const res = await authApi.register(data);
+      if (res.token) {
+        localStorage.setItem('pdl_auth_token', res.token);
+      }
       setUser(res.user);
     } finally {
       setIsLoading(false);
@@ -59,6 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await authApi.logout();
     } finally {
+      localStorage.removeItem('pdl_auth_token');
       setUser(null);
     }
   };

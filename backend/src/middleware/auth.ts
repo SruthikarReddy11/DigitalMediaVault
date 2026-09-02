@@ -21,6 +21,10 @@ export async function authenticateToken(
       }
     }
 
+    if (!token && req.query?.token) {
+      token = String(req.query.token);
+    }
+
     if (!token) {
       return next();
     }

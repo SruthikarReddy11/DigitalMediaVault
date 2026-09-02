@@ -8,6 +8,14 @@ export const api = axios.create({
   },
 });
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('pdl_auth_token');
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
 api.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -20,20 +28,28 @@ api.interceptors.response.use(
     return Promise.reject(customError);
   }
 );
+
 export const getMediaUrl = (url: string | null | undefined): string => {
   if (!url) return '';
 
-  // Already an absolute URL
-  if (url.startsWith('http://') || url.startsWith('https://')) {
-    return url;
+  let fullUrl = url;
+
+  // If not already an absolute URL, prepend base API URL
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    const baseUrl = (import.meta as any).env?.VITE_API_URL || '/api';
+    if (url.startsWith('/api/')) {
+      fullUrl = `${baseUrl}${url.substring(4)}`;
+    } else {
+      fullUrl = `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+    }
   }
 
-  const baseUrl = (import.meta as any).env?.VITE_API_URL || '/api';
-
-  // VITE_API_URL already ends with /api
-  if (url.startsWith('/api/')) {
-    return `${baseUrl}${url.substring(4)}`;
+  // Attach token for cross-device & mobile 3rd-party cookie restriction bypass
+  const token = localStorage.getItem('pdl_auth_token');
+  if (token && !fullUrl.includes('token=')) {
+    const separator = fullUrl.includes('?') ? '&' : '?';
+    return `${fullUrl}${separator}token=${encodeURIComponent(token)}`;
   }
 
-  return `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+  return fullUrl;
 };
