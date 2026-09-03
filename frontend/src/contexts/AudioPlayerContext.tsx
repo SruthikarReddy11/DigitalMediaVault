@@ -3,7 +3,10 @@ import { MusicItem } from '../types';
 import { getMediaUrl } from '../services/api';
 
 export type RepeatMode = 'off' | 'all' | 'one';
-export type EqualizerPreset = 'flat' | 'bass' | 'vocal' | 'treble' | 'electronic';
+export type EqualizerPreset = 'flat' | 'bass' | 'vocal' | 'treble' | 'electronic' | 'pop' | 'rock' | 'custom';
+
+// 5 Equalizer Frequency Bands (Hz): 60, 230, 910, 3600, 14000
+export type EqGains = [number, number, number, number, number];
 
 interface AudioPlayerContextType {
   currentTrack: MusicItem | null;
@@ -20,6 +23,7 @@ interface AudioPlayerContextType {
   isPlayerOpen: boolean;
   isExpanded: boolean;
   equalizerPreset: EqualizerPreset;
+  eqGains: EqGains;
   sleepTimerMinutes: number | null;
   sleepTimerSeconds: number | null;
   play: () => void;
@@ -39,10 +43,23 @@ interface AudioPlayerContextType {
   setIsPlayerOpen: (open: boolean) => void;
   setIsExpanded: (expanded: boolean) => void;
   setEqualizerPreset: (preset: EqualizerPreset) => void;
+  setEqBandGain: (index: number, gainDb: number) => void;
   setSleepTimer: (mins: number | null) => void;
   removeQueueItem: (index: number) => void;
   clearQueue: () => void;
 }
+
+const PRESET_GAINS: Record<Exclude<EqualizerPreset, 'custom'>, EqGains> = {
+  flat: [0, 0, 0, 0, 0],
+  bass: [8, 5, 0, -2, -4],
+  vocal: [-3, 1, 6, 4, 1],
+  treble: [-4, -2, 0, 5, 8],
+  electronic: [6, 3, -1, 4, 6],
+  pop: [-1, 2, 5, 3, -2],
+  rock: [5, 3, -1, 3, 6],
+};
+
+const FREQUENCIES = [60, 230, 910, 3600, 14000];
 
 const AudioPlayerContext = createContext<AudioPlayerContextType | undefined>(undefined);
 
@@ -60,18 +77,25 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [isShuffle, setIsShuffle] = useState<boolean>(false);
   const [isPlayerOpen, setIsPlayerOpen] = useState<boolean>(true);
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
-  const [equalizerPreset, setEqualizerPreset] = useState<EqualizerPreset>('flat');
+
+  // Equalizer State
+  const [equalizerPreset, setEqualizerPresetState] = useState<EqualizerPreset>('flat');
+  const [eqGains, setEqGains] = useState<EqGains>([0, 0, 0, 0, 0]);
 
   // Sleep Timer state
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState<number | null>(null);
   const [sleepTimerSeconds, setSleepTimerSeconds] = useState<number | null>(null);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const filtersRef = useRef<BiquadFilterNode[]>([]);
+  const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
 
-  // Initialize HTML5 Audio element once
+  // Initialize HTML5 Audio element & Web Audio Equalizer Nodes
   useEffect(() => {
     const audio = new Audio();
     audio.preload = 'metadata';
+    audio.crossOrigin = 'anonymous';
     audioRef.current = audio;
 
     const handleTimeUpdate = () => {
@@ -110,6 +134,77 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
   }, []);
 
+  // Lazy initialize Web Audio API Equalizer Graph on first play gesture
+  const initWebAudio = () => {
+    if (!audioRef.current || audioCtxRef.current) return;
+
+    try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      const ctx = new AudioCtx();
+      audioCtxRef.current = ctx;
+
+      const filters = FREQUENCIES.map((freq, i) => {
+        const filter = ctx.createBiquadFilter();
+        if (i === 0) {
+          filter.type = 'lowshelf';
+        } else if (i === FREQUENCIES.length - 1) {
+          filter.type = 'highshelf';
+        } else {
+          filter.type = 'peaking';
+          filter.Q.value = 1.0;
+        }
+        filter.frequency.value = freq;
+        filter.gain.value = eqGains[i];
+        return filter;
+      });
+
+      filtersRef.current = filters;
+
+      // Connect HTML5 Audio -> Filter 0 -> Filter 1 -> Filter 2 -> Filter 3 -> Filter 4 -> Speakers
+      const source = ctx.createMediaElementSource(audioRef.current);
+      sourceNodeRef.current = source;
+
+      let current: AudioNode = source;
+      for (const filter of filters) {
+        current.connect(filter);
+        current = filter;
+      }
+      current.connect(ctx.destination);
+    } catch (err) {
+      console.warn('Web Audio API Equalizer initialization warning:', err);
+    }
+  };
+
+  // Sync EQ gains with Web Audio BiquadFilterNodes
+  useEffect(() => {
+    if (filtersRef.current.length === 5) {
+      filtersRef.current.forEach((filter, i) => {
+        if (filter) {
+          filter.gain.setTargetAtTime(eqGains[i], audioCtxRef.current?.currentTime || 0, 0.05);
+        }
+      });
+    }
+  }, [eqGains]);
+
+  const setEqualizerPreset = (preset: EqualizerPreset) => {
+    setEqualizerPresetState(preset);
+    if (preset !== 'custom' && PRESET_GAINS[preset]) {
+      setEqGains(PRESET_GAINS[preset]);
+    }
+  };
+
+  const setEqBandGain = (index: number, gainDb: number) => {
+    const clampedGain = Math.max(-12, Math.min(12, gainDb));
+    setEqGains((prev) => {
+      const next = [...prev] as EqGains;
+      next[index] = clampedGain;
+      return next;
+    });
+    setEqualizerPresetState('custom');
+  };
+
   // Sleep Timer interval countdown
   useEffect(() => {
     if (sleepTimerSeconds === null) return;
@@ -145,6 +240,10 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     audioRef.current.playbackRate = playbackRate;
     audioRef.current.volume = isMuted ? 0 : volume;
 
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
+
     audioRef.current.play().catch((err) => {
       console.warn('Playback error or autoplay prevented:', err);
       setIsPlaying(false);
@@ -152,6 +251,10 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   }, [currentTrack]);
 
   const play = () => {
+    initWebAudio();
+    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+      audioCtxRef.current.resume();
+    }
     if (audioRef.current && currentTrack) {
       audioRef.current.play().catch(() => {});
     }
@@ -172,6 +275,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   };
 
   const playSongNow = (song: MusicItem, newQueue?: MusicItem[]) => {
+    initWebAudio();
     if (newQueue && newQueue.length > 0) {
       setQueue(newQueue);
       const idx = newQueue.findIndex((s) => s.id === song.id);
@@ -190,6 +294,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
 
   const playPlaylistNow = (songs: MusicItem[], startIndex = 0) => {
     if (!songs || songs.length === 0) return;
+    initWebAudio();
     setQueue(songs);
     setQueueIndex(startIndex);
     setCurrentTrack(songs[startIndex]);
@@ -350,6 +455,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         isPlayerOpen,
         isExpanded,
         equalizerPreset,
+        eqGains,
         sleepTimerMinutes,
         sleepTimerSeconds,
         play,
@@ -369,6 +475,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         setIsPlayerOpen,
         setIsExpanded,
         setEqualizerPreset,
+        setEqBandGain,
         setSleepTimer,
         removeQueueItem,
         clearQueue,

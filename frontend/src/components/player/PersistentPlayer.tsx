@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { getMediaUrl } from '../../services/api';
 import {
   Play,
@@ -21,8 +21,8 @@ import {
   Moon,
   Sliders,
   Sparkles,
-  Radio,
   Disc,
+  RotateCcw,
 } from 'lucide-react';
 import { useAudioPlayer, EqualizerPreset } from '../../contexts/AudioPlayerContext';
 import { formatDuration } from '../../utils/formatters';
@@ -44,6 +44,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
     isShuffle,
     isExpanded,
     equalizerPreset,
+    eqGains,
     sleepTimerMinutes,
     sleepTimerSeconds,
     togglePlay,
@@ -57,6 +58,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
     cycleRepeatMode,
     setIsExpanded,
     setEqualizerPreset,
+    setEqBandGain,
     setSleepTimer,
     removeQueueItem,
     clearQueue,
@@ -76,7 +78,17 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
     { id: 'bass', label: 'Bass Boost', desc: 'Punchy low frequencies' },
     { id: 'vocal', label: 'Vocal Clarity', desc: 'Enhanced vocal presence' },
     { id: 'treble', label: 'Treble Boost', desc: 'Crisp highs & cymbals' },
-    { id: 'electronic', label: 'Electronic / Synth', desc: 'Dynamic energetic curve' },
+    { id: 'electronic', label: 'Electronic', desc: 'Dynamic energetic synth curve' },
+    { id: 'pop', label: 'Pop', desc: 'Upbeat vocal & acoustic curve' },
+    { id: 'rock', label: 'Rock', desc: 'Driven low & high frequency boost' },
+  ];
+
+  const bandLabels = [
+    { name: 'Sub-Bass', freq: '60 Hz' },
+    { name: 'Bass', freq: '230 Hz' },
+    { name: 'Midrange', freq: '910 Hz' },
+    { name: 'Upper-Mid', freq: '3.6 kHz' },
+    { name: 'Treble', freq: '14 kHz' },
   ];
 
   const sleepOptions = [
@@ -98,7 +110,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
     <>
       {/* 1. Fullscreen / Expanded Visualizer Overlay Modal */}
       {isExpanded && (
-        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col justify-between p-6 sm:p-10 animate-in fade-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-8 animate-in fade-in zoom-in-95 duration-200 overflow-y-auto">
           {/* Top Bar */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -107,8 +119,8 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                 Now Playing • Lossless
               </span>
               {equalizerPreset !== 'flat' && (
-                <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-medium border border-amber-500/30">
-                  EQ: {equalizerPreset.toUpperCase()}
+                <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-medium border border-amber-500/30 uppercase">
+                  EQ: {equalizerPreset}
                 </span>
               )}
             </div>
@@ -123,11 +135,11 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
           </div>
 
           {/* Center: Album Artwork & Animated Soundwave */}
-          <div className="flex flex-col items-center justify-center my-auto max-w-lg mx-auto w-full text-center space-y-6">
+          <div className="flex flex-col items-center justify-center my-auto max-w-lg mx-auto w-full text-center space-y-6 py-4">
             {/* Vinyl / Cover Art Glow */}
             <div className="relative group">
               <div className="absolute -inset-4 bg-gradient-to-tr from-brand-600/30 via-indigo-600/30 to-amber-600/30 rounded-3xl blur-2xl opacity-75 group-hover:opacity-100 transition duration-500" />
-              <div className="relative w-64 h-64 sm:w-80 sm:h-80 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex items-center justify-center">
+              <div className="relative w-56 h-56 sm:w-80 sm:h-80 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex items-center justify-center">
                 {currentTrack.coverUrl ? (
                   <img
                     src={getMediaUrl(currentTrack.coverUrl)}
@@ -135,28 +147,28 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <Disc className={`w-32 h-32 text-slate-700 ${isPlaying ? 'animate-spin [animation-duration:8s]' : ''}`} />
+                  <Disc className={`w-28 h-28 sm:w-32 sm:h-32 text-slate-700 ${isPlaying ? 'animate-spin [animation-duration:8s]' : ''}`} />
                 )}
               </div>
             </div>
 
             {/* Track Info */}
-            <div className="space-y-1 w-full">
-              <h2 className="text-2xl sm:text-3xl font-bold text-white truncate">
+            <div className="space-y-1 w-full px-2">
+              <h2 className="text-xl sm:text-3xl font-bold text-white truncate">
                 {currentTrack.title}
               </h2>
-              <p className="text-base text-slate-400 truncate font-medium">
+              <p className="text-sm sm:text-base text-slate-400 truncate font-medium">
                 {currentTrack.artist} {currentTrack.album ? `— ${currentTrack.album}` : ''}
               </p>
               {currentTrack.genre && (
-                <p className="text-xs text-brand-400 font-semibold tracking-wide uppercase mt-1">
+                <p className="text-[11px] sm:text-xs text-brand-400 font-semibold tracking-wide uppercase mt-1">
                   {currentTrack.genre} {currentTrack.year ? `• ${currentTrack.year}` : ''}
                 </p>
               )}
             </div>
 
             {/* Live Audio Visualizer Bars Simulation */}
-            <div className="flex items-center justify-center gap-1.5 h-10 w-full px-4">
+            <div className="flex items-center justify-center gap-1 sm:gap-1.5 h-10 w-full px-4">
               {[40, 75, 55, 90, 60, 100, 70, 85, 45, 95, 65, 80, 50, 90, 70, 40].map((h, i) => (
                 <span
                   key={i}
@@ -195,7 +207,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
             </div>
 
             {/* Expanded Controls */}
-            <div className="flex items-center justify-center gap-6 pt-2">
+            <div className="flex items-center justify-center gap-4 sm:gap-6 pt-2">
               <button
                 onClick={toggleShuffle}
                 className={`p-2 rounded-xl transition ${
@@ -254,7 +266,8 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
 
           {/* Bottom Keyboard Hint */}
           <div className="flex items-center justify-between text-xs text-slate-500 border-t border-slate-900 pt-4">
-            <p>Shortcuts: [Space] Play/Pause • [N] Next • [P] Prev • [M] Mute • [Shift+Left/Right] Seek</p>
+            <p className="hidden sm:block">Shortcuts: [Space] Play/Pause • [N] Next • [P] Prev • [M] Mute • [Shift+Left/Right] Seek</p>
+            <p className="sm:hidden">Swipe or tap controls to play</p>
             {sleepTimerSeconds !== null && (
               <span className="text-amber-400 font-mono flex items-center gap-1.5">
                 <Moon className="w-3.5 h-3.5" />
@@ -267,7 +280,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
 
       {/* 2. Floating Sleep Timer Modal / Popover */}
       {isSleepTimerOpen && (
-        <div className="fixed bottom-24 right-16 sm:right-24 z-40 w-64 bg-slate-900/95 border border-slate-800 backdrop-blur-xl rounded-2xl shadow-2xl p-3 animate-in slide-in-from-bottom-3 duration-150">
+        <div className="fixed bottom-24 left-4 right-4 sm:left-auto sm:right-24 z-40 w-auto sm:w-64 bg-slate-900/95 border border-slate-800 backdrop-blur-xl rounded-2xl shadow-2xl p-3.5 animate-in slide-in-from-bottom-3 duration-150">
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
             <span className="text-xs font-bold text-white flex items-center gap-1.5">
               <Moon className="w-3.5 h-3.5 text-amber-400" />
@@ -291,7 +304,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                     setSleepTimer(opt.value);
                     setIsSleepTimerOpen(false);
                   }}
-                  className={`w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-medium transition ${
                     isSelected
                       ? 'bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30'
                       : 'hover:bg-slate-800 text-slate-300'
@@ -310,41 +323,95 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
         </div>
       )}
 
-      {/* 3. Floating Equalizer Popover */}
+      {/* 3. Floating 5-Band Web Audio Equalizer Popover */}
       {isEqOpen && (
-        <div className="fixed bottom-24 right-28 sm:right-44 z-40 w-72 bg-slate-900/95 border border-slate-800 backdrop-blur-xl rounded-2xl shadow-2xl p-3 animate-in slide-in-from-bottom-3 duration-150">
-          <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
-            <span className="text-xs font-bold text-white flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-brand-400" />
-              Sound Equalizer Presets
-            </span>
-            <button onClick={() => setIsEqOpen(false)} className="text-slate-400 hover:text-white p-1">
-              <X className="w-3.5 h-3.5" />
-            </button>
+        <div className="fixed bottom-24 left-4 right-4 sm:left-auto sm:right-24 z-40 max-w-sm sm:w-96 bg-slate-900/95 border border-slate-800 backdrop-blur-2xl rounded-3xl shadow-2xl p-4 animate-in slide-in-from-bottom-3 duration-150">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div>
+              <span className="text-xs font-extrabold text-white flex items-center gap-1.5">
+                <Sliders className="w-4 h-4 text-brand-400" />
+                5-Band Web Audio Equalizer
+              </span>
+              <p className="text-[10px] text-slate-400">Real-time BiquadFilter frequency shaping</p>
+            </div>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => setEqualizerPreset('flat')}
+                className="p-1 text-[11px] text-slate-400 hover:text-white transition flex items-center gap-1"
+                title="Reset to Flat"
+              >
+                <RotateCcw className="w-3 h-3" />
+                Reset
+              </button>
+              <button onClick={() => setIsEqOpen(false)} className="text-slate-400 hover:text-white p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
-          <div className="space-y-1.5">
-            {eqPresets.map((preset) => {
-              const isSelected = equalizerPreset === preset.id;
+          {/* Equalizer Presets Pills */}
+          <div className="py-3 border-b border-slate-800/80">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block mb-2">
+              Presets
+            </span>
+            <div className="flex flex-wrap gap-1.5">
+              {eqPresets.map((preset) => {
+                const isSelected = equalizerPreset === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => setEqualizerPreset(preset.id)}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-semibold transition ${
+                      isSelected
+                        ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30 border border-brand-500'
+                        : 'bg-slate-950 hover:bg-slate-800 text-slate-300 border border-slate-800'
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 5-Band Interactive Frequency Sliders */}
+          <div className="pt-3 space-y-2.5">
+            <div className="flex items-center justify-between text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
+              <span>Bands</span>
+              <span>Gain (dB)</span>
+            </div>
+
+            {bandLabels.map((band, idx) => {
+              const gainVal = eqGains[idx];
               return (
-                <button
-                  key={preset.id}
-                  onClick={() => {
-                    setEqualizerPreset(preset.id);
-                    setIsEqOpen(false);
-                  }}
-                  className={`w-full text-left p-2 rounded-xl transition ${
-                    isSelected
-                      ? 'bg-brand-600/20 text-brand-300 border border-brand-500/30'
-                      : 'hover:bg-slate-800 text-slate-300'
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold">{preset.label}</span>
-                    {isSelected && <span className="text-[10px] bg-brand-500 text-white px-1.5 py-0.2 rounded font-mono">Active</span>}
+                <div key={band.freq} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-semibold text-slate-200">
+                      {band.name} <span className="text-[10px] text-slate-400 font-mono">({band.freq})</span>
+                    </span>
+                    <span
+                      className={`font-mono text-xs font-bold ${
+                        gainVal > 0
+                          ? 'text-emerald-400'
+                          : gainVal < 0
+                          ? 'text-amber-400'
+                          : 'text-slate-400'
+                      }`}
+                    >
+                      {gainVal > 0 ? `+${gainVal}` : gainVal} dB
+                    </span>
                   </div>
-                  <p className="text-[10px] text-slate-400 mt-0.5">{preset.desc}</p>
-                </button>
+
+                  <input
+                    type="range"
+                    min="-12"
+                    max="12"
+                    step="1"
+                    value={gainVal}
+                    onChange={(e) => setEqBandGain(idx, parseFloat(e.target.value))}
+                    className="w-full h-1.5 bg-slate-950 accent-brand-500 rounded-lg cursor-pointer"
+                  />
+                </div>
               );
             })}
           </div>
@@ -353,7 +420,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
 
       {/* 4. Floating Queue Drawer */}
       {isQueueOpen && (
-        <div className="fixed bottom-24 right-4 sm:right-6 z-40 w-80 sm:w-96 bg-slate-900/95 border border-slate-800 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-24 left-4 right-4 sm:left-auto sm:right-6 z-40 w-auto sm:w-96 bg-slate-900/95 border border-slate-800 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-800 bg-slate-950/60">
             <div className="flex items-center gap-2">
               <ListMusic className="w-4 h-4 text-brand-400" />
@@ -413,7 +480,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                         e.stopPropagation();
                         removeQueueItem(idx);
                       }}
-                      className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-rose-400 transition"
+                      className="p-1 text-slate-400 hover:text-rose-400 transition"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -425,8 +492,8 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
         </div>
       )}
 
-      {/* 5. Persistent Bottom Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 px-4 sm:px-6 py-2.5 shadow-2xl">
+      {/* 5. Persistent Bottom Bar (Mobile Responsive) */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 px-3 sm:px-6 py-2.5 shadow-2xl">
         {/* Progress Bar (Clickable) */}
         <div
           className="group relative w-full h-1.5 bg-slate-800 rounded-full cursor-pointer -mt-3 mb-2"
@@ -440,16 +507,16 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
             className="bg-brand-500 group-hover:bg-brand-400 h-full rounded-full transition-all relative"
             style={{ width: `${progressPercent}%` }}
           >
-            <div className="opacity-0 group-hover:opacity-100 absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow transition" />
+            <div className="opacity-100 sm:opacity-0 group-hover:opacity-100 absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow transition" />
           </div>
         </div>
 
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center justify-between gap-2 sm:gap-4">
           {/* Left: Track Info & Cover */}
-          <div className="flex items-center gap-3 min-w-0 max-w-[30%] sm:max-w-xs">
+          <div className="flex items-center gap-2.5 min-w-0 max-w-[45%] sm:max-w-xs">
             <div
               onClick={() => setIsExpanded(true)}
-              className="relative w-11 h-11 rounded-xl bg-slate-900 border border-slate-800 shrink-0 overflow-hidden shadow-md flex items-center justify-center cursor-pointer group"
+              className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-900 border border-slate-800 shrink-0 overflow-hidden shadow-md flex items-center justify-center cursor-pointer group"
               title="Expand player"
             >
               {currentTrack.coverUrl ? (
@@ -471,10 +538,10 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
             </div>
 
             <div className="min-w-0 cursor-pointer" onClick={() => setIsExpanded(true)}>
-              <h4 className="text-sm font-semibold text-white truncate leading-tight hover:text-brand-300 transition">
+              <h4 className="text-xs sm:text-sm font-semibold text-white truncate leading-tight hover:text-brand-300 transition">
                 {currentTrack.title}
               </h4>
-              <p className="text-xs text-slate-400 truncate mt-0.5">
+              <p className="text-[10px] sm:text-xs text-slate-400 truncate mt-0.5">
                 {currentTrack.artist} {currentTrack.album ? `• ${currentTrack.album}` : ''}
               </p>
             </div>
@@ -482,7 +549,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
             {onAddToPlaylist && (
               <button
                 onClick={() => onAddToPlaylist(currentTrack.id)}
-                className="hidden sm:inline-flex p-1.5 text-slate-400 hover:text-brand-400 hover:bg-slate-900 rounded-lg transition"
+                className="hidden md:inline-flex p-1.5 text-slate-400 hover:text-brand-400 hover:bg-slate-900 rounded-lg transition"
                 title="Add to playlist"
               >
                 <Plus className="w-4 h-4" />
@@ -491,8 +558,8 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
           </div>
 
           {/* Center: Main Playback Controls */}
-          <div className="flex flex-col items-center gap-1">
-            <div className="flex items-center gap-2 sm:gap-4">
+          <div className="flex flex-col items-center gap-0.5">
+            <div className="flex items-center gap-1.5 sm:gap-4">
               {/* Shuffle */}
               <button
                 onClick={toggleShuffle}
@@ -501,38 +568,38 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                 }`}
                 title={isShuffle ? 'Shuffle on' : 'Shuffle off'}
               >
-                <Shuffle className="w-4 h-4" />
+                <Shuffle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               </button>
 
               {/* Prev */}
               <button
                 onClick={prevTrack}
-                className="p-1.5 text-slate-300 hover:text-white transition active:scale-95"
+                className="p-1 sm:p-1.5 text-slate-300 hover:text-white transition active:scale-95"
                 title="Previous track (P)"
               >
-                <SkipBack className="w-5 h-5 fill-current" />
+                <SkipBack className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
               </button>
 
               {/* Play / Pause */}
               <button
                 onClick={togglePlay}
-                className="p-2.5 bg-brand-500 hover:bg-brand-400 text-white rounded-full transition shadow-lg shadow-brand-500/30 active:scale-95"
+                className="p-2 sm:p-2.5 bg-brand-500 hover:bg-brand-400 text-white rounded-full transition shadow-lg shadow-brand-500/30 active:scale-95"
                 title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
               >
                 {isPlaying ? (
-                  <Pause className="w-5 h-5 fill-current" />
+                  <Pause className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
                 ) : (
-                  <Play className="w-5 h-5 fill-current ml-0.5" />
+                  <Play className="w-4 h-4 sm:w-5 sm:h-5 fill-current ml-0.5" />
                 )}
               </button>
 
               {/* Next */}
               <button
                 onClick={nextTrack}
-                className="p-1.5 text-slate-300 hover:text-white transition active:scale-95"
+                className="p-1 sm:p-1.5 text-slate-300 hover:text-white transition active:scale-95"
                 title="Next track (N)"
               >
-                <SkipForward className="w-5 h-5 fill-current" />
+                <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
               </button>
 
               {/* Repeat Mode */}
@@ -546,9 +613,9 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                 title={`Repeat mode: ${repeatMode}`}
               >
                 {repeatMode === 'one' ? (
-                  <Repeat1 className="w-4 h-4" />
+                  <Repeat1 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 ) : (
-                  <Repeat className="w-4 h-4" />
+                  <Repeat className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                 )}
               </button>
             </div>
@@ -562,7 +629,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
           </div>
 
           {/* Right: Sound EQ, Sleep Timer, Volume, Queue & Expand */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3">
             {/* Equalizer Button */}
             <button
               onClick={() => {
@@ -576,7 +643,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               }`}
               title="Sound Equalizer"
             >
-              <Sliders className="w-4 h-4" />
+              <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
 
             {/* Sleep Timer Button */}
@@ -592,7 +659,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               }`}
               title="Sleep Timer"
             >
-              <Moon className="w-4 h-4" />
+              <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
               {sleepTimerSeconds !== null && (
                 <span className="font-mono text-[10px] hidden md:inline">
                   {formatSleepTimer(sleepTimerSeconds)}
@@ -642,23 +709,23 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                 setIsSleepTimerOpen(false);
                 setIsEqOpen(false);
               }}
-              className={`p-2 rounded-xl border transition ${
+              className={`p-1.5 sm:p-2 rounded-xl border transition ${
                 isQueueOpen
                   ? 'bg-brand-600 text-white border-brand-500'
                   : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800'
               }`}
               title="View Queue"
             >
-              <ListMusic className="w-4 h-4" />
+              <ListMusic className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
 
             {/* Expand Fullscreen Button */}
             <button
               onClick={() => setIsExpanded(true)}
-              className="hidden sm:inline-flex p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-slate-800 transition"
+              className="p-1.5 sm:p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-slate-800 transition"
               title="Fullscreen Visualizer"
             >
-              <Maximize2 className="w-4 h-4" />
+              <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
             </button>
           </div>
         </div>

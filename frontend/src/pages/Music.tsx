@@ -19,6 +19,10 @@ import {
   MoreVertical,
   Trash2,
   Clock,
+  Sliders,
+  Sparkles,
+  RotateCcw,
+  Volume2,
 } from 'lucide-react';
 import { musicApi } from '../services/musicApi';
 import { playlistsApi } from '../services/playlistsApi';
@@ -26,20 +30,30 @@ import { favoritesApi } from '../services/favoritesApi';
 import { filesApi } from '../services/filesApi';
 import { MusicItem, PlaylistItem } from '../types';
 import { formatDuration } from '../utils/formatters';
-import { useAudioPlayer } from '../contexts/AudioPlayerContext';
+import { useAudioPlayer, EqualizerPreset } from '../contexts/AudioPlayerContext';
 import { MetadataEditModal } from '../components/music/MetadataEditModal';
 import { AddToPlaylistModal } from '../components/music/AddToPlaylistModal';
 import { Modal } from '../components/common/Modal';
 import { EmptyState } from '../components/common/EmptyState';
 import { useToast } from '../contexts/ToastContext';
 
-type Tab = 'songs' | 'albums' | 'artists' | 'genres' | 'playlists';
+type Tab = 'songs' | 'albums' | 'artists' | 'genres' | 'playlists' | 'equalizer';
 
 export const Music: React.FC = () => {
   const { success, error } = useToast();
   const navigate = useNavigate();
-  const { currentTrack, isPlaying, playSongNow, playPlaylistNow, addToQueue, togglePlay } =
-    useAudioPlayer();
+  const {
+    currentTrack,
+    isPlaying,
+    playSongNow,
+    playPlaylistNow,
+    addToQueue,
+    togglePlay,
+    equalizerPreset,
+    setEqualizerPreset,
+    eqGains,
+    setEqBandGain,
+  } = useAudioPlayer();
   const { openUpload } = useOutletContext<{ openUpload: () => void }>() || { openUpload: () => {} };
 
   const [activeTab, setActiveTab] = useState<Tab>('songs');
@@ -193,13 +207,19 @@ export const Music: React.FC = () => {
       </div>
 
       {/* Tabs Bar */}
-      <div className="flex items-center gap-2 border-b border-slate-800 pb-1 overflow-x-auto">
+      <div className="flex items-center gap-2 border-b border-slate-800 pb-1 overflow-x-auto scrollbar-none">
         {[
           { id: 'songs', label: 'All Songs', icon: MusicIcon, count: songs.length },
           { id: 'albums', label: 'Albums', icon: Disc, count: albums.length },
           { id: 'artists', label: 'Artists', icon: Mic2, count: artists.length },
           { id: 'genres', label: 'Genres', icon: Radio, count: genres.length },
           { id: 'playlists', label: 'Playlists', icon: ListMusic, count: playlists.length },
+          {
+            id: 'equalizer',
+            label: 'Equalizer',
+            icon: Sliders,
+            badge: equalizerPreset !== 'flat' ? equalizerPreset.toUpperCase() : 'DSP',
+          },
         ].map((tab) => {
           const Icon = tab.icon;
           const isActive = activeTab === tab.id;
@@ -216,11 +236,11 @@ export const Music: React.FC = () => {
               <Icon className="w-4 h-4" />
               <span>{tab.label}</span>
               <span
-                className={`text-xs px-1.5 py-0.2 rounded-full font-mono ${
+                className={`text-xs px-2 py-0.5 rounded-full font-mono ${
                   isActive ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-400'
                 }`}
               >
-                {tab.count}
+                {tab.count !== undefined ? tab.count : tab.badge}
               </span>
             </button>
           );
@@ -552,6 +572,196 @@ export const Music: React.FC = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 6. Equalizer Studio Tab */}
+      {activeTab === 'equalizer' && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          {/* Header Card */}
+          <div className="p-6 bg-gradient-to-r from-slate-900 via-slate-900 to-brand-950/40 border border-slate-800 rounded-3xl shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <span className="p-2 rounded-xl bg-brand-500/20 text-brand-400 border border-brand-500/30">
+                  <Sliders className="w-5 h-5" />
+                </span>
+                <h2 className="text-xl font-bold text-white tracking-tight">Studio Sound Equalizer</h2>
+                <span className="px-2.5 py-0.5 rounded-full bg-brand-500/10 text-brand-300 text-xs font-semibold border border-brand-500/20">
+                  Web Audio API DSP
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 max-w-xl">
+                Real-time 5-Band Biquad Filter processing applied directly to browser audio output. Adjust frequency gains or select studio presets.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setEqualizerPreset('flat')}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold rounded-xl transition border border-slate-700/60"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                Reset Flat
+              </button>
+            </div>
+          </div>
+
+          {/* Equalizer Presets Rack */}
+          <div className="p-6 bg-slate-900/80 border border-slate-800 rounded-3xl shadow-xl space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-brand-400" />
+                Equalizer Sound Profiles
+              </h3>
+              <span className="text-xs font-mono font-bold text-brand-300">
+                ACTIVE: {equalizerPreset.toUpperCase()}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+              {[
+                { id: 'flat', label: 'Flat', desc: 'Natural audio curve' },
+                { id: 'bass', label: 'Bass Boost', desc: 'Sub & low-end impact' },
+                { id: 'vocal', label: 'Vocal Clarity', desc: 'Crisp speech & lyrics' },
+                { id: 'treble', label: 'Treble Boost', desc: 'Bright highs & cymbals' },
+                { id: 'electronic', label: 'Electronic', desc: 'Dynamic synth curve' },
+                { id: 'pop', label: 'Pop', desc: 'Upbeat acoustic curve' },
+                { id: 'rock', label: 'Rock', desc: 'Punchy low & high boost' },
+              ].map((preset) => {
+                const isSelected = equalizerPreset === preset.id;
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => setEqualizerPreset(preset.id as EqualizerPreset)}
+                    className={`p-3 rounded-2xl text-left border transition-all ${
+                      isSelected
+                        ? 'bg-brand-600/20 text-brand-300 border-brand-500/50 shadow-lg shadow-brand-600/10 scale-[1.02]'
+                        : 'bg-slate-950/60 hover:bg-slate-800/80 text-slate-300 border-slate-800/80'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-xs font-bold">{preset.label}</span>
+                      {isSelected && <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse" />}
+                    </div>
+                    <p className="text-[10px] text-slate-400 line-clamp-1">{preset.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 5-Band Interactive Graphical Equalizer */}
+          <div className="p-6 bg-slate-900/80 border border-slate-800 rounded-3xl shadow-xl space-y-6">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-white">5-Band Parametric Frequency Sliders</h3>
+                <p className="text-xs text-slate-400">Low-shelf, 3 peaking filters, and high-shelf from 60 Hz to 14 kHz</p>
+              </div>
+              <span className="text-xs font-mono font-medium text-slate-400">Scale: -12 dB to +12 dB</span>
+            </div>
+
+            {/* Faders */}
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-6 sm:gap-4 pt-2">
+              {[
+                { name: 'Sub-Bass', freq: '60 Hz', type: 'Lowshelf', idx: 0 },
+                { name: 'Bass', freq: '230 Hz', type: 'Peaking', idx: 1 },
+                { name: 'Midrange', freq: '910 Hz', type: 'Peaking', idx: 2 },
+                { name: 'Upper-Mid', freq: '3.6 kHz', type: 'Peaking', idx: 3 },
+                { name: 'Treble', freq: '14 kHz', type: 'Highshelf', idx: 4 },
+              ].map((band) => {
+                const gain = eqGains[band.idx];
+                return (
+                  <div
+                    key={band.freq}
+                    className="p-4 bg-slate-950/70 border border-slate-800/90 rounded-2xl flex flex-col justify-between space-y-3"
+                  >
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs font-bold text-white">{band.name}</p>
+                        <p className="text-[10px] text-slate-400 font-mono">{band.freq}</p>
+                      </div>
+                      <span
+                        className={`text-xs font-bold font-mono px-2 py-0.5 rounded-md ${
+                          gain > 0
+                            ? 'bg-emerald-500/20 text-emerald-300'
+                            : gain < 0
+                            ? 'bg-amber-500/20 text-amber-300'
+                            : 'bg-slate-800 text-slate-400'
+                        }`}
+                      >
+                        {gain > 0 ? `+${gain}` : gain} dB
+                      </span>
+                    </div>
+
+                    {/* Slider input */}
+                    <div className="py-2">
+                      <input
+                        type="range"
+                        min="-12"
+                        max="12"
+                        step="1"
+                        value={gain}
+                        onChange={(e) => setEqBandGain(band.idx, parseFloat(e.target.value))}
+                        className="w-full h-2 bg-slate-800 accent-brand-500 rounded-lg cursor-pointer"
+                      />
+                      <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
+                        <span>-12dB</span>
+                        <span>0dB</span>
+                        <span>+12dB</span>
+                      </div>
+                    </div>
+
+                    <span className="text-[9px] text-center text-slate-500 font-semibold uppercase tracking-wider">
+                      {band.type}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Live Track Audition Bar */}
+            <div className="p-4 bg-slate-950/80 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              {currentTrack ? (
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-slate-800 shrink-0 overflow-hidden flex items-center justify-center">
+                    {currentTrack.coverUrl ? (
+                      <img src={getMediaUrl(currentTrack.coverUrl)} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <MusicIcon className="w-5 h-5 text-slate-400" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-white truncate">
+                      {isPlaying ? 'Now Shaping:' : 'Loaded:'} {currentTrack.title}
+                    </p>
+                    <p className="text-[11px] text-slate-400 truncate">{currentTrack.artist}</p>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">No track currently playing. Play a track to hear equalizer changes live.</p>
+              )}
+
+              <div className="flex items-center gap-2 shrink-0">
+                {currentTrack ? (
+                  <button
+                    onClick={togglePlay}
+                    className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-xl transition shadow flex items-center gap-1.5"
+                  >
+                    {isPlaying ? <Pause className="w-3.5 h-3.5 fill-current" /> : <Play className="w-3.5 h-3.5 fill-current ml-0.5" />}
+                    <span>{isPlaying ? 'Pause Audio' : 'Resume Audio'}</span>
+                  </button>
+                ) : songs.length > 0 ? (
+                  <button
+                    onClick={() => playSongNow(songs[0], songs)}
+                    className="px-4 py-2 bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold rounded-xl transition shadow flex items-center gap-1.5"
+                  >
+                    <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                    <span>Play First Song</span>
+                  </button>
+                ) : null}
+              </div>
+            </div>
           </div>
         </div>
       )}
