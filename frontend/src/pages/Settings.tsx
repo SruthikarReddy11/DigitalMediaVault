@@ -21,6 +21,7 @@ import { filesApi } from '../services/filesApi';
 import { DashboardStats } from '../types';
 import { formatBytes, formatDate } from '../utils/formatters';
 import { useToast } from '../contexts/ToastContext';
+import { getMediaUrl } from '../services/api';
 
 export const Settings: React.FC = () => {
   const { user, updateUser, isAdmin } = useAuth();
@@ -207,7 +208,7 @@ export const Settings: React.FC = () => {
               <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white text-3xl font-bold shadow-xl shadow-brand-500/25 overflow-hidden border-2 border-slate-700">
                 {user?.avatarUrl && !imageError ? (
                   <img
-                    src={user.avatarUrl}
+                    src={getMediaUrl(user.avatarUrl)}
                     alt={user.name}
                     onError={() => setImageError(true)}
                     className="w-full h-full object-cover"

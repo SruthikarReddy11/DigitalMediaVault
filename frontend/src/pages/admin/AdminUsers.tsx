@@ -19,6 +19,7 @@ import { formatBytes, formatDate } from '../../utils/formatters';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { useAuth } from '../../contexts/AuthContext';
 import { useToast } from '../../contexts/ToastContext';
+import { getMediaUrl } from '../../services/api';
 
 export const AdminUsers: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -175,7 +176,7 @@ export const AdminUsers: React.FC = () => {
                     <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-purple-600 to-brand-600 flex items-center justify-center text-white font-bold shrink-0 overflow-hidden border border-slate-700">
                       {targetUser.avatarUrl ? (
                         <img
-                          src={targetUser.avatarUrl}
+                          src={getMediaUrl(targetUser.avatarUrl)}
                           alt={targetUser.name}
                           className="w-full h-full object-cover"
                         />

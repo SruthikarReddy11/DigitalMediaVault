@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { getMediaUrl } from '../../services/api';
 
 interface HeaderProps {
   onToggleSidebar: () => void;
@@ -116,7 +117,7 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shadow-md shadow-brand-500/20 overflow-hidden border border-slate-700 shrink-0">
               {user?.avatarUrl && !imageError ? (
                 <img
-                  src={user.avatarUrl}
+                  src={getMediaUrl(user.avatarUrl)}
                   alt={user.name}
                   onError={() => setImageError(true)}
                   className="w-full h-full object-cover"
