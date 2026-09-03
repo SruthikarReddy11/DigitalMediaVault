@@ -12,6 +12,7 @@ router.use(requireRole('ADMIN'));
 
 router.get('/stats', AdminController.getStats);
 router.get('/users', validateQuery(adminUserQuerySchema), AdminController.getUsers);
+router.patch('/users/:id', validateParams(uuidParamSchema), validateBody(updateUserStatusSchema), AdminController.updateUserStatus);
 router.patch('/:id', validateParams(uuidParamSchema), validateBody(updateUserStatusSchema), AdminController.updateUserStatus);
 router.delete('/users/:id', validateParams(uuidParamSchema), AdminController.deleteUser);
 router.get('/files', AdminController.getAllFiles);
