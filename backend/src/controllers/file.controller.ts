@@ -87,7 +87,8 @@ export class FileController {
   public static async getFile(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const id = String(req.params.id);
-      const file = await FileService.getFile(id, req.user!);
+      const pin = (req.headers['x-security-pin'] || req.query?.pin) as string | undefined;
+      const file = await FileService.getFile(id, req.user!, pin);
       res.json({
         success: true,
         data: file,
@@ -110,12 +111,31 @@ export class FileController {
         return;
       }
 
-      if (!isOwnerOrAdmin(file.userId, req.user!)) {
-        res.status(403).json({
-          success: false,
-          error: { code: 'FORBIDDEN', message: 'You do not have permission to access this file.' },
+      if (file.userId !== req.user!.id) {
+        if (req.user!.role !== 'ADMIN') {
+          res.status(403).json({
+            success: false,
+            error: { code: 'FORBIDDEN', message: 'You do not have permission to access this file.' },
+          });
+          return;
+        }
+
+        const owner = await prisma.user.findUnique({
+          where: { id: file.userId },
+          select: { securityPin: true },
         });
-        return;
+
+        const pin = req.headers['x-security-pin'] || req.query?.pin;
+        if (!pin || String(pin).trim() !== String(owner?.securityPin)) {
+          res.status(403).json({
+            success: false,
+            error: {
+              code: 'PIN_REQUIRED',
+              message: 'This user\'s 4-digit security PIN is required to access unauthorized private data.',
+            },
+          });
+          return;
+        }
       }
 
       const storage = StorageFactory.getStorage();
@@ -184,12 +204,31 @@ export class FileController {
         return;
       }
 
-      if (!isOwnerOrAdmin(file.userId, req.user!)) {
-        res.status(403).json({
-          success: false,
-          error: { code: 'FORBIDDEN', message: 'You do not have permission to download this file.' },
+      if (file.userId !== req.user!.id) {
+        if (req.user!.role !== 'ADMIN') {
+          res.status(403).json({
+            success: false,
+            error: { code: 'FORBIDDEN', message: 'You do not have permission to download this file.' },
+          });
+          return;
+        }
+
+        const owner = await prisma.user.findUnique({
+          where: { id: file.userId },
+          select: { securityPin: true },
         });
-        return;
+
+        const pin = req.headers['x-security-pin'] || req.query?.pin;
+        if (!pin || String(pin).trim() !== String(owner?.securityPin)) {
+          res.status(403).json({
+            success: false,
+            error: {
+              code: 'PIN_REQUIRED',
+              message: 'This user\'s 4-digit security PIN is required to access unauthorized private data.',
+            },
+          });
+          return;
+        }
       }
 
       const storage = StorageFactory.getStorage();

@@ -23,6 +23,8 @@ import {
   Sparkles,
   Disc,
   RotateCcw,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { useAudioPlayer, EqualizerPreset } from '../../contexts/AudioPlayerContext';
 import { formatDuration } from '../../utils/formatters';
@@ -60,6 +62,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
     setEqualizerPreset,
     setEqBandGain,
     setSleepTimer,
+    moveQueueItem,
     removeQueueItem,
     clearQueue,
     playSongNow,
@@ -471,16 +474,41 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span className="text-[10px] text-slate-400">
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className="text-[10px] text-slate-400 mr-1">
                       {formatDuration(song.duration)}
                     </span>
+                    {idx > 0 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveQueueItem(idx, idx - 1);
+                        }}
+                        className="p-1 text-slate-500 hover:text-white transition rounded hover:bg-slate-700/50"
+                        title="Move Up"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    {idx < queue.length - 1 && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          moveQueueItem(idx, idx + 1);
+                        }}
+                        className="p-1 text-slate-500 hover:text-white transition rounded hover:bg-slate-700/50"
+                        title="Move Down"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         removeQueueItem(idx);
                       }}
-                      className="p-1 text-slate-400 hover:text-rose-400 transition"
+                      className="p-1 text-slate-400 hover:text-rose-400 transition ml-0.5"
+                      title="Remove from Queue"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>

@@ -11,8 +11,13 @@ export interface UserSession {
 
 export const authApi = {
   async register(data: { name: string; username: string; email: string; password: string; confirmPassword: string }) {
-    const res = await api.post<{ success: boolean; data: { user: User; token: string } }>('/auth/register', data);
+    const res = await api.post<{ success: boolean; data: { user: User; token: string; securityPin?: string } }>('/auth/register', data);
     return res.data.data;
+  },
+
+  async regeneratePin() {
+    const res = await api.post<{ success: boolean; data: { securityPin: string } }>('/auth/pin/regenerate');
+    return res.data.data.securityPin;
   },
 
   async login(data: { identifier: string; password: string }) {

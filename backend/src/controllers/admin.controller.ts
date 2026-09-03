@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { AdminService } from '../services/admin.service';
+import { prisma } from '../database/prisma';
 
 export class AdminController {
   public static async getStats(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -101,6 +102,50 @@ export class AdminController {
         success: true,
         data: result.logs,
         pagination: result.pagination,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async verifyUserPin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { userId, pin } = req.body;
+      if (!userId || !pin) {
+        res.status(400).json({
+          success: false,
+          error: { code: 'BAD_REQUEST', message: 'User ID and 4-digit PIN are required.' },
+        });
+        return;
+      }
+
+      const targetUser = await prisma.user.findUnique({
+        where: { id: String(userId) },
+        select: { id: true, name: true, securityPin: true },
+      });
+
+      if (!targetUser) {
+        res.status(404).json({
+          success: false,
+          error: { code: 'NOT_FOUND', message: 'User not found.' },
+        });
+        return;
+      }
+
+      if (String(targetUser.securityPin) !== String(pin).trim()) {
+        res.status(403).json({
+          success: false,
+          error: { code: 'INVALID_PIN', message: 'Incorrect 4-digit security code. Access to private data denied.' },
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          verified: true,
+          message: 'Security PIN verified successfully.',
+        },
       });
     } catch (err) {
       next(err);

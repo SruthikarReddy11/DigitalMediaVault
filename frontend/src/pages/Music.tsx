@@ -23,6 +23,7 @@ import {
   Sparkles,
   RotateCcw,
   Volume2,
+  CornerDownRight,
 } from 'lucide-react';
 import { musicApi } from '../services/musicApi';
 import { playlistsApi } from '../services/playlistsApi';
@@ -48,6 +49,7 @@ export const Music: React.FC = () => {
     playSongNow,
     playPlaylistNow,
     addToQueue,
+    playNext,
     togglePlay,
     equalizerPreset,
     setEqualizerPreset,
@@ -413,6 +415,18 @@ export const Music: React.FC = () => {
                           title="Add to queue"
                         >
                           <ListPlus className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Play Next */}
+                        <button
+                          onClick={() => {
+                            playNext(song);
+                            success(`"${song.title}" will play next`);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-brand-300 rounded-lg transition"
+                          title="Play next"
+                        >
+                          <CornerDownRight className="w-3.5 h-3.5" />
                         </button>
 
                         {/* Add to Playlist */}

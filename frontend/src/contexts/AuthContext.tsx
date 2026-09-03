@@ -8,7 +8,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAdmin: boolean;
   login: (data: { identifier: string; password: string }) => Promise<void>;
-  register: (data: { name: string; username: string; email: string; password: string; confirmPassword: string }) => Promise<void>;
+  register: (data: { name: string; username: string; email: string; password: string; confirmPassword: string }) => Promise<{ user: User; token: string; securityPin?: string }>;
   logout: () => Promise<void>;
   updateUser: (user: User) => void;
   refreshUser: () => Promise<void>;
@@ -56,6 +56,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('pdl_auth_token', res.token);
       }
       setUser(res.user);
+      return res;
     } finally {
       setIsLoading(false);
     }

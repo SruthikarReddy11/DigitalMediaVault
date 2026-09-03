@@ -41,6 +41,7 @@ export async function authenticateToken(
             username: true,
             name: true,
             avatarUrl: true,
+            securityPin: true,
             role: true,
             isActive: true,
           },

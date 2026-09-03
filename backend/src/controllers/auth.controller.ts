@@ -2,6 +2,7 @@ import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { AuthService } from '../services/auth.service';
 import { config } from '../config';
+import { prisma } from '../database/prisma';
 
 const cookieOptions = {
   httpOnly: true,
@@ -14,7 +15,7 @@ const cookieOptions = {
 export class AuthController {
   public static async register(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { user, token, expiresAt } = await AuthService.register(req.body, {
+      const { user, token, expiresAt, securityPin } = await AuthService.register(req.body, {
         ip: req.ip,
         userAgent: req.get('user-agent'),
       });
@@ -27,6 +28,7 @@ export class AuthController {
           user,
           token,
           expiresAt,
+          securityPin,
         },
       });
     } catch (err) {
@@ -103,12 +105,33 @@ export class AuthController {
         token = newSession.token;
       }
 
+      if (req.user && !req.user.securityPin) {
+        const pin = AuthService.generateSecurityPin();
+        await prisma.user.update({
+          where: { id: req.user.id },
+          data: { securityPin: pin },
+        });
+        req.user.securityPin = pin;
+      }
+
       res.json({
         success: true,
         data: {
           user: req.user,
           token,
         },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async regeneratePin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const pin = await AuthService.regeneratePin(req.user!.id);
+      res.json({
+        success: true,
+        data: { securityPin: pin },
       });
     } catch (err) {
       next(err);

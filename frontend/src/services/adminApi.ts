@@ -43,4 +43,12 @@ export const adminApi = {
     }>('/admin/logs', { params });
     return res.data;
   },
+
+  async verifyUserPin(userId: string, pin: string) {
+    const res = await api.post<{ success: boolean; data: { verified: boolean; message: string } }>('/admin/verify-pin', {
+      userId,
+      pin,
+    });
+    return res.data.data;
+  },
 };

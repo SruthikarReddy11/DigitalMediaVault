@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sparkles, Lock, Mail, User, ArrowRight } from 'lucide-react';
+import { Sparkles, Lock, Mail, User, ArrowRight, ShieldAlert, Copy, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 
@@ -15,6 +15,8 @@ export const Register: React.FC = () => {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [registeredPin, setRegisteredPin] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,20 +33,32 @@ export const Register: React.FC = () => {
 
     setIsLoading(true);
     try {
-      await register({
+      const res = await register({
         name,
         username,
         email,
         password,
         confirmPassword,
       });
-      success('Account created successfully! Welcome to your digital vault.');
-      navigate('/');
+      if (res?.securityPin) {
+        setRegisteredPin(res.securityPin);
+      } else {
+        success('Account created successfully! Welcome to your digital vault.');
+        navigate('/');
+      }
     } catch (err: any) {
       error(err.message || 'Registration failed. Please check your information.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCopyPin = () => {
+    if (!registeredPin) return;
+    navigator.clipboard.writeText(registeredPin);
+    setCopied(true);
+    success('PIN copied to clipboard!');
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -172,6 +186,67 @@ export const Register: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Security PIN Display Modal */}
+      {registeredPin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+          <div className="bg-slate-900 border border-slate-700 w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-2xl space-y-5 text-center relative">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30">
+              <ShieldAlert className="w-8 h-8" />
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-xl font-bold text-white">Your Private Security PIN</h3>
+              <p className="text-xs text-slate-400">
+                Please memorize or securely save this 4-digit access code
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-950 border-2 border-amber-500/40 rounded-2xl flex items-center justify-center gap-4">
+              <div className="flex gap-2">
+                {registeredPin.split('').map((digit, i) => (
+                  <div
+                    key={i}
+                    className="w-11 h-13 bg-slate-900 border border-slate-700 rounded-xl flex items-center justify-center text-2xl font-mono font-extrabold text-amber-400 shadow-inner"
+                  >
+                    {digit}
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleCopyPin}
+                className="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition shadow"
+                title="Copy PIN"
+              >
+                {copied ? <Check className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
+              </button>
+            </div>
+
+            <div className="p-3.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-left text-xs text-amber-300/90 leading-relaxed space-y-1">
+              <p className="font-semibold text-amber-200">⚠️ DO NOT SHARE THIS CODE WITH ANYONE</p>
+              <p>
+                This 4-digit PIN protects your unauthorized private data. If an administrator views or inspects your files, they will be required to enter this code.
+              </p>
+              <p className="text-[11px] text-amber-400/75">
+                (You can also view or regenerate this code anytime inside your User Settings.)
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                success('Welcome to your digital vault!');
+                navigate('/');
+              }}
+              className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl transition shadow-lg shadow-brand-600/30 text-sm"
+            >
+              I've Saved It, Continue to Vault
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

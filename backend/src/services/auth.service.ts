@@ -19,12 +19,17 @@ export interface LoginDto {
 }
 
 export class AuthService {
+  public static generateSecurityPin(): string {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
   public static formatUser(user: {
     id: string;
     email: string;
     username: string;
     name: string;
     avatarUrl?: string | null;
+    securityPin?: string | null;
     role: any;
     isActive: boolean;
     updatedAt?: Date | string;
@@ -50,6 +55,7 @@ export class AuthService {
       username: user.username,
       name: user.name,
       avatarUrl: formattedAvatarUrl,
+      securityPin: user.securityPin || null,
       role: user.role,
       isActive: user.isActive,
     };
@@ -58,7 +64,7 @@ export class AuthService {
   public static async register(
     data: RegisterDto,
     meta?: { ip?: string; userAgent?: string }
-  ): Promise<{ user: AuthUser; token: string; expiresAt: Date }> {
+  ): Promise<{ user: AuthUser; token: string; expiresAt: Date; securityPin: string }> {
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
@@ -86,6 +92,7 @@ export class AuthService {
     // If first user, make ADMIN, otherwise USER
     const userCount = await prisma.user.count();
     const role = userCount === 0 ? 'ADMIN' : 'USER';
+    const securityPin = this.generateSecurityPin();
 
     const user = await prisma.user.create({
       data: {
@@ -93,6 +100,7 @@ export class AuthService {
         username: data.username.toLowerCase().trim(),
         email: data.email.toLowerCase().trim(),
         passwordHash,
+        securityPin,
         role,
         isActive: true,
         lastLoginAt: new Date(),
@@ -103,6 +111,7 @@ export class AuthService {
         username: true,
         name: true,
         avatarUrl: true,
+        securityPin: true,
         role: true,
         isActive: true,
       },
@@ -120,7 +129,16 @@ export class AuthService {
       userAgent: meta?.userAgent,
     });
 
-    return { user: this.formatUser(user), token, expiresAt };
+    return { user: this.formatUser(user), token, expiresAt, securityPin };
+  }
+
+  public static async regeneratePin(userId: string): Promise<string> {
+    const newPin = this.generateSecurityPin();
+    await prisma.user.update({
+      where: { id: userId },
+      data: { securityPin: newPin },
+    });
+    return newPin;
   }
 
   public static async login(
@@ -157,10 +175,20 @@ export class AuthService {
       throw err;
     }
 
-    await prisma.user.update({
-      where: { id: user.id },
-      data: { lastLoginAt: new Date() },
-    });
+    let securityPin = user.securityPin;
+    if (!securityPin) {
+      securityPin = this.generateSecurityPin();
+      user.securityPin = securityPin;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { securityPin, lastLoginAt: new Date() },
+      });
+    } else {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+    }
 
     const { token, expiresAt } = await this.createSession(user.id);
 

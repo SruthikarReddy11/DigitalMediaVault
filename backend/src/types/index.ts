@@ -7,6 +7,7 @@ export interface AuthUser {
   username: string;
   name: string;
   avatarUrl?: string | null;
+  securityPin?: string | null;
   role: Role;
   isActive: boolean;
 }

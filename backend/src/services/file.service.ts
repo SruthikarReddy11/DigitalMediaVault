@@ -155,7 +155,7 @@ export class FileService {
     return this.serializeFile(dbFile, user.id);
   }
 
-  public static async getFile(fileId: string, user: AuthUser) {
+  public static async getFile(fileId: string, user: AuthUser, pin?: string) {
     const file = await prisma.file.findUnique({
       where: { id: fileId },
       include: {
@@ -172,11 +172,25 @@ export class FileService {
       throw err;
     }
 
-    if (!isOwnerOrAdmin(file.userId, user)) {
-      const err: any = new Error('You do not have permission to access this resource.');
-      err.statusCode = 403;
-      err.code = 'FORBIDDEN';
-      throw err;
+    if (file.userId !== user.id) {
+      if (user.role !== 'ADMIN') {
+        const err: any = new Error('You do not have permission to access this resource.');
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
+
+      const owner = await prisma.user.findUnique({
+        where: { id: file.userId },
+        select: { securityPin: true },
+      });
+
+      if (!pin || String(pin).trim() !== String(owner?.securityPin)) {
+        const err: any = new Error('This user\'s 4-digit security PIN is required to access unauthorized private data.');
+        err.statusCode = 403;
+        err.code = 'PIN_REQUIRED';
+        throw err;
+      }
     }
 
     return this.serializeFile(file, user.id);
@@ -186,6 +200,10 @@ export class FileService {
     const where: Prisma.FileWhereInput = {
       userId: user.id,
       deletedAt: options.includeTrash ? { not: null } : null,
+      coverForMusic: { none: {} },
+      NOT: {
+        storageKey: { contains: 'covers/' },
+      },
     };
 
     if (options.folderId !== undefined) {
@@ -415,10 +433,15 @@ export class FileService {
   }
 
   public static async getDashboardStats(user: AuthUser) {
+    const notCoverFilter = {
+      coverForMusic: { none: {} as const },
+      NOT: { storageKey: { contains: 'covers/' } },
+    };
+
     const [totalFiles, images, videos, music, pdfs, documents, spreadsheets, archives, others, favorites, recentFiles, recentActivity] =
       await Promise.all([
-        prisma.file.count({ where: { userId: user.id, deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, fileType: 'IMAGE', deletedAt: null } }),
+        prisma.file.count({ where: { userId: user.id, deletedAt: null, ...notCoverFilter } }),
+        prisma.file.count({ where: { userId: user.id, fileType: 'IMAGE', deletedAt: null, ...notCoverFilter } }),
         prisma.file.count({ where: { userId: user.id, fileType: 'VIDEO', deletedAt: null } }),
         prisma.file.count({ where: { userId: user.id, fileType: 'AUDIO', deletedAt: null } }),
         prisma.file.count({ where: { userId: user.id, fileType: 'PDF', deletedAt: null } }),
@@ -428,7 +451,7 @@ export class FileService {
         prisma.file.count({ where: { userId: user.id, fileType: 'OTHER', deletedAt: null } }),
         prisma.favorite.count({ where: { userId: user.id } }),
         prisma.file.findMany({
-          where: { userId: user.id, deletedAt: null },
+          where: { userId: user.id, deletedAt: null, ...notCoverFilter },
           take: 8,
           orderBy: { createdAt: 'desc' },
           include: {

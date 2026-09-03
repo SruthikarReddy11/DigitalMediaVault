@@ -27,6 +27,7 @@ router.post('/logout', AuthController.logout);
 router.get('/me', AuthController.getMe);
 router.get('/session', AuthController.getMe);
 router.patch('/profile', requireAuth, validateBody(updateProfileSchema), AuthController.updateProfile);
+router.post('/pin/regenerate', requireAuth, AuthController.regeneratePin);
 
 // Active Session Management
 router.get('/sessions', requireAuth, AuthController.getSessions);

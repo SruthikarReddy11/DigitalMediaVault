@@ -15,6 +15,7 @@ router.get('/users', validateQuery(adminUserQuerySchema), AdminController.getUse
 router.patch('/:id', validateParams(uuidParamSchema), validateBody(updateUserStatusSchema), AdminController.updateUserStatus);
 router.delete('/users/:id', validateParams(uuidParamSchema), AdminController.deleteUser);
 router.get('/files', AdminController.getAllFiles);
+router.post('/verify-pin', AdminController.verifyUserPin);
 router.get('/logs', AdminController.getLogs);
 
 export default router;

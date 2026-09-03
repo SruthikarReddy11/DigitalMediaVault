@@ -13,6 +13,11 @@ import {
   Download,
   RefreshCw,
   LogOut,
+  Eye,
+  EyeOff,
+  Copy,
+  Check,
+  ShieldAlert,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -35,6 +40,11 @@ export const Settings: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [imageError, setImageError] = useState(false);
+
+  // 4-Digit Security PIN state
+  const [showPin, setShowPin] = useState(false);
+  const [isRegeneratingPin, setIsRegeneratingPin] = useState(false);
+  const [pinCopied, setPinCopied] = useState(false);
 
   // Sessions state
   const [sessions, setSessions] = useState<UserSession[]>([]);
@@ -70,6 +80,29 @@ export const Settings: React.FC = () => {
   useEffect(() => {
     fetchUserData();
   }, []);
+
+  const handleCopyPin = () => {
+    if (!user?.securityPin) return;
+    navigator.clipboard.writeText(user.securityPin);
+    setPinCopied(true);
+    success('Security PIN copied to clipboard!');
+    setTimeout(() => setPinCopied(false), 2000);
+  };
+
+  const handleRegeneratePin = async () => {
+    setIsRegeneratingPin(true);
+    try {
+      const newPin = await authApi.regeneratePin();
+      if (user) {
+        updateUser({ ...user, securityPin: newPin });
+      }
+      success(`New Security PIN generated: ${newPin}`);
+    } catch (err: any) {
+      error(err.message || 'Failed to regenerate PIN.');
+    } finally {
+      setIsRegeneratingPin(false);
+    }
+  };
 
   const handleAvatarSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -368,8 +401,71 @@ export const Settings: React.FC = () => {
               <div className="pt-4 border-t border-slate-800 space-y-4">
                 <h4 className="text-sm font-semibold text-white flex items-center gap-1.5">
                   <Lock className="w-4 h-4 text-brand-400" />
-                  Security & Password
+                  Security & Access Authorization
                 </h4>
+
+                {/* Private Security PIN Section */}
+                <div className="p-4 bg-slate-950/80 border border-amber-500/30 rounded-2xl space-y-3 shadow-inner">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <ShieldAlert className="w-4 h-4 text-amber-400" />
+                      <span className="text-xs font-bold text-amber-300 uppercase tracking-wider">
+                        Private 4-Digit Security PIN
+                      </span>
+                    </div>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
+                      Confidential
+                    </span>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <div className="flex items-center gap-2">
+                      <div className="flex gap-1.5 font-mono text-xl font-bold tracking-widest text-amber-400 bg-slate-900 px-3.5 py-1.5 rounded-xl border border-slate-700">
+                        {user?.securityPin ? (
+                          showPin ? (
+                            user.securityPin
+                          ) : (
+                            '••••'
+                          )
+                        ) : (
+                          <span className="text-xs text-slate-500 font-sans">Generating...</span>
+                        )}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowPin(!showPin)}
+                        className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+                        title={showPin ? 'Hide PIN' : 'Reveal PIN'}
+                      >
+                        {showPin ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleCopyPin}
+                        className="p-2 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
+                        title="Copy PIN"
+                      >
+                        {pinCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleRegeneratePin}
+                      disabled={isRegeneratingPin}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition disabled:opacity-50"
+                    >
+                      <RefreshCw className={`w-3.5 h-3.5 ${isRegeneratingPin ? 'animate-spin' : ''}`} />
+                      <span>Regenerate PIN</span>
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    ⚠️ <strong>Do not share this code with anyone.</strong> When an administrator inspects or views your files from File Management, they are required to enter this 4-digit security code to verify access.
+                  </p>
+                </div>
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 mb-1.5">

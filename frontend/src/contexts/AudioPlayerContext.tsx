@@ -45,6 +45,8 @@ interface AudioPlayerContextType {
   setEqualizerPreset: (preset: EqualizerPreset) => void;
   setEqBandGain: (index: number, gainDb: number) => void;
   setSleepTimer: (mins: number | null) => void;
+  playNext: (song: MusicItem) => void;
+  moveQueueItem: (fromIndex: number, toIndex: number) => void;
   removeQueueItem: (index: number) => void;
   clearQueue: () => void;
 }
@@ -91,6 +93,10 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const filtersRef = useRef<BiquadFilterNode[]>([]);
   const sourceNodeRef = useRef<MediaElementAudioSourceNode | null>(null);
 
+  const handleNextRef = useRef<() => void>(() => {});
+  const repeatModeRef = useRef<RepeatMode>('off');
+  const currentTrackRef = useRef<MusicItem | null>(null);
+
   // Initialize HTML5 Audio element & Web Audio Equalizer Nodes
   useEffect(() => {
     const audio = new Audio();
@@ -106,11 +112,11 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     };
 
     const handleEnded = () => {
-      if (repeatMode === 'one') {
+      if (repeatModeRef.current === 'one') {
         audio.currentTime = 0;
         audio.play().catch(() => {});
       } else {
-        handleNext();
+        handleNextRef.current();
       }
     };
 
@@ -124,8 +130,8 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       if (audio.crossOrigin) {
         console.warn('CORS restriction detected. Retrying without crossOrigin...');
         audio.removeAttribute('crossorigin');
-        if (currentTrack) {
-          audio.src = getMediaUrl(currentTrack.streamUrl);
+        if (currentTrackRef.current) {
+          audio.src = getMediaUrl(currentTrackRef.current.streamUrl);
           audio.play().catch(() => {});
         }
       }
@@ -341,6 +347,44 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     }
   };
 
+  const playNext = (song: MusicItem) => {
+    setQueue((prev) => {
+      const filtered = prev.filter((s) => s.id !== song.id);
+      if (queueIndex >= 0 && queueIndex < filtered.length) {
+        const nextIdx = queueIndex + 1;
+        const newQueue = [...filtered];
+        newQueue.splice(nextIdx, 0, song);
+        return newQueue;
+      }
+      return [...filtered, song];
+    });
+    if (!currentTrack) {
+      setCurrentTrack(song);
+      setQueueIndex(0);
+    }
+  };
+
+  const moveQueueItem = (fromIndex: number, toIndex: number) => {
+    setQueue((prev) => {
+      if (fromIndex < 0 || fromIndex >= prev.length || toIndex < 0 || toIndex >= prev.length) {
+        return prev;
+      }
+      const updated = [...prev];
+      const [moved] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, moved);
+
+      if (queueIndex === fromIndex) {
+        setQueueIndex(toIndex);
+      } else if (fromIndex < queueIndex && toIndex >= queueIndex) {
+        setQueueIndex((idx) => idx - 1);
+      } else if (fromIndex > queueIndex && toIndex <= queueIndex) {
+        setQueueIndex((idx) => idx + 1);
+      }
+
+      return updated;
+    });
+  };
+
   const handleNext = useCallback(() => {
     if (queue.length === 0) return;
 
@@ -362,6 +406,19 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       pause();
     }
   }, [queue, queueIndex, isShuffle, repeatMode]);
+
+  // Sync refs to break closures in audio event listeners
+  useEffect(() => {
+    handleNextRef.current = handleNext;
+  }, [handleNext]);
+
+  useEffect(() => {
+    repeatModeRef.current = repeatMode;
+  }, [repeatMode]);
+
+  useEffect(() => {
+    currentTrackRef.current = currentTrack;
+  }, [currentTrack]);
 
   const handlePrev = () => {
     if (queue.length === 0) return;
@@ -496,6 +553,8 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         playSongNow,
         playPlaylistNow,
         addToQueue,
+        playNext,
+        moveQueueItem,
         nextTrack: handleNext,
         prevTrack: handlePrev,
         seek,
