@@ -31,17 +31,28 @@ api.interceptors.response.use(
 
 export const getMediaUrl = (url: string | null | undefined): string => {
   if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    const token = localStorage.getItem('pdl_auth_token');
+    if (token && !url.includes('token=')) {
+      const sep = url.includes('?') ? '&' : '?';
+      return `${url}${sep}token=${encodeURIComponent(token)}`;
+    }
+    return url;
+  }
 
+  const rawBase = (import.meta as any).env?.VITE_API_URL;
   let fullUrl = url;
 
-  // If not already an absolute URL, prepend base API URL
-  if (!url.startsWith('http://') && !url.startsWith('https://')) {
-    const baseUrl = (import.meta as any).env?.VITE_API_URL || '/api';
-    if (url.startsWith('/api/')) {
-      fullUrl = `${baseUrl}${url.substring(4)}`;
+  if (rawBase) {
+    const cleanBase = String(rawBase).replace(/\/+$/, '');
+    const cleanPath = url.startsWith('/') ? url : `/${url}`;
+    if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {
+      fullUrl = `${cleanBase}${cleanPath.substring(4)}`;
     } else {
-      fullUrl = `${baseUrl}${url.startsWith('/') ? url : `/${url}`}`;
+      fullUrl = `${cleanBase}${cleanPath}`;
     }
+  } else {
+    fullUrl = url.startsWith('/') ? url : `/${url}`;
   }
 
   // Attach token for cross-device & mobile 3rd-party cookie restriction bypass

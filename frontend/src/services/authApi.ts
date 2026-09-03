@@ -26,7 +26,10 @@ export const authApi = {
   },
 
   async getMe() {
-    const res = await api.get<{ success: boolean; data: { user: User } }>('/auth/me');
+    const res = await api.get<{ success: boolean; data: { user: User; token?: string } }>('/auth/me');
+    if (res.data.data?.token) {
+      localStorage.setItem('pdl_auth_token', res.data.data.token);
+    }
     return res.data.data.user;
   },
 

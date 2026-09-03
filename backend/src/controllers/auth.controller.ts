@@ -87,10 +87,27 @@ export class AuthController {
         return;
       }
 
+      const cookieToken = req.cookies?.[config.session.cookieName];
+      let token = cookieToken;
+      if (!token && req.headers.authorization) {
+        const parts = req.headers.authorization.split(' ');
+        if (parts.length === 2 && parts[0].toLowerCase() === 'bearer') {
+          token = parts[1];
+        }
+      }
+      if (!token && req.query?.token) {
+        token = String(req.query.token);
+      }
+      if (!token && req.user) {
+        const newSession = await AuthService.createSession(req.user.id);
+        token = newSession.token;
+      }
+
       res.json({
         success: true,
         data: {
           user: req.user,
+          token,
         },
       });
     } catch (err) {

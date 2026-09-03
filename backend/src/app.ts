@@ -13,6 +13,9 @@ export const app = express();
 // Disable X-Powered-By header to prevent fingerprinting
 app.disable('x-powered-by');
 
+// Trust reverse proxy (Render, Cloudflare, Vercel) for Secure cookies
+app.set('trust proxy', 1);
+
 // Defense-in-depth HTTP Security Headers via Helmet
 app.use(
   helmet({

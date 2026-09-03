@@ -95,7 +95,6 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     const audio = new Audio();
     audio.preload = 'metadata';
-    audio.crossOrigin = 'anonymous';
     audioRef.current = audio;
 
     const handleTimeUpdate = () => {
@@ -118,11 +117,26 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
 
+    const handleError = () => {
+      const err = audio.error;
+      console.warn('Audio element error encountered:', err?.code, err?.message);
+      // Fallback: If crossOrigin caused a CORS failure, strip crossOrigin and retry
+      if (audio.crossOrigin) {
+        console.warn('CORS restriction detected. Retrying without crossOrigin...');
+        audio.removeAttribute('crossorigin');
+        if (currentTrack) {
+          audio.src = getMediaUrl(currentTrack.streamUrl);
+          audio.play().catch(() => {});
+        }
+      }
+    };
+
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('ended', handleEnded);
     audio.addEventListener('play', handlePlay);
     audio.addEventListener('pause', handlePause);
+    audio.addEventListener('error', handleError);
 
     return () => {
       audio.pause();
@@ -131,6 +145,7 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('pause', handlePause);
+      audio.removeEventListener('error', handleError);
     };
   }, []);
 
@@ -236,27 +251,44 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
 
-    audioRef.current.src = getMediaUrl(currentTrack.streamUrl);
+    const streamUrl = getMediaUrl(currentTrack.streamUrl);
+
+    const token = localStorage.getItem('pdl_auth_token');
+    if (token) {
+      audioRef.current.crossOrigin = 'anonymous';
+    } else {
+      audioRef.current.removeAttribute('crossorigin');
+    }
+
+    audioRef.current.src = streamUrl;
     audioRef.current.playbackRate = playbackRate;
     audioRef.current.volume = isMuted ? 0 : volume;
 
     if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
+      audioCtxRef.current.resume().catch(() => {});
     }
 
-    audioRef.current.play().catch((err) => {
-      console.warn('Playback error or autoplay prevented:', err);
-      setIsPlaying(false);
-    });
+    const p = audioRef.current.play();
+    if (p !== undefined) {
+      p.then(() => setIsPlaying(true)).catch((err) => {
+        console.warn('Playback error or autoplay prevented:', err);
+        setIsPlaying(false);
+      });
+    }
   }, [currentTrack]);
 
   const play = () => {
     initWebAudio();
     if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
+      audioCtxRef.current.resume().catch(() => {});
     }
     if (audioRef.current && currentTrack) {
-      audioRef.current.play().catch(() => {});
+      const p = audioRef.current.play();
+      if (p !== undefined) {
+        p.then(() => setIsPlaying(true)).catch((err) => {
+          console.warn('Playback error on user gesture:', err);
+        });
+      }
     }
   };
 

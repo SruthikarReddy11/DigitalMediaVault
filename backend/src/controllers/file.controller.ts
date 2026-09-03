@@ -122,6 +122,16 @@ export class FileController {
       const fileSize = Number(file.size);
       const range = req.headers.range;
 
+      const origin = req.headers.origin;
+      if (origin) {
+        res.setHeader('Access-Control-Allow-Origin', origin);
+        res.setHeader('Access-Control-Allow-Credentials', 'true');
+      } else {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+      }
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
+
       if (range) {
         const parts = range.replace(/bytes=/, '').split('-');
         const start = parseInt(parts[0], 10);
@@ -135,10 +145,10 @@ export class FileController {
         const chunksize = end - start + 1;
         const { stream } = await storage.getReadStream(file.storageKey, { start, end });
 
-        res.writeHead(206, {
+        res.status(206).set({
           'Content-Range': `bytes ${start}-${end}/${fileSize}`,
           'Accept-Ranges': 'bytes',
-          'Content-Length': chunksize,
+          'Content-Length': String(chunksize),
           'Content-Type': file.mimeType || 'application/octet-stream',
           'Cache-Control': 'private, max-age=3600',
         });
@@ -147,8 +157,8 @@ export class FileController {
       } else {
         const { stream } = await storage.getReadStream(file.storageKey);
 
-        res.writeHead(200, {
-          'Content-Length': fileSize,
+        res.status(200).set({
+          'Content-Length': String(fileSize),
           'Content-Type': file.mimeType || 'application/octet-stream',
           'Accept-Ranges': 'bytes',
           'Cache-Control': 'private, max-age=3600',
