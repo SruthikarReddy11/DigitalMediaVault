@@ -70,8 +70,14 @@ app.use(
       // Allow requests with no origin (e.g. mobile apps, same-origin, curl)
       if (!origin) return callback(null, true);
       const allowedOrigins = Array.isArray(config.cors.origin)
-        ? config.cors.origin
-        : [config.cors.origin, 'http://localhost:5173', 'http://127.0.0.1:5173'];
+  ? config.cors.origin
+  : [
+      config.cors.origin,
+      'http://localhost:5173',
+      'http://127.0.0.1:5173',
+      'http://localhost',
+      'capacitor://localhost',
+    ];
 
       if (allowedOrigins.includes(origin) || !config.isProduction) {
         return callback(null, true);
@@ -93,8 +99,12 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     const origin = req.headers.origin;
     if (origin && config.isProduction) {
       const allowedOrigins = Array.isArray(config.cors.origin)
-        ? config.cors.origin
-        : [config.cors.origin];
+  ? config.cors.origin
+  : [
+      config.cors.origin,
+      'http://localhost',
+      'capacitor://localhost',
+    ];
 
       if (!allowedOrigins.includes(origin)) {
         res.status(403).json({
