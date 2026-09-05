@@ -19,8 +19,6 @@ import {
   Share2,
   RefreshCw,
   SlidersHorizontal,
-  Eye,
-  EyeOff,
 } from 'lucide-react';
 import { VaultFolder, VaultCell } from '../types';
 import { vaultApi } from '../services/vaultApi';
@@ -29,6 +27,7 @@ import { VaultGateModal } from '../components/vault/VaultGateModal';
 import { FolderPasswordModal } from '../components/vault/FolderPasswordModal';
 import { CreateFolderModal } from '../components/vault/CreateFolderModal';
 import { CellModal } from '../components/vault/CellModal';
+import { ViewCellModal } from '../components/vault/ViewCellModal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 
 export const SecretVault: React.FC = () => {
@@ -58,19 +57,8 @@ export const SecretVault: React.FC = () => {
   const [deleteFolderTarget, setDeleteFolderTarget] = useState<VaultFolder | null>(null);
   const [deleteCellTarget, setDeleteCellTarget] = useState<VaultCell | null>(null);
 
-  // 5. One-Click Copy Feedback Tracker: cellId -> boolean
-  const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
-
-  // 6. Eye Toggle Visibility Tracker: cellId -> boolean (default false = masked)
-  const [revealedCellIds, setRevealedCellIds] = useState<Record<string, boolean>>({});
-
-  const toggleRevealUrl = (cellId: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    setRevealedCellIds((prev) => ({
-      ...prev,
-      [cellId]: !prev[cellId],
-    }));
-  };
+  // 5. Viewing Cell Modal State (clicking on cell opens link details)
+  const [viewingCell, setViewingCell] = useState<VaultCell | null>(null);
 
   const activeFolderRef = useRef(activeFolder);
   useEffect(() => {
@@ -85,7 +73,7 @@ export const SecretVault: React.FC = () => {
     setActiveCells([]);
     setIsFolderLocked(true);
     setPasswordTargetFolder(null);
-    setRevealedCellIds({});
+    setViewingCell(null);
   }, []);
 
   // Lock Active Folder only - called on tab change so that returning asks for that folder's password, not the space authenticator code
@@ -95,7 +83,7 @@ export const SecretVault: React.FC = () => {
       setActiveCells([]);
       setIsFolderLocked(true);
       setPasswordTargetFolder(null);
-      setRevealedCellIds({});
+      setViewingCell(null);
     }
   }, []);
 
@@ -157,25 +145,8 @@ export const SecretVault: React.FC = () => {
     setActiveFolder(null);
     setActiveCells([]);
     setIsFolderLocked(true);
-    setRevealedCellIds({});
+    setViewingCell(null);
     loadFolders(); // Refresh cell counts
-  };
-
-  // One-Click URL Copy Handler
-  const handleCopyUrl = (cell: VaultCell, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    navigator.clipboard.writeText(cell.url);
-    setCopiedCellId(cell.id);
-    success(`Copied: ${cell.url}`);
-    setTimeout(() => {
-      setCopiedCellId((prev) => (prev === cell.id ? null : prev));
-    }, 2000);
-  };
-
-  // Open Link in New Tab Handler
-  const handleOpenLink = (url: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Cell Saved Callback
@@ -189,6 +160,7 @@ export const SecretVault: React.FC = () => {
       }
       return [savedCell, ...prev];
     });
+    setViewingCell((prev) => (prev?.id === savedCell.id ? savedCell : prev));
   };
 
   // Delete Cell Handler
@@ -276,6 +248,17 @@ export const SecretVault: React.FC = () => {
           isOpen={cellModalTarget.isOpen}
           onClose={() => setCellModalTarget({ isOpen: false, cell: null })}
           onSaved={handleCellSaved}
+        />
+      )}
+
+      {/* 5. View Cell Modal (Opens when user clicks on a cell to view link) */}
+      {viewingCell && (
+        <ViewCellModal
+          cell={viewingCell}
+          isOpen={!!viewingCell}
+          onClose={() => setViewingCell(null)}
+          onEdit={(cell) => setCellModalTarget({ isOpen: true, cell })}
+          onDelete={(cell) => setDeleteCellTarget(cell)}
         />
       )}
 
@@ -505,13 +488,14 @@ export const SecretVault: React.FC = () => {
                     return (
                       <div
                         key={cell.id}
-                        className="group bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-slate-700/80 rounded-3xl p-5 transition-all duration-200 hover:-translate-y-0.5 shadow-lg flex flex-col justify-between space-y-4 relative overflow-hidden"
+                        onClick={() => setViewingCell(cell)}
+                        className="group bg-slate-900/80 hover:bg-slate-900/95 border border-slate-800 hover:border-brand-500/50 rounded-3xl p-5 transition-all duration-200 hover:-translate-y-0.5 shadow-lg flex flex-col justify-between space-y-4 relative overflow-hidden cursor-pointer hover:shadow-brand-500/10"
                       >
                         <div className="space-y-3">
                           {/* Cell Header: Favicon + Title + Actions */}
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center shrink-0 overflow-hidden shadow-inner p-1.5">
+                              <div className="w-10 h-10 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center shrink-0 overflow-hidden shadow-inner p-1.5 group-hover:border-brand-500/30 transition">
                                 <img
                                   src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=64`}
                                   alt=""
@@ -536,14 +520,20 @@ export const SecretVault: React.FC = () => {
                             {/* Edit / Delete Cell */}
                             <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100 transition">
                               <button
-                                onClick={() => setCellModalTarget({ isOpen: true, cell })}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCellModalTarget({ isOpen: true, cell });
+                                }}
                                 className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
                                 title="Edit Link"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
                               </button>
                               <button
-                                onClick={() => setDeleteCellTarget(cell)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDeleteCellTarget(cell);
+                                }}
                                 className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-800 transition"
                                 title="Delete Link"
                               >
@@ -552,73 +542,23 @@ export const SecretVault: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Masked / Revealed URL Display with Eye Toggle */}
-                          <div className="flex items-center justify-between gap-2 p-2.5 bg-slate-950/80 border border-slate-800/80 rounded-xl text-xs font-mono">
-                            <div className="truncate flex-1 select-all">
-                              {revealedCellIds[cell.id] ? (
-                                <span className="text-slate-200">{cell.url}</span>
-                              ) : (
-                                <span className="text-slate-500 tracking-widest select-none font-sans font-bold">
-                                  ••••••••••••••••••••••••
-                                </span>
-                              )}
-                            </div>
-                            <button
-                              type="button"
-                              onClick={(e) => toggleRevealUrl(cell.id, e)}
-                              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0"
-                              title={revealedCellIds[cell.id] ? 'Hide link' : 'Show link'}
-                            >
-                              {revealedCellIds[cell.id] ? (
-                                <EyeOff className="w-3.5 h-3.5 text-brand-400" />
-                              ) : (
-                                <Eye className="w-3.5 h-3.5" />
-                              )}
-                            </button>
-                          </div>
-
                           {/* Optional Notes */}
                           {cell.notes && (
-                            <p className="text-xs text-slate-400/90 line-clamp-2 italic bg-slate-950/40 p-2 rounded-lg border border-slate-900">
+                            <p className="text-xs text-slate-400/90 line-clamp-2 italic bg-slate-950/40 p-2.5 rounded-xl border border-slate-900">
                               "{cell.notes}"
                             </p>
                           )}
                         </div>
 
-                        {/* Bottom Actions: One-Click Copy & Open Link */}
-                        <div className="pt-3 border-t border-slate-800/80 flex items-center gap-2">
-                          {/* ONE-CLICK COPY LINK BUTTON */}
-                          <button
-                            onClick={(e) => handleCopyUrl(cell, e)}
-                            className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 shadow active:scale-95 ${
-                              isCopied
-                                ? 'bg-emerald-600 text-white ring-2 ring-emerald-400'
-                                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700/50'
-                            }`}
-                            title="Copy link to clipboard in one click"
-                          >
-                            {isCopied ? (
-                              <>
-                                <Check className="w-4 h-4 text-white" />
-                                <span>Copied!</span>
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-3.5 h-3.5" />
-                                <span>Copy Link</span>
-                              </>
-                            )}
-                          </button>
-
-                          {/* OPEN LINK BUTTON */}
-                          <button
-                            onClick={(e) => handleOpenLink(cell.url, e)}
-                            className="py-2 px-3 bg-brand-600/20 hover:bg-brand-600 text-brand-300 hover:text-white border border-brand-500/30 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 active:scale-95 shrink-0"
-                            title="Open URL in new tab"
-                          >
-                            <ExternalLink className="w-3.5 h-3.5" />
-                            <span>Open</span>
-                          </button>
+                        {/* Bottom Action: Click to open cell & view link */}
+                        <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs text-slate-400 group-hover:text-brand-300 transition">
+                          <span className="flex items-center gap-1.5 font-semibold">
+                            <ExternalLink className="w-3.5 h-3.5 text-brand-400" />
+                            <span>Click to open link</span>
+                          </span>
+                          <span className="px-2 py-0.5 rounded-lg bg-slate-950 border border-slate-800 text-[10px] text-slate-400 font-mono">
+                            Protected Cell
+                          </span>
                         </div>
                       </div>
                     );
