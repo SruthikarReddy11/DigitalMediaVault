@@ -19,6 +19,8 @@ import {
   Share2,
   RefreshCw,
   SlidersHorizontal,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { VaultFolder, VaultCell } from '../types';
 import { vaultApi } from '../services/vaultApi';
@@ -59,12 +61,23 @@ export const SecretVault: React.FC = () => {
   // 5. One-Click Copy Feedback Tracker: cellId -> boolean
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
 
-  const isUnlockedRef = useRef(isUnlocked);
-  useEffect(() => {
-    isUnlockedRef.current = isUnlocked;
-  }, [isUnlocked]);
+  // 6. Eye Toggle Visibility Tracker: cellId -> boolean (default false = masked)
+  const [revealedCellIds, setRevealedCellIds] = useState<Record<string, boolean>>({});
 
-  // Immediate Auto-Lock on Unmount or Tab Switch (within 1 second)
+  const toggleRevealUrl = (cellId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setRevealedCellIds((prev) => ({
+      ...prev,
+      [cellId]: !prev[cellId],
+    }));
+  };
+
+  const activeFolderRef = useRef(activeFolder);
+  useEffect(() => {
+    activeFolderRef.current = activeFolder;
+  }, [activeFolder]);
+
+  // Lock Entire Vault Space (Google Authenticator Gate) - called on manual Lock Space or Route Exit
   const handleLockVault = useCallback(() => {
     setIsUnlocked(false);
     setIsGateOpen(true);
@@ -72,13 +85,26 @@ export const SecretVault: React.FC = () => {
     setActiveCells([]);
     setIsFolderLocked(true);
     setPasswordTargetFolder(null);
+    setRevealedCellIds({});
+  }, []);
+
+  // Lock Active Folder only - called on tab change so that returning asks for that folder's password, not the space authenticator code
+  const handleLockActiveFolder = useCallback(() => {
+    if (activeFolderRef.current) {
+      setActiveFolder(null);
+      setActiveCells([]);
+      setIsFolderLocked(true);
+      setPasswordTargetFolder(null);
+      setRevealedCellIds({});
+    }
   }, []);
 
   useEffect(() => {
-    // When the user switches away or closes tab/browser, lock immediately
+    // When changing browser tabs or minimizing window:
+    // Lock active folder so returning asks for that folder's password (not space authenticator)
     const handleVisibilityChange = () => {
-      if (document.hidden && isUnlockedRef.current) {
-        handleLockVault();
+      if (document.hidden) {
+        handleLockActiveFolder();
       }
     };
 
@@ -86,7 +112,7 @@ export const SecretVault: React.FC = () => {
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [handleLockVault]);
+  }, [handleLockActiveFolder]);
 
   // Load Folders once Vault is unlocked
   const loadFolders = async () => {
@@ -131,6 +157,7 @@ export const SecretVault: React.FC = () => {
     setActiveFolder(null);
     setActiveCells([]);
     setIsFolderLocked(true);
+    setRevealedCellIds({});
     loadFolders(); // Refresh cell counts
   };
 
@@ -333,11 +360,11 @@ export const SecretVault: React.FC = () => {
 
               <button
                 onClick={handleLockVault}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold rounded-2xl transition"
-                title="Lock Vault Now (requires Google Authenticator to re-open)"
+                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold rounded-2xl transition active:scale-95"
+                title="Exit and Lock Vault Space (requires Google Authenticator to re-open)"
               >
                 <Lock className="w-4 h-4" />
-                <span className="hidden sm:inline">Lock Vault</span>
+                <span>Exit Space</span>
               </button>
             </div>
           </div>
@@ -525,9 +552,29 @@ export const SecretVault: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Raw URL Display */}
-                          <div className="p-2.5 bg-slate-950/80 border border-slate-800/80 rounded-xl text-xs font-mono text-slate-300 truncate select-all">
-                            {cell.url}
+                          {/* Masked / Revealed URL Display with Eye Toggle */}
+                          <div className="flex items-center justify-between gap-2 p-2.5 bg-slate-950/80 border border-slate-800/80 rounded-xl text-xs font-mono">
+                            <div className="truncate flex-1 select-all">
+                              {revealedCellIds[cell.id] ? (
+                                <span className="text-slate-200">{cell.url}</span>
+                              ) : (
+                                <span className="text-slate-500 tracking-widest select-none font-sans font-bold">
+                                  ••••••••••••••••••••••••
+                                </span>
+                              )}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={(e) => toggleRevealUrl(cell.id, e)}
+                              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition shrink-0"
+                              title={revealedCellIds[cell.id] ? 'Hide link' : 'Show link'}
+                            >
+                              {revealedCellIds[cell.id] ? (
+                                <EyeOff className="w-3.5 h-3.5 text-brand-400" />
+                              ) : (
+                                <Eye className="w-3.5 h-3.5" />
+                              )}
+                            </button>
                           </div>
 
                           {/* Optional Notes */}
