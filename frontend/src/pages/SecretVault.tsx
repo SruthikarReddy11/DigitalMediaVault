@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   KeyRound,
   Lock,
@@ -59,6 +59,11 @@ export const SecretVault: React.FC = () => {
   // 5. One-Click Copy Feedback Tracker: cellId -> boolean
   const [copiedCellId, setCopiedCellId] = useState<string | null>(null);
 
+  const isUnlockedRef = useRef(isUnlocked);
+  useEffect(() => {
+    isUnlockedRef.current = isUnlocked;
+  }, [isUnlocked]);
+
   // Immediate Auto-Lock on Unmount or Tab Switch (within 1 second)
   const handleLockVault = useCallback(() => {
     setIsUnlocked(false);
@@ -72,7 +77,7 @@ export const SecretVault: React.FC = () => {
   useEffect(() => {
     // When the user switches away or closes tab/browser, lock immediately
     const handleVisibilityChange = () => {
-      if (document.hidden && isUnlocked) {
+      if (document.hidden && isUnlockedRef.current) {
         handleLockVault();
       }
     };
@@ -80,10 +85,8 @@ export const SecretVault: React.FC = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      // Auto-lock when navigating away
-      handleLockVault();
     };
-  }, [isUnlocked, handleLockVault]);
+  }, [handleLockVault]);
 
   // Load Folders once Vault is unlocked
   const loadFolders = async () => {
