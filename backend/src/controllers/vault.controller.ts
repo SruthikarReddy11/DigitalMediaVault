@@ -81,7 +81,7 @@ export class VaultController {
 
   public static async unlockFolder(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const { password } = req.body;
       if (!password) {
         return res.status(400).json({
@@ -98,7 +98,7 @@ export class VaultController {
 
   public static async updateFolder(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const folder = await VaultService.updateFolder(req.user!.id, id, req.body);
       res.json({ success: true, data: folder });
     } catch (err) {
@@ -108,7 +108,7 @@ export class VaultController {
 
   public static async deleteFolder(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const result = await VaultService.deleteFolder(req.user!.id, id);
       res.json({ success: true, data: result });
     } catch (err) {
@@ -119,7 +119,7 @@ export class VaultController {
   // Cell Endpoints
   public static async createCell(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { folderId } = req.params;
+      const folderId = String(req.params.folderId);
       const { url, title, notes } = req.body;
       const cell = await VaultService.createCell(req.user!.id, folderId, {
         url,
@@ -134,7 +134,7 @@ export class VaultController {
 
   public static async updateCell(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const cell = await VaultService.updateCell(req.user!.id, id, req.body);
       res.json({ success: true, data: cell });
     } catch (err) {
@@ -144,7 +144,7 @@ export class VaultController {
 
   public static async deleteCell(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { id } = req.params;
+      const id = String(req.params.id);
       const result = await VaultService.deleteCell(req.user!.id, id);
       res.json({ success: true, data: result });
     } catch (err) {
