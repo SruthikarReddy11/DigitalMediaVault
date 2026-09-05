@@ -178,3 +178,35 @@ export interface AdminUser {
   folderCount: number;
   storageBytes: number;
 }
+
+export interface VaultFolder {
+  id: string;
+  name: string;
+  description?: string | null;
+  color: string;
+  icon: string;
+  createdAt: string;
+  updatedAt: string;
+  cellCount: number;
+  isLocked: boolean;
+}
+
+export interface VaultCell {
+  id: string;
+  folderId: string;
+  title: string;
+  url: string;
+  notes?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TwoFactorStatus {
+  enabled: boolean;
+}
+
+export interface TwoFactorSetup {
+  secret: string;
+  qrCodeDataUrl: string;
+  otpAuthUrl: string;
+}

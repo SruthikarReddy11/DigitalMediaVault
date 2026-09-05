@@ -15,6 +15,7 @@ import { Files } from '../pages/Files';
 import { Favorites } from '../pages/Favorites';
 import { Trash } from '../pages/Trash';
 import { Settings } from '../pages/Settings';
+import { SecretVault } from '../pages/SecretVault';
 
 // Admin Pages
 import { AdminDashboard } from '../pages/admin/AdminDashboard';
@@ -94,6 +95,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="/playlists" element={<Music />} />
         <Route path="/playlists/:id" element={<PlaylistDetail />} />
         <Route path="/files" element={<Files />} />
+        <Route path="/vault" element={<SecretVault />} />
         <Route path="/favorites" element={<Favorites />} />
         <Route path="/trash" element={<Trash />} />
         <Route path="/settings" element={<Settings />} />

@@ -16,6 +16,7 @@ import {
   Activity,
   HardDrive,
   Sparkles,
+  KeyRound,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -35,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: '/videos', label: 'Videos', icon: Video },
     { to: '/music', label: 'Music', icon: Music },
     { to: '/files', label: 'Files', icon: FolderClosed },
+    { to: '/vault', label: 'Secret Vault', icon: KeyRound },
     { to: '/favorites', label: 'Favorites', icon: Heart },
     { to: '/playlists', label: 'Playlists', icon: ListMusic },
     { to: '/trash', label: 'Trash', icon: Trash2 },

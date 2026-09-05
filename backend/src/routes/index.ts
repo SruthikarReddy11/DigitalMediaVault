@@ -7,6 +7,7 @@ import playlistRoutes from './playlist.routes';
 import favoriteRoutes from './favorite.routes';
 import trashRoutes from './trash.routes';
 import adminRoutes from './admin.routes';
+import vaultRoutes from './vault.routes';
 
 const router = Router();
 
@@ -18,6 +19,7 @@ router.use('/playlists', playlistRoutes);
 router.use('/favorites', favoriteRoutes);
 router.use('/trash', trashRoutes);
 router.use('/admin', adminRoutes);
+router.use('/vault', vaultRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {
