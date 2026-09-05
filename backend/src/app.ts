@@ -63,24 +63,39 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
   next();
 });
 
+// Parse and normalize all allowed origins from environment and defaults
+const parseAllowedOrigins = (): string[] => {
+  const envOrigins = (process.env.CORS_ORIGIN || '')
+    .split(',')
+    .map((s) => s.trim().replace(/\/$/, ''))
+    .filter(Boolean);
+
+  const defaults = [
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    'http://localhost:3000',
+    'http://localhost',
+    'capacitor://localhost',
+    'https://localhost',
+    'https://digital-media-vault.vercel.app',
+  ];
+
+  return Array.from(new Set([...envOrigins, ...defaults]));
+};
+
 // Strict CORS configuration
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (e.g. mobile apps, same-origin, curl)
       if (!origin) return callback(null, true);
-      const allowedOrigins = Array.isArray(config.cors.origin)
-  ? config.cors.origin
-  : [
-      config.cors.origin,
-      'http://localhost:5173',
-      'http://127.0.0.1:5173',
-      'http://localhost',
-      'capacitor://localhost',
-      'https://localhost',
-    ];
+      const allowedOrigins = parseAllowedOrigins();
 
-      if (allowedOrigins.includes(origin) || !config.isProduction) {
+      if (
+        allowedOrigins.includes(origin) ||
+        origin.endsWith('.vercel.app') ||
+        !config.isProduction
+      ) {
         return callback(null, true);
       }
       return callback(new Error('Cross-Origin Request Blocked by CORS policy'));
@@ -99,16 +114,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   if (mutatingMethods.includes(req.method)) {
     const origin = req.headers.origin;
     if (origin && config.isProduction) {
-      const allowedOrigins = Array.isArray(config.cors.origin)
-  ? config.cors.origin
-  : [
-      config.cors.origin,
-      'http://localhost',
-      'capacitor://localhost',
-      'https://localhost',
-    ];
+      const allowedOrigins = parseAllowedOrigins();
 
-      if (!allowedOrigins.includes(origin)) {
+      if (!allowedOrigins.includes(origin) && !origin.endsWith('.vercel.app')) {
         res.status(403).json({
           success: false,
           error: {
