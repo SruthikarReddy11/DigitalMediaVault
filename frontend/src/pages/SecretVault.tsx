@@ -29,8 +29,10 @@ import { CreateFolderModal } from '../components/vault/CreateFolderModal';
 import { CellModal } from '../components/vault/CellModal';
 import { ViewCellModal } from '../components/vault/ViewCellModal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
+import { useNavigate } from 'react-router-dom';
 
 export const SecretVault: React.FC = () => {
+  const navigate = useNavigate();
   const { success, error } = useToast();
 
   // 1. Vault Authentication Gate (Google Authenticator)
@@ -220,6 +222,13 @@ export const SecretVault: React.FC = () => {
         <VaultGateModal
           isOpen={isGateOpen}
           onUnlock={handleGateUnlock}
+          onClose={() => {
+            if (window.history.length > 1) {
+              navigate(-1);
+            } else {
+              navigate('/media');
+            }
+          }}
         />
       )}
 
@@ -483,7 +492,6 @@ export const SecretVault: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   {filteredCells.map((cell) => {
                     const domain = getDomain(cell.url);
-                    const isCopied = copiedCellId === cell.id;
 
                     return (
                       <div

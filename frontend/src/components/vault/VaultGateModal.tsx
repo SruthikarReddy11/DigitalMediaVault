@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ShieldAlert, ShieldCheck, KeyRound, Copy, Check, ArrowRight, Smartphone, RefreshCw } from 'lucide-react';
+import { ShieldAlert, ShieldCheck, KeyRound, Copy, Check, ArrowRight, Smartphone, RefreshCw, ArrowLeft } from 'lucide-react';
 import { vaultApi } from '../../services/vaultApi';
 import { TwoFactorSetup } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
@@ -80,6 +80,19 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
         <div className="absolute -top-24 -left-24 w-48 h-48 bg-brand-500/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
 
+        {/* Go Back Button (Top Left) */}
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute top-5 left-5 z-20 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white transition text-xs font-semibold flex items-center gap-1.5 border border-slate-700/60 shadow active:scale-95"
+            title="Go back to previous page"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>Go Back</span>
+          </button>
+        )}
+
         {isChecking ? (
           <div className="py-12 space-y-4">
             <RefreshCw className="w-8 h-8 text-brand-400 animate-spin mx-auto" />
@@ -117,7 +130,7 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
                 />
               </div>
 
-              <div className="pt-2">
+              <div className="pt-2 space-y-2">
                 <button
                   type="submit"
                   disabled={isLoading || code.length !== 6}
@@ -132,6 +145,17 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
                     </>
                   )}
                 </button>
+
+                {onClose && (
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="w-full py-2 text-xs text-slate-400 hover:text-slate-200 transition font-medium flex items-center justify-center gap-1.5"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Go Back to Library</span>
+                  </button>
+                )}
               </div>
             </form>
 
@@ -220,6 +244,17 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
                       </>
                     )}
                   </button>
+
+                  {onClose && (
+                    <button
+                      type="button"
+                      onClick={onClose}
+                      className="w-full py-1.5 text-xs text-slate-400 hover:text-slate-200 transition font-medium flex items-center justify-center gap-1.5"
+                    >
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Go Back to Library</span>
+                    </button>
+                  )}
                 </form>
               </div>
             )}
