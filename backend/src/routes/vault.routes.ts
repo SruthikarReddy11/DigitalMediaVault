@@ -25,4 +25,7 @@ router.post('/folders/:folderId/cells', VaultController.createCell);
 router.patch('/cells/:id', VaultController.updateCell);
 router.delete('/cells/:id', VaultController.deleteCell);
 
+// URL Video Preview Detection Endpoint
+router.get('/preview', VaultController.detectVideo);
+
 export default router;

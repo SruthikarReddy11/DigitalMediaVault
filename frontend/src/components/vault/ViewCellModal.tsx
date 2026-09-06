@@ -1,7 +1,22 @@
-import React, { useState, useEffect } from 'react';
-import { Globe, Copy, Check, ExternalLink, Edit2, Trash2, X, Link2, FileText, Video, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  Globe,
+  Copy,
+  Check,
+  ExternalLink,
+  Edit2,
+  Trash2,
+  X,
+  Link2,
+  FileText,
+  Video,
+  Image as ImageIcon,
+  Loader2,
+  RotateCcw,
+} from 'lucide-react';
 import { VaultCell } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
+import { vaultApi } from '../../services/vaultApi';
 
 interface ViewCellModalProps {
   cell: VaultCell | null;
@@ -9,6 +24,14 @@ interface ViewCellModalProps {
   onClose: () => void;
   onEdit: (cell: VaultCell) => void;
   onDelete: (cell: VaultCell) => void;
+}
+
+interface DetectedVideo {
+  hasVideo: boolean;
+  videoType?: 'youtube' | 'vimeo' | 'dailymotion' | 'direct' | 'stream';
+  videoUrl?: string;
+  embedUrl?: string;
+  videoId?: string;
 }
 
 export const ViewCellModal: React.FC<ViewCellModalProps> = ({
@@ -21,9 +44,154 @@ export const ViewCellModal: React.FC<ViewCellModalProps> = ({
   const { success } = useToast();
   const [copied, setCopied] = useState(false);
   const [imageFailed, setImageFailed] = useState(false);
+  const [isTeaserMode, setIsTeaserMode] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
+  const [isDetecting, setIsDetecting] = useState(false);
+  const [detectedVideo, setDetectedVideo] = useState<DetectedVideo | null>(null);
+
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Fast client-side detection helpers
+  const getYouTubeId = (rawUrl: string): string | null => {
+    try {
+      const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/)|youtu\.be\/)([^"&?\/\s]{11})/i;
+      const match = rawUrl.match(regExp);
+      return match ? match[1] : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getVimeoId = (rawUrl: string): string | null => {
+    try {
+      const regExp = /vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|)(\d+)(?:$|\/|\?)/i;
+      const match = rawUrl.match(regExp);
+      return match ? match[3] : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const getDailymotionId = (rawUrl: string): string | null => {
+    try {
+      const regExp = /(?:dailymotion\.com\/(?:video|hub)\/|dai\.ly\/)([0-9a-zA-Z]+)/i;
+      const match = rawUrl.match(regExp);
+      return match ? match[1] : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const isDirectVideo = (rawUrl: string): boolean => {
+    try {
+      const pathname = new URL(rawUrl).pathname.toLowerCase();
+      return /\.(mp4|webm|ogg|mov|m4v|mkv)$/i.test(pathname);
+    } catch {
+      return /\.(mp4|webm|ogg|mov|m4v|mkv)(\?.*)?$/i.test(rawUrl);
+    }
+  };
+
+  const isDirectImage = (rawUrl: string): boolean => {
+    if (/^data:image\//i.test(rawUrl)) return true;
+    try {
+      const pathname = new URL(rawUrl).pathname.toLowerCase();
+      return /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif|ico)$/i.test(pathname);
+    } catch {
+      return /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif|ico)(\?.*)?$/i.test(rawUrl);
+    }
+  };
 
   useEffect(() => {
+    if (!cell?.url || !isOpen) {
+      setDetectedVideo(null);
+      setIsDetecting(false);
+      return;
+    }
+
     setImageFailed(false);
+    setIsTeaserMode(true);
+    setIsMuted(true);
+
+    const ytId = getYouTubeId(cell.url);
+    if (ytId) {
+      setDetectedVideo({
+        hasVideo: true,
+        videoType: 'youtube',
+        videoId: ytId,
+        embedUrl: `https://www.youtube-nocookie.com/embed/${ytId}`,
+      });
+      setIsDetecting(false);
+      return;
+    }
+
+    const vmId = getVimeoId(cell.url);
+    if (vmId) {
+      setDetectedVideo({
+        hasVideo: true,
+        videoType: 'vimeo',
+        videoId: vmId,
+        embedUrl: `https://player.vimeo.com/video/${vmId}`,
+      });
+      setIsDetecting(false);
+      return;
+    }
+
+    const dmId = getDailymotionId(cell.url);
+    if (dmId) {
+      setDetectedVideo({
+        hasVideo: true,
+        videoType: 'dailymotion',
+        videoId: dmId,
+        embedUrl: `https://www.dailymotion.com/embed/video/${dmId}`,
+      });
+      setIsDetecting(false);
+      return;
+    }
+
+    if (isDirectVideo(cell.url)) {
+      setDetectedVideo({
+        hasVideo: true,
+        videoType: 'direct',
+        videoUrl: cell.url,
+      });
+      setIsDetecting(false);
+      return;
+    }
+
+    if (isDirectImage(cell.url)) {
+      setDetectedVideo({ hasVideo: false });
+      setIsDetecting(false);
+      return;
+    }
+
+    // Arbitrary website URL: query backend to inspect webpage HTML for video references
+    let isCancelled = false;
+    setIsDetecting(true);
+
+    vaultApi
+      .checkVideoPreview(cell.url)
+      .then((data) => {
+        if (isCancelled) return;
+        if (data && data.hasVideo) {
+          setDetectedVideo(data);
+        } else {
+          setDetectedVideo({ hasVideo: false });
+        }
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setDetectedVideo({ hasVideo: false });
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setIsDetecting(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
   }, [cell?.url, isOpen]);
 
   if (!isOpen || !cell) return null;
@@ -38,53 +206,6 @@ export const ViewCellModal: React.FC<ViewCellModalProps> = ({
   };
 
   const domain = getDomain(cell.url);
-
-  // 1. Detect YouTube link
-  const getYouTubeId = (rawUrl: string): string | null => {
-    try {
-      const regExp = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/)|youtu\.be\/)([^"&?\/\s]{11})/i;
-      const match = rawUrl.match(regExp);
-      return match ? match[1] : null;
-    } catch {
-      return null;
-    }
-  };
-
-  // 2. Detect Vimeo link
-  const getVimeoId = (rawUrl: string): string | null => {
-    try {
-      const regExp = /vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|)(\d+)(?:$|\/|\?)/i;
-      const match = rawUrl.match(regExp);
-      return match ? match[3] : null;
-    } catch {
-      return null;
-    }
-  };
-
-  // 3. Detect Direct Video File
-  const isDirectVideo = (rawUrl: string): boolean => {
-    try {
-      const pathname = new URL(rawUrl).pathname.toLowerCase();
-      return /\.(mp4|webm|ogg|mov|m4v|mkv)$/i.test(pathname);
-    } catch {
-      return /\.(mp4|webm|ogg|mov|m4v|mkv)(\?.*)?$/i.test(rawUrl);
-    }
-  };
-
-  // 4. Detect Direct Image File
-  const isDirectImage = (rawUrl: string): boolean => {
-    if (/^data:image\//i.test(rawUrl)) return true;
-    try {
-      const pathname = new URL(rawUrl).pathname.toLowerCase();
-      return /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif|ico)$/i.test(pathname);
-    } catch {
-      return /\.(jpg|jpeg|png|gif|webp|svg|bmp|avif|ico)(\?.*)?$/i.test(rawUrl);
-    }
-  };
-
-  const youtubeId = getYouTubeId(cell.url);
-  const vimeoId = getVimeoId(cell.url);
-  const directVideo = isDirectVideo(cell.url);
   const directImage = isDirectImage(cell.url);
 
   const handleCopy = (e?: React.MouseEvent) => {
@@ -98,6 +219,14 @@ export const ViewCellModal: React.FC<ViewCellModalProps> = ({
   const handleOpen = (e?: React.MouseEvent) => {
     e?.stopPropagation();
     window.open(cell.url, '_blank', 'noopener,noreferrer');
+  };
+
+  const handleDirectVideoTimeUpdate = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    // 5 - 10 Second Preview Loop
+    if (isTeaserMode && e.currentTarget.currentTime >= 10) {
+      e.currentTarget.currentTime = 0;
+      e.currentTarget.play().catch(() => {});
+    }
   };
 
   return (
@@ -144,12 +273,13 @@ export const ViewCellModal: React.FC<ViewCellModalProps> = ({
         <div className="space-y-4 overflow-y-auto pr-1 flex-1">
           {/* Media Preview Section */}
           <div className="space-y-2">
+            {/* Preview Section Header */}
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                {youtubeId || vimeoId || directVideo ? (
+                {detectedVideo?.hasVideo ? (
                   <>
                     <Video className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>Video Preview</span>
+                    <span>{isTeaserMode ? '⏱️ 5–10s Video Preview' : 'Full Video Player'}</span>
                   </>
                 ) : directImage && !imageFailed ? (
                   <>
@@ -163,52 +293,132 @@ export const ViewCellModal: React.FC<ViewCellModalProps> = ({
                   </>
                 )}
               </label>
-              <span className="text-[10px] text-slate-500 font-mono">
-                {youtubeId || vimeoId || directVideo
-                  ? 'Embedded Video'
-                  : directImage && !imageFailed
-                  ? 'Image Media'
-                  : 'Web Address'}
-              </span>
+
+              {/* Mode indicator or toggle */}
+              {detectedVideo?.hasVideo ? (
+                <button
+                  type="button"
+                  onClick={() => setIsTeaserMode(!isTeaserMode)}
+                  className="text-[11px] font-semibold text-brand-400 hover:text-brand-300 transition flex items-center gap-1 bg-brand-500/10 hover:bg-brand-500/20 px-2.5 py-1 rounded-lg border border-brand-500/20"
+                >
+                  {isTeaserMode ? 'Watch Full Video →' : '⏱️ 5–10s Preview'}
+                </button>
+              ) : (
+                <span className="text-[10px] text-slate-500 font-mono">
+                  {directImage && !imageFailed ? 'Image Media' : 'Web Address'}
+                </span>
+              )}
             </div>
 
-            {/* Case A: YouTube Video */}
-            {youtubeId ? (
-              <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-xl">
-                <iframe
-                  src={`https://www.youtube-nocookie.com/embed/${youtubeId}?rel=0`}
-                  title={cell.title || 'YouTube video preview'}
-                  className="w-full h-full border-0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                />
+            {/* Video Content Rendering */}
+            {detectedVideo?.hasVideo ? (
+              <div className="space-y-2">
+                {/* YouTube Video Preview */}
+                {detectedVideo.videoType === 'youtube' && detectedVideo.videoId && (
+                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-xl">
+                    <iframe
+                      key={`yt-${detectedVideo.videoId}-${isTeaserMode}`}
+                      src={
+                        isTeaserMode
+                          ? `https://www.youtube-nocookie.com/embed/${detectedVideo.videoId}?start=0&end=10&autoplay=1&mute=1&loop=1&playlist=${detectedVideo.videoId}&controls=1`
+                          : `https://www.youtube-nocookie.com/embed/${detectedVideo.videoId}?autoplay=1&controls=1`
+                      }
+                      title={cell.title || 'YouTube video preview'}
+                      className="w-full h-full border-0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  </div>
+                )}
+
+                {/* Vimeo Video Preview */}
+                {detectedVideo.videoType === 'vimeo' && detectedVideo.videoId && (
+                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-xl">
+                    <iframe
+                      key={`vm-${detectedVideo.videoId}-${isTeaserMode}`}
+                      src={
+                        isTeaserMode
+                          ? `https://player.vimeo.com/video/${detectedVideo.videoId}?autoplay=1&muted=1&loop=1#t=0s`
+                          : `https://player.vimeo.com/video/${detectedVideo.videoId}?autoplay=1`
+                      }
+                      title={cell.title || 'Vimeo video preview'}
+                      className="w-full h-full border-0"
+                      allow="autoplay; fullscreen; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                )}
+
+                {/* Dailymotion Video Preview */}
+                {detectedVideo.videoType === 'dailymotion' && detectedVideo.videoId && (
+                  <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-xl">
+                    <iframe
+                      key={`dm-${detectedVideo.videoId}-${isTeaserMode}`}
+                      src={
+                        isTeaserMode
+                          ? `https://www.dailymotion.com/embed/video/${detectedVideo.videoId}?autoplay=1&mute=1`
+                          : `https://www.dailymotion.com/embed/video/${detectedVideo.videoId}?autoplay=1`
+                      }
+                      title={cell.title || 'Dailymotion video preview'}
+                      className="w-full h-full border-0"
+                      allow="autoplay; fullscreen; picture-in-picture"
+                      allowFullScreen
+                    />
+                  </div>
+                )}
+
+                {/* Direct Video File (.mp4, .webm, stream, etc.) */}
+                {(detectedVideo.videoType === 'direct' ||
+                  detectedVideo.videoType === 'stream' ||
+                  (!['youtube', 'vimeo', 'dailymotion'].includes(detectedVideo.videoType || '') &&
+                    detectedVideo.videoUrl)) && (
+                  <div className="relative w-full rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-xl">
+                    <video
+                      ref={videoRef}
+                      src={detectedVideo.videoUrl || cell.url}
+                      autoPlay
+                      muted={isMuted}
+                      playsInline
+                      controls={!isTeaserMode}
+                      preload="auto"
+                      onTimeUpdate={handleDirectVideoTimeUpdate}
+                      className="w-full max-h-60 object-contain mx-auto bg-black rounded-2xl"
+                    >
+                      Your browser does not support HTML5 video streaming.
+                    </video>
+                  </div>
+                )}
+
+                {/* Teaser info pill */}
+                {isTeaserMode && (
+                  <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-indigo-950/40 border border-indigo-900/40 text-[11px] text-indigo-300">
+                    <span className="flex items-center gap-1.5">
+                      <RotateCcw className="w-3 h-3 text-indigo-400" />
+                      <span>Looping 5–10s teaser preview (muted)</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsTeaserMode(false);
+                        setIsMuted(false);
+                      }}
+                      className="font-semibold text-brand-400 hover:underline ml-2 shrink-0"
+                    >
+                      Watch Full
+                    </button>
+                  </div>
+                )}
               </div>
-            ) : vimeoId ? (
-              /* Case B: Vimeo Video */
-              <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-xl">
-                <iframe
-                  src={`https://player.vimeo.com/video/${vimeoId}?dnt=1`}
-                  title={cell.title || 'Vimeo video preview'}
-                  className="w-full h-full border-0"
-                  allow="autoplay; fullscreen; picture-in-picture"
-                  allowFullScreen
-                />
-              </div>
-            ) : directVideo ? (
-              /* Case C: Direct HTML5 Video File */
-              <div className="relative w-full rounded-2xl overflow-hidden bg-black border border-slate-800 shadow-xl">
-                <video
-                  src={cell.url}
-                  controls
-                  playsInline
-                  preload="metadata"
-                  className="w-full max-h-60 object-contain mx-auto bg-black rounded-2xl"
-                >
-                  Your browser does not support HTML5 video streaming.
-                </video>
+            ) : isDetecting ? (
+              /* Loading Webpage Video Detection */
+              <div className="p-5 rounded-2xl bg-slate-950/70 border border-slate-800/90 flex items-center justify-center gap-3 shadow-inner">
+                <Loader2 className="w-4 h-4 text-brand-400 animate-spin" />
+                <p className="text-xs text-slate-400">
+                  Checking if webpage refers to any video preview...
+                </p>
               </div>
             ) : directImage && !imageFailed ? (
-              /* Case D: Image Thumbnail / Preview */
+              /* Direct Image Preview */
               <div className="relative rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 p-2 shadow-inner flex items-center justify-center max-h-64">
                 <img
                   src={cell.url}
@@ -218,7 +428,7 @@ export const ViewCellModal: React.FC<ViewCellModalProps> = ({
                 />
               </div>
             ) : (
-              /* Case E: Website or Other Link (No Preview Available) */
+              /* Website or Other Link with NO video: Show Clean Message */
               <div className="p-4 rounded-2xl bg-slate-950/70 border border-slate-800/90 flex items-center gap-3.5 shadow-inner">
                 <div className="w-11 h-11 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 shrink-0">
                   <Globe className="w-6 h-6 text-brand-400" />

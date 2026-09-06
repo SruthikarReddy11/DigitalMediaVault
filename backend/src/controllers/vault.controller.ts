@@ -151,4 +151,17 @@ export class VaultController {
       next(err);
     }
   }
+
+  public static async detectVideo(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const url = String(req.query.url || '');
+      if (!url) {
+        return res.json({ success: true, data: { hasVideo: false } });
+      }
+      const data = await VaultService.detectVideo(url);
+      res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

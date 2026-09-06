@@ -426,4 +426,182 @@ export class VaultService {
 
     return { success: true };
   }
+
+  public static async detectVideo(rawUrl: string): Promise<{
+    hasVideo: boolean;
+    videoType?: 'youtube' | 'vimeo' | 'dailymotion' | 'direct' | 'stream';
+    videoUrl?: string;
+    embedUrl?: string;
+    videoId?: string;
+  }> {
+    if (!rawUrl || typeof rawUrl !== 'string') {
+      return { hasVideo: false };
+    }
+
+    let url = rawUrl.trim();
+    if (!/^https?:\/\//i.test(url)) {
+      url = `https://${url}`;
+    }
+
+    // 1. Direct YouTube Check
+    const ytMatch = url.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/)|youtu\.be\/)([^"&?\/\s]{11})/i);
+    if (ytMatch) {
+      const videoId = ytMatch[1];
+      return {
+        hasVideo: true,
+        videoType: 'youtube',
+        videoId,
+        embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?start=0&end=10&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1`,
+        videoUrl: url,
+      };
+    }
+
+    // 2. Direct Vimeo Check
+    const vimeoMatch = url.match(/vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/([^\/]*)\/videos\/|album\/(\d+)\/video\/|)(\d+)/i);
+    if (vimeoMatch) {
+      const videoId = vimeoMatch[3];
+      return {
+        hasVideo: true,
+        videoType: 'vimeo',
+        videoId,
+        embedUrl: `https://player.vimeo.com/video/${videoId}?autoplay=1&muted=1&loop=1#t=0s`,
+        videoUrl: url,
+      };
+    }
+
+    // 3. Direct Dailymotion Check
+    const dailyMatch = url.match(/(?:dailymotion\.com\/(?:video|hub)\/|dai\.ly\/)([0-9a-zA-Z]+)/i);
+    if (dailyMatch) {
+      const videoId = dailyMatch[1];
+      return {
+        hasVideo: true,
+        videoType: 'dailymotion',
+        videoId,
+        embedUrl: `https://www.dailymotion.com/embed/video/${videoId}?autoplay=1&mute=1`,
+        videoUrl: url,
+      };
+    }
+
+    // 4. Direct video file extension check (.mp4, .webm, .ogg, etc.)
+    if (/\.(mp4|webm|ogg|mov|m4v|mkv)(\?.*)?$/i.test(url)) {
+      return {
+        hasVideo: true,
+        videoType: 'direct',
+        videoUrl: url,
+      };
+    }
+
+    // 5. Arbitrary Webpage Check: Inspect OpenGraph and HTML5 video metadata
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+      const res = await fetch(url, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+        },
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        return { hasVideo: false };
+      }
+
+      // Read up to first 256KB to avoid downloading huge streams/files
+      const reader = res.body?.getReader();
+      let html = '';
+      if (reader) {
+        let bytesRead = 0;
+        const maxBytes = 256 * 1024;
+        while (bytesRead < maxBytes) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          bytesRead += value.length;
+          html += new TextDecoder('utf-8').decode(value, { stream: true });
+        }
+        reader.cancel();
+      } else {
+        html = await res.text();
+      }
+
+      // Check for embedded youtube/vimeo iframes in the webpage
+      const iframeYtMatch = html.match(/<iframe[^>]*\bsrc=["'](?:https?:)?\/\/www\.youtube(?:-nocookie)?\.com\/embed\/([^"'\?]+)/i);
+      if (iframeYtMatch) {
+        const videoId = iframeYtMatch[1];
+        return {
+          hasVideo: true,
+          videoType: 'youtube',
+          videoId,
+          embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?start=0&end=10&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1`,
+          videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+        };
+      }
+
+      const iframeVimeoMatch = html.match(/<iframe[^>]*\bsrc=["'](?:https?:)?\/\/player\.vimeo\.com\/video\/([0-9]+)/i);
+      if (iframeVimeoMatch) {
+        const videoId = iframeVimeoMatch[1];
+        return {
+          hasVideo: true,
+          videoType: 'vimeo',
+          videoId,
+          embedUrl: `https://player.vimeo.com/video/${videoId}?autoplay=1&muted=1&loop=1#t=0s`,
+          videoUrl: `https://vimeo.com/${videoId}`,
+        };
+      }
+
+      // Check for og:video tags
+      const ogVideoMatch = html.match(/<meta\s+[^>]*property=["'](?:og:video|og:video:url|og:video:secure_url)["']\s+[^>]*content=["']([^"']+)["']/i)
+        || html.match(/<meta\s+[^>]*content=["']([^"']+)["']\s+[^>]*property=["'](?:og:video|og:video:url|og:video:secure_url)["']/i);
+      
+      // Check for twitter:player
+      const twitterMatch = html.match(/<meta\s+[^>]*name=["'](?:twitter:player:stream|twitter:player)["']\s+[^>]*content=["']([^"']+)["']/i)
+        || html.match(/<meta\s+[^>]*content=["']([^"']+)["']\s+[^>]*name=["'](?:twitter:player:stream|twitter:player)["']/i);
+
+      // Check for embedded <video src="..."> or <source src="...">
+      const videoTagMatch = html.match(/<video[^>]*\bsrc=["']([^"']+)["']/i)
+        || html.match(/<source[^>]*\bsrc=["']([^"']+)["'][^>]*type=["']video\//i);
+
+      let detectedUrl = ogVideoMatch?.[1] || twitterMatch?.[1] || videoTagMatch?.[1];
+      if (detectedUrl) {
+        try {
+          detectedUrl = new URL(detectedUrl, url).href;
+        } catch {
+          // keep as is
+        }
+
+        // Check if detectedUrl is YouTube
+        const subYt = detectedUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/)|youtu\.be\/)([^"&?\/\s]{11})/i);
+        if (subYt) {
+          const videoId = subYt[1];
+          return {
+            hasVideo: true,
+            videoType: 'youtube',
+            videoId,
+            embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}?start=0&end=10&autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=1`,
+            videoUrl: detectedUrl,
+          };
+        }
+
+        if (/\.(mp4|webm|ogg|mov|m4v|mkv)(\?.*)?$/i.test(detectedUrl)) {
+          return {
+            hasVideo: true,
+            videoType: 'direct',
+            videoUrl: detectedUrl,
+          };
+        }
+
+        return {
+          hasVideo: true,
+          videoType: 'stream',
+          videoUrl: detectedUrl,
+        };
+      }
+
+      return { hasVideo: false };
+    } catch {
+      return { hasVideo: false };
+    }
+  }
 }

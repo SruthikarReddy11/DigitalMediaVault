@@ -87,4 +87,18 @@ export const vaultApi = {
     const res = await api.delete<{ success: boolean; data: { success: boolean } }>(`/vault/cells/${id}`);
     return res.data.data;
   },
+
+  async checkVideoPreview(url: string) {
+    const res = await api.get<{
+      success: boolean;
+      data: {
+        hasVideo: boolean;
+        videoType?: 'youtube' | 'vimeo' | 'dailymotion' | 'direct' | 'stream';
+        videoUrl?: string;
+        embedUrl?: string;
+        videoId?: string;
+      };
+    }>('/vault/preview', { params: { url } });
+    return res.data.data;
+  },
 };
