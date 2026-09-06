@@ -73,6 +73,21 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
     setTimeout(() => setCopiedKey(false), 2000);
   };
 
+  const handleReset2FA = async () => {
+    setIsChecking(true);
+    try {
+      const setup = await vaultApi.setup2FA();
+      setSetupData(setup);
+      setHas2FA(false);
+      setCode('');
+      success('Scan the new QR code in your Google Authenticator app.');
+    } catch (err: any) {
+      error(err.response?.data?.error?.message || 'Failed to re-link Google Authenticator.');
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
       <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 text-center relative overflow-hidden">
@@ -156,6 +171,16 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
                     <span>Go Back to Library</span>
                   </button>
                 )}
+
+                <div className="pt-1.5 text-center">
+                  <button
+                    type="button"
+                    onClick={handleReset2FA}
+                    className="text-[11px] text-slate-400 hover:text-amber-400 transition underline underline-offset-4"
+                  >
+                    Code not working? Re-link Google Authenticator
+                  </button>
+                </div>
               </div>
             </form>
 

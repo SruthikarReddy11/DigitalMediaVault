@@ -70,7 +70,7 @@ export class VaultService {
       throw err;
     }
 
-    const isValid = verifyTOTP(token, user.twoFactorSecret, 1, 30);
+    const isValid = verifyTOTP(token, user.twoFactorSecret, 2, 30);
     if (!isValid) {
       const err: any = new Error('Invalid 6-digit code. Please verify your Google Authenticator app and try again.');
       err.statusCode = 401;
@@ -102,7 +102,7 @@ export class VaultService {
       return { success: true };
     }
 
-    const isValid = verifyTOTP(token, user.twoFactorSecret, 1, 30);
+    const isValid = verifyTOTP(token, user.twoFactorSecret, 2, 30);
     if (!isValid) {
       const err: any = new Error('Invalid 6-digit code. Cannot disable 2FA.');
       err.statusCode = 401;
