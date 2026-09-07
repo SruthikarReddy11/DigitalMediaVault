@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getMediaUrl } from '../../services/api';
 import {
   Play,
@@ -78,6 +78,28 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
   const [isHoveringScrub, setIsHoveringScrub] = useState(false);
   const [isHoveringVolume, setIsHoveringVolume] = useState(false);
 
+  // Slow-motion Fullscreen Transition States
+  const [shouldRenderFullscreen, setShouldRenderFullscreen] = useState(isExpanded);
+  const [animateFullscreen, setAnimateFullscreen] = useState(false);
+
+  useEffect(() => {
+    if (isExpanded) {
+      setShouldRenderFullscreen(true);
+      const rafId = requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setAnimateFullscreen(true);
+        });
+      });
+      return () => cancelAnimationFrame(rafId);
+    } else {
+      setAnimateFullscreen(false);
+      const timer = setTimeout(() => {
+        setShouldRenderFullscreen(false);
+      }, 700);
+      return () => clearTimeout(timer);
+    }
+  }, [isExpanded]);
+
   if (!currentTrack) return null;
 
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
@@ -117,11 +139,22 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
 
   return (
     <>
-      {/* 1. Fullscreen / Expanded Visualizer Overlay Modal */}
-      {isExpanded && (
-        <div className="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-8 animate-in fade-in zoom-in-95 duration-200 overflow-y-auto">
-          {/* Top Bar */}
-          <div className="flex items-center justify-between">
+      {/* 1. Fullscreen / Expanded Visualizer Overlay Modal with Slow-Motion Transition */}
+      {shouldRenderFullscreen && (
+        <div
+          className={`fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-2xl flex flex-col justify-between p-4 sm:p-8 overflow-y-auto transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+            animateFullscreen
+              ? 'opacity-100 scale-100 translate-y-0 pointer-events-auto'
+              : 'opacity-0 scale-90 translate-y-16 pointer-events-none'
+          }`}
+          style={{ transformOrigin: 'bottom center' }}
+        >
+          {/* Top Bar with Staggered Entrance */}
+          <div
+            className={`flex items-center justify-between transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              animateFullscreen ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
+            }`}
+          >
             <div className="flex items-center gap-2">
               <span className="px-3 py-1 rounded-full bg-brand-500/20 text-brand-300 text-xs font-semibold border border-brand-500/30 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
@@ -136,38 +169,68 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
 
             <button
               onClick={() => setIsExpanded(false)}
-              className="p-2.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition"
+              className="p-2.5 rounded-full bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition hover:scale-105 active:scale-95 cursor-pointer"
               title="Minimize player"
             >
               <Minimize2 className="w-5 h-5" />
             </button>
           </div>
 
-          {/* Center: Modern Album Art Showcase & Soundwave Visualizer */}
-          <div className="flex flex-col items-center justify-center my-auto max-w-md mx-auto w-full text-center space-y-6 py-4">
-            {/* Album Artwork with Soft Ambient Glow */}
-            <div className="relative group">
-              {/* Soft ambient aura based on track */}
-              <div className="absolute -inset-4 bg-brand-500/20 rounded-3xl blur-2xl opacity-60 group-hover:opacity-90 transition duration-500 pointer-events-none" />
+          {/* Center: Modern Album Art Showcase & Slow-Motion Visualizer Chamber */}
+          <div className="flex flex-col items-center justify-center my-auto max-w-lg mx-auto w-full text-center space-y-6 py-4">
+            {/* Album Artwork with Concentric Slow-Motion Sonic Waves & Pulsing Aura */}
+            <div className="relative flex items-center justify-center">
+              {/* Concentric Slow-Motion Sonic Waves (Emits when playing) */}
+              {isPlaying && (
+                <>
+                  <div className="absolute w-64 h-64 sm:w-80 sm:h-80 rounded-full border border-cyan-500/40 animate-slow-ripple pointer-events-none" />
+                  <div className="absolute w-64 h-64 sm:w-80 sm:h-80 rounded-full border border-purple-500/35 animate-slow-ripple [animation-delay:1.3s] pointer-events-none" />
+                  <div className="absolute w-64 h-64 sm:w-80 sm:h-80 rounded-full border border-pink-500/25 animate-slow-ripple [animation-delay:2.6s] pointer-events-none" />
+                </>
+              )}
 
-              <div className="relative w-60 h-60 sm:w-72 sm:h-72 rounded-3xl overflow-hidden bg-slate-900 border border-slate-700/60 shadow-2xl flex items-center justify-center">
-                {currentTrack.coverUrl ? (
-                  <img
-                    src={getMediaUrl(currentTrack.coverUrl)}
-                    alt={currentTrack.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
-                    <Music className="w-20 h-20 text-brand-400/80" />
+              {/* Ambient Slow-Motion Pulse Glow Aura */}
+              <div
+                className={`absolute -inset-6 bg-gradient-to-tr from-brand-500/30 via-purple-500/25 to-pink-500/30 rounded-full blur-3xl pointer-events-none transition-all duration-1000 ${
+                  isPlaying ? 'animate-slow-pulse-glow opacity-90' : 'opacity-20'
+                }`}
+              />
+
+              {/* 3D Vinyl Album Cover Showcase */}
+              <div className="relative group">
+                <div
+                  className={`relative w-60 h-60 sm:w-72 sm:h-72 rounded-3xl overflow-hidden bg-slate-900 border border-white/15 shadow-[0_25px_60px_rgba(0,0,0,0.9),0_0_35px_rgba(56,189,248,0.25)] flex items-center justify-center transition-transform duration-700 ${
+                    isPlaying ? 'animate-slow-breathe' : ''
+                  }`}
+                >
+                  {currentTrack.coverUrl ? (
+                    <img
+                      src={getMediaUrl(currentTrack.coverUrl)}
+                      alt={currentTrack.title}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-slate-900 via-purple-950/40 to-slate-900 flex items-center justify-center relative">
+                      <Disc
+                        className={`w-28 h-28 text-brand-400/70 ${
+                          isPlaying ? 'animate-spin-slow' : ''
+                        }`}
+                      />
+                    </div>
+                  )}
+
+                  {/* Top-Left Hi-Fi Lossless badge */}
+                  <div className="absolute top-3 left-3 px-2.5 py-1 rounded-xl bg-slate-950/80 backdrop-blur-md border border-white/10 text-[10px] font-mono font-bold text-cyan-300 flex items-center gap-1 shadow-lg">
+                    <Sparkles className="w-3 h-3 text-cyan-400 animate-pulse" />
+                    HI-FI 24-BIT
                   </div>
-                )}
+                </div>
               </div>
             </div>
 
             {/* Track Info */}
             <div className="space-y-1 w-full px-4">
-              <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight truncate">
+              <h2 className="text-xl sm:text-3xl font-black text-white tracking-tight truncate">
                 {currentTrack.title}
               </h2>
               <p className="text-sm sm:text-base text-slate-300 truncate font-medium">
@@ -180,20 +243,58 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               )}
             </div>
 
-            {/* Clean Soundwave Equalizer Bars */}
-            <div className="flex items-center justify-center gap-1.5 h-9 w-full px-6">
-              {[35, 65, 45, 85, 55, 95, 60, 80, 40, 90, 60, 75, 50, 85, 65, 35].map((h, i) => (
-                <span
-                  key={i}
-                  className={`w-1 rounded-full bg-brand-400 transition-all duration-200 ${
-                    isPlaying ? 'animate-pulse' : 'opacity-25'
-                  }`}
-                  style={{
-                    height: isPlaying ? `${Math.max(20, h)}%` : '15%',
-                    animationDelay: `${(i * 0.07).toFixed(2)}s`,
-                  }}
-                />
-              ))}
+            {/* 32-Bar Hero Slow-Motion Soundwave Visualizer Bar */}
+            <div className="w-full max-w-md px-2 space-y-2">
+              <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 px-1">
+                <span className="flex items-center gap-1.5 text-cyan-300 font-bold">
+                  <span className={`w-1.5 h-1.5 rounded-full ${isPlaying ? 'bg-cyan-400 animate-ping' : 'bg-slate-600'}`} />
+                  SLOW-MOTION VISUALIZER
+                </span>
+                <span className="text-purple-300 font-bold">{playbackRate}x LOSSLESS</span>
+              </div>
+
+              <div className="flex items-end justify-center gap-1 sm:gap-1.5 h-14 sm:h-18 w-full p-2.5 bg-slate-950/80 border border-white/10 rounded-2xl backdrop-blur-xl shadow-inner">
+                {[
+                  { anim: 'animate-slow-wave-1', delay: 0.0, bg: 'from-cyan-400 to-sky-500' },
+                  { anim: 'animate-slow-wave-2', delay: 0.08, bg: 'from-sky-400 to-blue-500' },
+                  { anim: 'animate-slow-wave-3', delay: 0.16, bg: 'from-blue-400 to-indigo-500' },
+                  { anim: 'animate-slow-wave-4', delay: 0.24, bg: 'from-indigo-400 to-violet-500' },
+                  { anim: 'animate-slow-wave-5', delay: 0.32, bg: 'from-violet-400 to-purple-500' },
+                  { anim: 'animate-slow-wave-6', delay: 0.40, bg: 'from-purple-400 to-fuchsia-500' },
+                  { anim: 'animate-slow-wave-1', delay: 0.48, bg: 'from-fuchsia-400 to-pink-500' },
+                  { anim: 'animate-slow-wave-2', delay: 0.56, bg: 'from-pink-400 to-rose-500' },
+                  { anim: 'animate-slow-wave-3', delay: 0.64, bg: 'from-rose-400 to-pink-500' },
+                  { anim: 'animate-slow-wave-4', delay: 0.72, bg: 'from-pink-400 to-fuchsia-500' },
+                  { anim: 'animate-slow-wave-5', delay: 0.80, bg: 'from-fuchsia-400 to-purple-500' },
+                  { anim: 'animate-slow-wave-6', delay: 0.88, bg: 'from-purple-400 to-violet-500' },
+                  { anim: 'animate-slow-wave-1', delay: 0.96, bg: 'from-violet-400 to-indigo-500' },
+                  { anim: 'animate-slow-wave-2', delay: 1.04, bg: 'from-indigo-400 to-blue-500' },
+                  { anim: 'animate-slow-wave-3', delay: 1.12, bg: 'from-blue-400 to-sky-500' },
+                  { anim: 'animate-slow-wave-4', delay: 1.20, bg: 'from-sky-400 to-cyan-400' },
+                  { anim: 'animate-slow-wave-5', delay: 1.28, bg: 'from-cyan-400 to-teal-400' },
+                  { anim: 'animate-slow-wave-6', delay: 1.36, bg: 'from-teal-400 to-emerald-400' },
+                  { anim: 'animate-slow-wave-1', delay: 1.44, bg: 'from-emerald-400 to-teal-400' },
+                  { anim: 'animate-slow-wave-2', delay: 1.52, bg: 'from-teal-400 to-cyan-400' },
+                  { anim: 'animate-slow-wave-3', delay: 1.60, bg: 'from-cyan-400 to-sky-500' },
+                  { anim: 'animate-slow-wave-4', delay: 1.68, bg: 'from-sky-400 to-blue-500' },
+                  { anim: 'animate-slow-wave-5', delay: 1.76, bg: 'from-blue-400 to-indigo-500' },
+                  { anim: 'animate-slow-wave-6', delay: 1.84, bg: 'from-indigo-400 to-purple-500' },
+                  { anim: 'animate-slow-wave-1', delay: 1.92, bg: 'from-purple-400 to-fuchsia-500' },
+                  { anim: 'animate-slow-wave-2', delay: 2.00, bg: 'from-fuchsia-400 to-pink-500' },
+                  { anim: 'animate-slow-wave-3', delay: 2.08, bg: 'from-pink-400 to-purple-400' },
+                  { anim: 'animate-slow-wave-4', delay: 2.16, bg: 'from-purple-400 to-indigo-400' },
+                ].map((bar, idx) => (
+                  <span
+                    key={idx}
+                    className={`flex-1 min-w-[2px] max-w-[8px] rounded-full bg-gradient-to-t ${bar.bg} transition-all duration-300 ${
+                      isPlaying ? bar.anim : 'h-[12%] opacity-30'
+                    }`}
+                    style={{
+                      animationDelay: `${bar.delay}s`,
+                    }}
+                  />
+                ))}
+              </div>
             </div>
 
             {/* Expanded Progress Bar */}
@@ -531,16 +632,27 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
       )}
 
       {/* 5. Persistent Bottom Bar (World-Class Floating Glass Island Deck) */}
-      <div className="fixed bottom-2 sm:bottom-3.5 left-2 sm:left-4 right-2 sm:right-4 max-w-7xl mx-auto z-40">
-        {/* Soft Ambient Underglow */}
-        <div className="absolute -inset-1 bg-gradient-to-r from-brand-500/20 via-cyan-500/15 to-indigo-500/20 rounded-3xl blur-xl pointer-events-none opacity-60 group-hover:opacity-90 transition duration-700" />
+      <div
+        className={`fixed bottom-2 sm:bottom-3.5 left-2 sm:left-4 right-2 sm:right-4 max-w-7xl mx-auto z-40 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+          isExpanded
+            ? 'opacity-0 pointer-events-none translate-y-8 scale-95'
+            : 'opacity-100 pointer-events-auto translate-y-0 scale-100'
+        }`}
+        style={{ transformOrigin: 'bottom center' }}
+      >
+        {/* Soft Ambient Slow-Motion Pulsing Underglow */}
+        <div
+          className={`absolute -inset-1.5 bg-gradient-to-r from-brand-500/30 via-cyan-500/20 to-purple-500/30 rounded-3xl blur-2xl pointer-events-none transition-all duration-1000 ${
+            isPlaying ? 'animate-slow-pulse-glow opacity-90' : 'opacity-30'
+          }`}
+        />
 
         {/* Main Floating Island Glass Container */}
         <div className="relative bg-slate-950/90 backdrop-blur-2xl border border-white/10 rounded-2xl sm:rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.85),0_1px_1px_rgba(255,255,255,0.15)] px-3.5 sm:px-6 py-2.5 sm:py-3 flex flex-col gap-2">
           {/* Upper Rim Specular Sheen */}
-          <div className="absolute top-0 left-8 right-8 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+          <div className="absolute top-0 left-8 right-8 h-[1px] bg-gradient-to-r from-transparent via-white/25 to-transparent pointer-events-none" />
 
-          {/* Precision Interactive Timeline Scrubber */}
+          {/* Precision Interactive Timeline Scrubber with Slow-Motion Flow */}
           <div className="relative w-full flex items-center gap-3 pt-0.5">
             {/* Dual Time: Current Time */}
             <span className="text-[11px] font-mono font-medium text-slate-400 min-w-[36px] text-right select-none">
@@ -578,13 +690,23 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                 </div>
               )}
 
-              {/* Gradient Progress Fill */}
+              {/* Gradient Progress Fill with Slow-Motion Shimmer */}
               <div
-                className="bg-gradient-to-r from-brand-500 via-cyan-400 to-indigo-400 h-full rounded-full transition-all relative"
+                className={`h-full rounded-full transition-all relative ${
+                  isPlaying
+                    ? 'bg-gradient-to-r from-brand-500 via-cyan-400 to-purple-400 animate-slow-shimmer'
+                    : 'bg-gradient-to-r from-brand-500 via-cyan-400 to-indigo-400'
+                }`}
                 style={{ width: `${progressPercent}%` }}
               >
                 {/* Glowing Playhead Thumb */}
-                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-[0_0_12px_rgba(56,189,248,0.9)] border-2 border-slate-950 opacity-0 group-hover/scrub:opacity-100 group-hover/scrub:scale-125 transition-all duration-150" />
+                <div
+                  className={`absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full border-2 border-slate-950 transition-all duration-150 ${
+                    isPlaying
+                      ? 'shadow-[0_0_14px_rgba(56,189,248,0.9)] opacity-100 scale-110'
+                      : 'shadow-[0_0_10px_rgba(56,189,248,0.7)] opacity-0 group-hover/scrub:opacity-100'
+                  } group-hover/scrub:scale-125`}
+                />
               </div>
             </div>
 
@@ -598,7 +720,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
           <div className="flex items-center justify-between gap-3 sm:gap-6">
             {/* Left: Artwork, Track Info, Audiophile Badges, & Heart */}
             <div className="flex items-center gap-3 min-w-0 max-w-[45%] sm:max-w-xs md:max-w-sm">
-              {/* Artwork with Micro Equalizer & Hover Expand */}
+              {/* Artwork with Micro Slow-Motion Equalizer & Hover Expand */}
               <div
                 onClick={() => setIsExpanded(true)}
                 className="relative w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-slate-900 border border-white/10 shrink-0 shadow-lg overflow-hidden flex items-center justify-center cursor-pointer group/art transition-transform duration-200 active:scale-95"
@@ -616,12 +738,13 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                   </div>
                 )}
 
-                {/* Animated Spectrum Waveform Overlay */}
+                {/* Animated Slow-Motion Spectrum Waveform Overlay */}
                 {isPlaying && (
-                  <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center gap-0.5">
-                    <span className="w-0.5 h-3 bg-brand-400 rounded-full animate-pulse" />
-                    <span className="w-0.5 h-4.5 bg-brand-400 rounded-full animate-pulse [animation-delay:0.2s]" />
-                    <span className="w-0.5 h-2.5 bg-brand-400 rounded-full animate-pulse [animation-delay:0.4s]" />
+                  <div className="absolute inset-0 bg-black/50 backdrop-blur-[1px] flex items-end justify-center gap-0.5 pb-1.5 px-1">
+                    <span className="w-0.5 rounded-full bg-cyan-400 animate-slow-wave-1" style={{ animationDelay: '0s' }} />
+                    <span className="w-0.5 rounded-full bg-indigo-400 animate-slow-wave-2" style={{ animationDelay: '0.15s' }} />
+                    <span className="w-0.5 rounded-full bg-purple-400 animate-slow-wave-3" style={{ animationDelay: '0.3s' }} />
+                    <span className="w-0.5 rounded-full bg-pink-400 animate-slow-wave-4" style={{ animationDelay: '0.45s' }} />
                   </div>
                 )}
 
@@ -667,6 +790,41 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                   <Plus className="w-4 h-4" />
                 </button>
               )}
+            </div>
+
+            {/* Embedded Slow-Motion Soundwave Visualizer Bar Widget (Small Screen / Dock) */}
+            <div
+              onClick={() => setIsExpanded(true)}
+              className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/60 border border-white/[0.06] backdrop-blur-md cursor-pointer hover:border-brand-500/30 transition group/vis shrink-0 shadow-inner"
+              title="Click to open Fullscreen Visualizer"
+            >
+              <div className="flex items-end gap-1 h-6 w-24">
+                {[
+                  { anim: 'animate-slow-wave-1', delay: 0.0, bg: 'from-cyan-400 to-sky-500' },
+                  { anim: 'animate-slow-wave-2', delay: 0.1, bg: 'from-sky-400 to-blue-500' },
+                  { anim: 'animate-slow-wave-3', delay: 0.2, bg: 'from-blue-400 to-indigo-500' },
+                  { anim: 'animate-slow-wave-4', delay: 0.3, bg: 'from-indigo-400 to-purple-500' },
+                  { anim: 'animate-slow-wave-5', delay: 0.4, bg: 'from-purple-400 to-fuchsia-500' },
+                  { anim: 'animate-slow-wave-6', delay: 0.5, bg: 'from-fuchsia-400 to-pink-500' },
+                  { anim: 'animate-slow-wave-1', delay: 0.6, bg: 'from-pink-400 to-purple-500' },
+                  { anim: 'animate-slow-wave-2', delay: 0.7, bg: 'from-purple-400 to-indigo-500' },
+                  { anim: 'animate-slow-wave-3', delay: 0.8, bg: 'from-indigo-400 to-cyan-400' },
+                  { anim: 'animate-slow-wave-4', delay: 0.9, bg: 'from-cyan-400 to-teal-400' },
+                ].map((bar, idx) => (
+                  <span
+                    key={idx}
+                    className={`w-1 rounded-full bg-gradient-to-t ${bar.bg} transition-all duration-300 ${
+                      isPlaying ? bar.anim : 'h-1.5 opacity-30'
+                    }`}
+                    style={{
+                      animationDelay: `${bar.delay}s`,
+                    }}
+                  />
+                ))}
+              </div>
+              <span className="text-[10px] font-mono text-cyan-300/80 group-hover/vis:text-cyan-200 transition font-bold uppercase tracking-wider">
+                {isPlaying ? 'SLOW-MO' : 'IDLE'}
+              </span>
             </div>
 
             {/* Center: Hero Playback Deck */}
