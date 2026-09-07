@@ -20,6 +20,15 @@ export interface User {
   securityPin?: string | null;
   role: Role;
   isActive: boolean;
+  mobileNumber?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  country?: string | null;
+  state?: string | null;
+  district?: string | null;
+  village?: string | null;
+  pincode?: string | null;
+  occupation?: string | null;
   createdAt?: string;
   updatedAt?: string;
   lastLoginAt?: string;

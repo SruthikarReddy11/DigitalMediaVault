@@ -10,7 +10,22 @@ export interface UserSession {
 }
 
 export const authApi = {
-  async register(data: { name: string; username: string; email: string; password: string; confirmPassword: string }) {
+  async register(data: {
+    name: string;
+    username: string;
+    email: string;
+    password: string;
+    confirmPassword: string;
+    mobileNumber?: string | null;
+    gender?: string | null;
+    dob?: string | null;
+    country?: string | null;
+    state?: string | null;
+    district?: string | null;
+    village?: string | null;
+    pincode?: string | null;
+    occupation?: string | null;
+  }) {
     const res = await api.post<{ success: boolean; data: { user: User; token: string; securityPin?: string } }>('/auth/register', data);
     return res.data.data;
   },
@@ -38,7 +53,20 @@ export const authApi = {
     return res.data.data.user;
   },
 
-  async updateProfile(data: { name?: string; currentPassword?: string; newPassword?: string }) {
+  async updateProfile(data: {
+    name?: string;
+    mobileNumber?: string | null;
+    gender?: string | null;
+    dob?: string | null;
+    country?: string | null;
+    state?: string | null;
+    district?: string | null;
+    village?: string | null;
+    pincode?: string | null;
+    occupation?: string | null;
+    currentPassword?: string;
+    newPassword?: string;
+  }) {
     const res = await api.patch<{ success: boolean; data: { user: User } }>('/auth/profile', data);
     return res.data.data.user;
   },

@@ -36,6 +36,15 @@ model User {
   twoFactorEnabled Boolean       @default(false)
   role         Role          @default(USER)
   isActive     Boolean       @default(true)
+  mobileNumber String?
+  gender       String?
+  dob          DateTime?
+  country      String?
+  state        String?
+  district     String?
+  village      String?
+  pincode      String?
+  occupation   String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   lastLoginAt  DateTime?

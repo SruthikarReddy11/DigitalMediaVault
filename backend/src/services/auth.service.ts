@@ -11,6 +11,15 @@ export interface RegisterDto {
   username: string;
   email: string;
   password: string;
+  mobileNumber?: string | null;
+  gender?: string | null;
+  dob?: string | null;
+  country?: string | null;
+  state?: string | null;
+  district?: string | null;
+  village?: string | null;
+  pincode?: string | null;
+  occupation?: string | null;
 }
 
 export interface LoginDto {
@@ -30,6 +39,15 @@ export class AuthService {
     name: string;
     avatarUrl?: string | null;
     securityPin?: string | null;
+    mobileNumber?: string | null;
+    gender?: string | null;
+    dob?: Date | string | null;
+    country?: string | null;
+    state?: string | null;
+    district?: string | null;
+    village?: string | null;
+    pincode?: string | null;
+    occupation?: string | null;
     role: any;
     isActive: boolean;
     updatedAt?: Date | string;
@@ -58,6 +76,15 @@ export class AuthService {
       securityPin: user.securityPin || null,
       role: user.role,
       isActive: user.isActive,
+      mobileNumber: user.mobileNumber || null,
+      gender: user.gender || null,
+      dob: user.dob ? (typeof user.dob === 'string' ? user.dob : user.dob.toISOString()) : null,
+      country: user.country || null,
+      state: user.state || null,
+      district: user.district || null,
+      village: user.village || null,
+      pincode: user.pincode || null,
+      occupation: user.occupation || null,
     };
   }
 
@@ -104,6 +131,15 @@ export class AuthService {
         role,
         isActive: true,
         lastLoginAt: new Date(),
+        mobileNumber: data.mobileNumber?.trim() || null,
+        gender: data.gender?.trim() || null,
+        dob: data.dob ? new Date(data.dob) : null,
+        country: data.country?.trim() || null,
+        state: data.state?.trim() || null,
+        district: data.district?.trim() || null,
+        village: data.village?.trim() || null,
+        pincode: data.pincode?.trim() || null,
+        occupation: data.occupation?.trim() || null,
       },
       select: {
         id: true,
@@ -114,6 +150,15 @@ export class AuthService {
         securityPin: true,
         role: true,
         isActive: true,
+        mobileNumber: true,
+        gender: true,
+        dob: true,
+        country: true,
+        state: true,
+        district: true,
+        village: true,
+        pincode: true,
+        occupation: true,
       },
     });
 
@@ -248,7 +293,20 @@ export class AuthService {
 
   public static async updateProfile(
     userId: string,
-    data: { name?: string; currentPassword?: string; newPassword?: string }
+    data: {
+      name?: string;
+      mobileNumber?: string | null;
+      gender?: string | null;
+      dob?: string | null;
+      country?: string | null;
+      state?: string | null;
+      district?: string | null;
+      village?: string | null;
+      pincode?: string | null;
+      occupation?: string | null;
+      currentPassword?: string;
+      newPassword?: string;
+    }
   ): Promise<AuthUser> {
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -259,7 +317,16 @@ export class AuthService {
     }
 
     const updateData: any = {};
-    if (data.name) updateData.name = data.name.trim();
+    if (data.name !== undefined) updateData.name = data.name.trim();
+    if (data.mobileNumber !== undefined) updateData.mobileNumber = data.mobileNumber?.trim() || null;
+    if (data.gender !== undefined) updateData.gender = data.gender?.trim() || null;
+    if (data.dob !== undefined) updateData.dob = data.dob ? new Date(data.dob) : null;
+    if (data.country !== undefined) updateData.country = data.country?.trim() || null;
+    if (data.state !== undefined) updateData.state = data.state?.trim() || null;
+    if (data.district !== undefined) updateData.district = data.district?.trim() || null;
+    if (data.village !== undefined) updateData.village = data.village?.trim() || null;
+    if (data.pincode !== undefined) updateData.pincode = data.pincode?.trim() || null;
+    if (data.occupation !== undefined) updateData.occupation = data.occupation?.trim() || null;
 
     if (data.newPassword) {
       if (!data.currentPassword) {
@@ -289,8 +356,18 @@ export class AuthService {
         username: true,
         name: true,
         avatarUrl: true,
+        securityPin: true,
         role: true,
         isActive: true,
+        mobileNumber: true,
+        gender: true,
+        dob: true,
+        country: true,
+        state: true,
+        district: true,
+        village: true,
+        pincode: true,
+        occupation: true,
       },
     });
 
@@ -339,8 +416,18 @@ export class AuthService {
         username: true,
         name: true,
         avatarUrl: true,
+        securityPin: true,
         role: true,
         isActive: true,
+        mobileNumber: true,
+        gender: true,
+        dob: true,
+        country: true,
+        state: true,
+        district: true,
+        village: true,
+        pincode: true,
+        occupation: true,
       },
     });
 
@@ -377,8 +464,18 @@ export class AuthService {
         username: true,
         name: true,
         avatarUrl: true,
+        securityPin: true,
         role: true,
         isActive: true,
+        mobileNumber: true,
+        gender: true,
+        dob: true,
+        country: true,
+        state: true,
+        district: true,
+        village: true,
+        pincode: true,
+        occupation: true,
       },
     });
 

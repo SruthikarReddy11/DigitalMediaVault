@@ -1,5 +1,15 @@
-import React, { useState, useEffect } from 'react';
-import { ShieldAlert, ShieldCheck, KeyRound, Copy, Check, ArrowRight, Smartphone, RefreshCw, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  ShieldCheck,
+  KeyRound,
+  Copy,
+  Check,
+  ArrowRight,
+  Smartphone,
+  RefreshCw,
+  ArrowLeft,
+  Lock,
+} from 'lucide-react';
 import { vaultApi } from '../../services/vaultApi';
 import { TwoFactorSetup } from '../../types';
 import { useToast } from '../../contexts/ToastContext';
@@ -19,6 +29,8 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
   const [isLoading, setIsLoading] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [copiedKey, setCopiedKey] = useState(false);
+
+  const inputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -41,6 +53,14 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
 
     checkStatus();
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && !isChecking) {
+      setTimeout(() => {
+        inputRef.current?.focus();
+      }, 80);
+    }
+  }, [isOpen, isChecking, has2FA]);
 
   if (!isOpen) return null;
 
@@ -89,19 +109,19 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-      <div className="bg-slate-900 border border-slate-800 w-full max-w-lg rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 text-center relative overflow-hidden">
-        {/* Glow accent */}
-        <div className="absolute -top-24 -left-24 w-48 h-48 bg-brand-500/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
+      <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-3xl p-6 sm:p-8 shadow-2xl space-y-6 text-center relative overflow-hidden my-auto animate-in zoom-in-95 duration-150">
+        {/* Subtle Ambient Glow */}
+        <div className="absolute -top-24 -left-24 w-48 h-48 bg-brand-500/10 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
         {/* Go Back Button (Top Left) */}
         {onClose && (
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-5 left-5 z-20 px-3 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 text-slate-300 hover:text-white transition text-xs font-semibold flex items-center gap-1.5 border border-slate-700/60 shadow active:scale-95"
-            title="Go back to previous page"
+            className="absolute top-4 left-4 z-10 px-3 py-1.5 rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white transition text-xs font-semibold flex items-center gap-1.5 border border-slate-700/60 shadow-sm active:scale-95"
+            title="Go back"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>Go Back</span>
@@ -111,51 +131,86 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
         {isChecking ? (
           <div className="py-12 space-y-4">
             <RefreshCw className="w-8 h-8 text-brand-400 animate-spin mx-auto" />
-            <p className="text-sm text-slate-400">Verifying Security Protocols...</p>
+            <p className="text-xs text-slate-400">Checking Authenticator status...</p>
           </div>
         ) : has2FA ? (
-          /* Locked State: Enter 6-digit Authenticator Code */
-          <div className="space-y-5">
-            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center mx-auto border border-amber-500/30 shadow-lg shadow-amber-500/10">
-              <KeyRound className="w-8 h-8" />
+          /* Locked State: Clean, Simple 6-Digit PIN Entry */
+          <div className="space-y-5 pt-2">
+            {/* Simple Neat Shield Badge */}
+            <div className="w-14 h-14 rounded-2xl bg-brand-500/15 border border-brand-500/30 text-brand-400 flex items-center justify-center mx-auto shadow-inner">
+              <KeyRound className="w-7 h-7" />
             </div>
 
-            <div className="space-y-1.5">
-              <h2 className="text-2xl font-extrabold text-white tracking-tight">
-                Secret Vault Gate
+            <div className="space-y-1">
+              <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+                Secret Vault Verification
               </h2>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
-                Open your <strong>Google Authenticator</strong> app on your device and enter the 6-digit code to open this space.
+              <p className="text-xs text-slate-400 max-w-xs mx-auto leading-relaxed">
+                Enter the 6-digit code from your <strong>Google Authenticator</strong> app.
               </p>
             </div>
 
-            <form onSubmit={handleVerify} className="space-y-4 pt-2">
-              <div>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  pattern="[0-9]*"
-                  maxLength={6}
-                  autoFocus
-                  required
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="000000"
-                  className="w-56 text-center tracking-[0.5em] font-mono text-3xl font-extrabold bg-slate-950 border-2 border-slate-700 focus:border-brand-500 text-brand-400 rounded-2xl py-3 mx-auto block focus:outline-none transition shadow-inner"
-                />
+            <form onSubmit={handleVerify} className="space-y-5 pt-2">
+              {/* Hidden Master Input */}
+              <input
+                ref={inputRef}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                maxLength={6}
+                autoFocus
+                required
+                value={code}
+                onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="opacity-0 absolute inset-0 w-full h-full cursor-pointer pointer-events-none -z-10"
+              />
+
+              {/* 6 Neat, Modern Digit Boxes */}
+              <div
+                onClick={() => inputRef.current?.focus()}
+                className="flex items-center justify-center gap-2 sm:gap-2.5 py-1 cursor-pointer"
+                title="Click to type code"
+              >
+                {[0, 1, 2, 3, 4, 5].map((index) => {
+                  const digit = code[index];
+                  const isCurrent = code.length === index;
+                  const isFilled = digit !== undefined;
+
+                  return (
+                    <div
+                      key={index}
+                      className={`relative w-11 h-14 sm:w-12 sm:h-15 rounded-2xl flex items-center justify-center font-mono text-2xl font-bold transition-all duration-150 select-none ${
+                        isFilled
+                          ? 'bg-slate-950 border-2 border-brand-500 text-white shadow-sm'
+                          : isCurrent
+                          ? 'bg-slate-950 border-2 border-brand-400 ring-4 ring-brand-500/15 text-brand-400 scale-105'
+                          : 'bg-slate-950/80 border border-slate-800 text-slate-600'
+                      }`}
+                    >
+                      {isFilled ? (
+                        <span className="animate-in zoom-in-75 duration-100">{digit}</span>
+                      ) : isCurrent ? (
+                        <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse" />
+                      ) : (
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-800" />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
 
-              <div className="pt-2 space-y-2">
+              {/* Submit Button */}
+              <div className="pt-2 space-y-3">
                 <button
                   type="submit"
                   disabled={isLoading || code.length !== 6}
-                  className="w-full py-3.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-semibold rounded-2xl transition shadow-lg shadow-brand-600/30 text-sm flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                  className="w-full py-3.5 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-2xl transition shadow-lg shadow-brand-600/25 text-sm flex items-center justify-center gap-2 active:scale-98 disabled:opacity-40 disabled:pointer-events-none"
                 >
                   {isLoading ? (
                     <span className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                   ) : (
                     <>
-                      <span>Unlock Space</span>
+                      <span>Unlock Vault</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
@@ -165,85 +220,75 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
                   <button
                     type="button"
                     onClick={onClose}
-                    className="w-full py-2 text-xs text-slate-400 hover:text-slate-200 transition font-medium flex items-center justify-center gap-1.5"
+                    className="w-full py-1.5 text-xs text-slate-400 hover:text-slate-200 transition font-medium"
                   >
-                    <ArrowLeft className="w-3.5 h-3.5" />
-                    <span>Go Back to Library</span>
+                    Cancel & Return to Library
                   </button>
                 )}
 
-                <div className="pt-1.5 text-center">
+                <div className="pt-1 text-center">
                   <button
                     type="button"
                     onClick={handleReset2FA}
-                    className="text-[11px] text-slate-400 hover:text-amber-400 transition underline underline-offset-4"
+                    className="text-xs text-slate-400 hover:text-brand-400 transition underline underline-offset-4"
                   >
                     Code not working? Re-link Google Authenticator
                   </button>
                 </div>
               </div>
             </form>
-
-            <div className="p-3 bg-slate-950/60 border border-slate-800 rounded-xl text-[11px] text-slate-400 text-left space-y-0.5">
-              <p className="font-semibold text-slate-300">🛡️ Immediate Auto-Lock Policy</p>
-              <p>
-                Closing or navigating away from this space automatically locks it within 1 second for maximum confidentiality.
-              </p>
-            </div>
           </div>
         ) : (
-          /* First Time Setup: Link Google Authenticator */
-          <div className="space-y-5">
-            <div className="w-14 h-14 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto border border-indigo-500/30">
-              <Smartphone className="w-7 h-7" />
+          /* First Time Setup: Simple, Clean QR Code Linking */
+          <div className="space-y-4 pt-2">
+            <div className="w-12 h-12 rounded-2xl bg-indigo-500/15 text-indigo-400 flex items-center justify-center mx-auto border border-indigo-500/30">
+              <Smartphone className="w-6 h-6" />
             </div>
 
             <div className="space-y-1">
-              <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-                Link Google Authenticator
+              <h2 className="text-xl font-bold text-white tracking-tight">
+                Setup Google Authenticator
               </h2>
-              <p className="text-xs text-slate-400">
-                To create and access your Secret Vault Space, link your smartphone authenticator
+              <p className="text-xs text-slate-400 max-w-xs mx-auto">
+                Scan the QR code with your authenticator app to enable 2FA:
               </p>
             </div>
 
             {setupData && (
               <div className="space-y-4">
-                {/* QR Code Container */}
-                <div className="p-3 bg-white rounded-2xl w-fit mx-auto shadow-2xl border-4 border-slate-800">
+                {/* QR Code */}
+                <div className="p-3 bg-white rounded-2xl w-fit mx-auto shadow-lg border border-slate-700">
                   <img
                     src={setupData.qrCodeDataUrl}
                     alt="Scan Google Authenticator QR Code"
-                    className="w-44 h-44 object-contain rounded-lg"
+                    className="w-40 h-40 object-contain rounded-lg"
                   />
                 </div>
 
-                {/* Manual Secret Key */}
+                {/* Secret Key with Copy */}
                 <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5 flex items-center justify-between text-xs font-mono">
-                  <span className="text-slate-400 truncate mr-2 select-all font-semibold">
+                  <span className="text-slate-300 truncate mr-2 select-all font-semibold">
                     {setupData.secret}
                   </span>
                   <button
                     type="button"
                     onClick={handleCopySecret}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition shrink-0"
-                    title="Copy Secret Key"
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition shrink-0 active:scale-95"
+                    title="Copy Key"
                   >
-                    {copiedKey ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {copiedKey ? (
+                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3.5 h-3.5" />
+                    )}
                   </button>
                 </div>
 
-                {/* 3 Step Guide */}
-                <div className="text-left text-xs text-slate-400 space-y-1 bg-slate-950/70 p-3 rounded-xl border border-slate-800/80">
-                  <p className="font-semibold text-slate-300">How to setup:</p>
-                  <p>1. Open the <strong>Google Authenticator</strong> app on your smartphone.</p>
-                  <p>2. Tap <strong>+</strong> and scan this QR code (or paste the key).</p>
-                  <p>3. Enter the 6-digit code shown in the app below to activate:</p>
-                </div>
-
-                {/* Verification input */}
+                {/* Verification form */}
                 <form onSubmit={handleVerify} className="space-y-3 pt-1">
+                  {/* Hidden Input */}
                   <input
+                    ref={inputRef}
                     type="text"
                     inputMode="numeric"
                     pattern="[0-9]*"
@@ -251,20 +296,46 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
                     required
                     value={code}
                     onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                    placeholder="Enter 6-digit code"
-                    className="w-full text-center tracking-[0.4em] font-mono text-xl font-bold bg-slate-950 border border-slate-700 focus:border-brand-500 text-brand-400 rounded-xl py-2.5 focus:outline-none transition shadow-inner"
+                    className="opacity-0 absolute inset-0 w-full h-full cursor-pointer pointer-events-none -z-10"
                   />
+
+                  {/* 6 Digit Boxes */}
+                  <div
+                    onClick={() => inputRef.current?.focus()}
+                    className="flex items-center justify-center gap-2 py-1 cursor-pointer"
+                  >
+                    {[0, 1, 2, 3, 4, 5].map((index) => {
+                      const digit = code[index];
+                      const isCurrent = code.length === index;
+                      const isFilled = digit !== undefined;
+
+                      return (
+                        <div
+                          key={index}
+                          className={`relative w-10 h-13 rounded-xl flex items-center justify-center font-mono text-xl font-bold transition-all ${
+                            isFilled
+                              ? 'bg-slate-950 border-2 border-brand-500 text-white shadow-sm'
+                              : isCurrent
+                              ? 'bg-slate-950 border-2 border-brand-400 ring-2 ring-brand-500/20 text-brand-400 scale-105'
+                              : 'bg-slate-950/80 border border-slate-800 text-slate-600'
+                          }`}
+                        >
+                          {isFilled ? digit : isCurrent ? <span className="w-2 h-2 rounded-full bg-brand-400 animate-pulse" /> : '-'}
+                        </div>
+                      );
+                    })}
+                  </div>
 
                   <button
                     type="submit"
                     disabled={isLoading || code.length !== 6}
-                    className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl transition shadow-lg shadow-brand-600/30 text-xs flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+                    className="w-full py-3 bg-brand-600 hover:bg-brand-500 text-white font-semibold rounded-xl transition shadow-lg shadow-brand-600/25 text-xs flex items-center justify-center gap-2 active:scale-98 disabled:opacity-40"
                   >
                     {isLoading ? (
                       <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                     ) : (
                       <>
-                        <span>Activate & Open Secret Vault</span>
+                        <span>Verify & Unlock Vault</span>
                         <ArrowRight className="w-4 h-4" />
                       </>
                     )}
@@ -274,10 +345,9 @@ export const VaultGateModal: React.FC<VaultGateModalProps> = ({ isOpen, onUnlock
                     <button
                       type="button"
                       onClick={onClose}
-                      className="w-full py-1.5 text-xs text-slate-400 hover:text-slate-200 transition font-medium flex items-center justify-center gap-1.5"
+                      className="w-full py-1 text-xs text-slate-400 hover:text-slate-200 transition font-medium"
                     >
-                      <ArrowLeft className="w-3.5 h-3.5" />
-                      <span>Go Back to Library</span>
+                      Go Back to Library
                     </button>
                   )}
                 </form>

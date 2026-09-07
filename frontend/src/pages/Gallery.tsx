@@ -11,6 +11,7 @@ import {
   Edit2,
   FolderClosed,
   MoreVertical,
+  Sparkles,
 } from 'lucide-react';
 import { filesApi } from '../services/filesApi';
 import { foldersApi } from '../services/foldersApi';
@@ -123,29 +124,38 @@ export const Gallery: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-            <ImageIcon className="w-7 h-7 text-pink-400" />
-            Image Gallery
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Browse, zoom, organize, and manage your photos and graphics
-          </p>
-        </div>
+      {/* Luxury Photo Studio Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-pink-950/35 border border-white/[0.08] p-6 sm:p-8 shadow-2xl">
+        <div className="absolute -right-10 -bottom-10 w-72 h-72 bg-pink-500/15 rounded-full blur-3xl pointer-events-none" />
 
-        <button
-          onClick={openUpload}
-          className="flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-xl transition shadow-lg shadow-brand-600/25 active:scale-95 self-start sm:self-auto"
-        >
-          <UploadCloud className="w-4 h-4" />
-          Upload Images
-        </button>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-xs font-bold text-pink-400 uppercase tracking-wider">
+              <Sparkles className="w-4 h-4 animate-pulse" />
+              <span>Photo & Graphics Studio</span>
+            </div>
+            <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight flex items-center gap-3">
+              Image Gallery
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed font-medium">
+              High-resolution photo library with immersive lightbox zoom, smart albums, and instant curation.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={openUpload}
+              className="flex items-center gap-2 px-4.5 py-2.5 bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white text-xs sm:text-sm font-bold rounded-xl transition shadow-lg shadow-pink-600/25 border border-pink-400/30 active:scale-95"
+            >
+              <UploadCloud className="w-4 h-4" />
+              <span>Upload Photos</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Filter and Control Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-slate-900/80 border border-slate-800 rounded-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 bg-slate-900/70 border border-white/[0.08] rounded-2xl backdrop-blur-md">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -153,8 +163,8 @@ export const Gallery: React.FC = () => {
             type="text"
             value={search}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search images..."
-            className="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-200 focus:outline-none"
+            placeholder="Search photos by filename..."
+            className="w-full bg-slate-950/80 border border-white/[0.08] focus:border-pink-500 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-pink-500/30 transition"
           />
         </div>
 
@@ -164,7 +174,7 @@ export const Gallery: React.FC = () => {
           <select
             value={selectedFolder}
             onChange={(e) => setSelectedFolder(e.target.value)}
-            className="bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none"
+            className="bg-slate-950/80 border border-white/[0.08] text-xs font-medium text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-pink-500 transition cursor-pointer"
           >
             <option value="all">All Folders</option>
             <option value="root">Root only</option>
@@ -178,14 +188,14 @@ export const Gallery: React.FC = () => {
           {/* Favorites filter */}
           <button
             onClick={() => setOnlyFavorites((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition duration-150 ${
               onlyFavorites
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-500/20'
+                : 'bg-slate-950/80 text-slate-400 border-white/[0.08] hover:text-white hover:border-slate-700'
             }`}
           >
             <Heart className={`w-3.5 h-3.5 ${onlyFavorites ? 'fill-current text-rose-500' : ''}`} />
-            Favorites
+            <span>Favorites</span>
           </button>
 
           {/* Sort */}
@@ -196,7 +206,7 @@ export const Gallery: React.FC = () => {
               setSortBy(by as any);
               setSortOrder(order as any);
             }}
-            className="bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none"
+            className="bg-slate-950/80 border border-white/[0.08] text-xs font-medium text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-pink-500 transition cursor-pointer"
           >
             <option value="createdAt-desc">Newest First</option>
             <option value="createdAt-asc">Oldest First</option>
@@ -227,18 +237,17 @@ export const Gallery: React.FC = () => {
             <div
               key={image.id}
               onClick={() => setLightboxIndex(idx)}
-              className="group relative aspect-square bg-slate-900 border border-slate-800 hover:border-brand-500/60 rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-2xl transition-all duration-300"
+              className="group relative aspect-square bg-slate-900/80 border border-white/[0.08] hover:border-pink-500/50 rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-1"
             >
               <img
                 src={getMediaUrl(image.streamUrl)}
-
                 alt={image.originalName}
-                className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                className="w-full h-full object-cover group-hover:scale-108 transition duration-500"
                 loading="lazy"
               />
 
               {/* Gradient Overlay with actions */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-between">
+              <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-black/50 opacity-0 group-hover:opacity-100 transition-opacity p-3 flex flex-col justify-between">
                 {/* Top actions */}
                 <div className="flex items-center justify-between">
                   <button
@@ -246,23 +255,23 @@ export const Gallery: React.FC = () => {
                       e.stopPropagation();
                       handleToggleFavorite(image.id);
                     }}
-                    className={`p-1.5 rounded-lg backdrop-blur-md transition ${
+                    className={`p-2 rounded-xl backdrop-blur-md transition shadow-md active:scale-75 ${
                       image.isFavorite
-                        ? 'bg-rose-500/40 text-rose-300'
-                        : 'bg-black/40 text-white/80 hover:text-white hover:bg-black/60'
+                        ? 'bg-rose-500/80 text-white'
+                        : 'bg-black/50 text-white/80 hover:text-white hover:bg-black/70'
                     }`}
                   >
                     <Heart className={`w-3.5 h-3.5 ${image.isFavorite ? 'fill-current' : ''}`} />
                   </button>
 
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setRenameTarget(image);
                         setNewName(image.originalName);
                       }}
-                      className="p-1.5 bg-black/40 hover:bg-black/60 text-white/80 hover:text-white rounded-lg backdrop-blur-md transition"
+                      className="p-2 bg-black/50 hover:bg-black/70 text-white/80 hover:text-white rounded-xl backdrop-blur-md transition shadow-md"
                       title="Rename"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
@@ -272,7 +281,7 @@ export const Gallery: React.FC = () => {
                         e.stopPropagation();
                         setDeleteTarget(image);
                       }}
-                      className="p-1.5 bg-black/40 hover:bg-rose-600 text-white/80 hover:text-white rounded-lg backdrop-blur-md transition"
+                      className="p-2 bg-black/50 hover:bg-rose-600 text-white/80 hover:text-white rounded-xl backdrop-blur-md transition shadow-md"
                       title="Delete"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -281,11 +290,11 @@ export const Gallery: React.FC = () => {
                 </div>
 
                 {/* Bottom title info */}
-                <div>
-                  <p className="text-xs font-semibold text-white truncate drop-shadow">
+                <div className="p-2 bg-black/40 backdrop-blur-md rounded-xl border border-white/10">
+                  <p className="text-xs font-bold text-white truncate drop-shadow">
                     {image.originalName}
                   </p>
-                  <p className="text-[10px] text-slate-300 drop-shadow mt-0.5">
+                  <p className="text-[10px] text-slate-300 font-mono drop-shadow mt-0.5">
                     {formatBytes(image.size)}
                   </p>
                 </div>

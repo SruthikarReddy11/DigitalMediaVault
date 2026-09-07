@@ -10,6 +10,7 @@ import {
   Trash2,
   Download,
   Film,
+  Sparkles,
 } from 'lucide-react';
 import { filesApi } from '../services/filesApi';
 import { favoritesApi } from '../services/favoritesApi';
@@ -102,50 +103,59 @@ export const Videos: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-            <VideoIcon className="w-7 h-7 text-purple-400" />
-            Video Library
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Watch, stream, and organize your personal videos and clips
-          </p>
-        </div>
+      {/* Luxury Cinema Theater Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-purple-950/35 border border-white/[0.08] p-6 sm:p-8 shadow-2xl">
+        <div className="absolute -right-10 -bottom-10 w-72 h-72 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
 
-        <button
-          onClick={openUpload}
-          className="flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-xl transition shadow-lg shadow-brand-600/25 active:scale-95 self-start sm:self-auto"
-        >
-          <UploadCloud className="w-4 h-4" />
-          Upload Videos
-        </button>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-xs font-bold text-purple-400 uppercase tracking-wider">
+              <Sparkles className="w-4 h-4 animate-pulse" />
+              <span>Private Cinema & 4K Streaming Theater</span>
+            </div>
+            <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight flex items-center gap-3">
+              Video Theater
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed font-medium">
+              Stream personal videos, movie clips, and 4K recordings with instant playback and theater controls.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={openUpload}
+              className="flex items-center gap-2 px-4.5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold rounded-xl transition shadow-lg shadow-purple-600/25 border border-purple-400/30 active:scale-95"
+            >
+              <UploadCloud className="w-4 h-4" />
+              <span>Upload Video</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Control bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-slate-900/80 border border-slate-800 rounded-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 bg-slate-900/70 border border-white/[0.08] rounded-2xl backdrop-blur-md">
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search videos..."
-            className="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-200 focus:outline-none"
+            placeholder="Search videos by title..."
+            className="w-full bg-slate-950/80 border border-white/[0.08] focus:border-purple-500 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-purple-500/30 transition"
           />
         </div>
 
         <button
           onClick={() => setOnlyFavorites((prev) => !prev)}
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold border transition ${
+          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition duration-150 ${
             onlyFavorites
-              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-              : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-500/20'
+              : 'bg-slate-950/80 text-slate-400 border-white/[0.08] hover:text-white hover:border-slate-700'
           }`}
         >
           <Heart className={`w-3.5 h-3.5 ${onlyFavorites ? 'fill-current text-rose-500' : ''}`} />
-          Favorites Only
+          <span>Favorites Only</span>
         </button>
       </div>
 
@@ -170,19 +180,24 @@ export const Videos: React.FC = () => {
             <div
               key={video.id}
               onClick={() => setActiveVideo(video)}
-              className="group bg-slate-900 border border-slate-800 hover:border-purple-500/60 rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-2xl transition-all duration-300 flex flex-col"
+              className="group bg-slate-900/80 border border-white/[0.08] hover:border-purple-500/50 rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 flex flex-col"
             >
               {/* Thumbnail / Video Preview Canvas */}
               <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden">
                 <video
                   src={getMediaUrl(video.streamUrl)}
-                  className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                  className="w-full h-full object-cover group-hover:scale-108 transition duration-500"
                   preload="metadata"
                 />
 
+                {/* 4K Video Quality Pill Badge */}
+                <span className="absolute top-3 left-3 px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md text-[9px] font-mono font-bold text-purple-300 border border-purple-400/30 shadow-md">
+                  4K STREAM
+                </span>
+
                 {/* Dark overlay & Play Button */}
                 <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 flex items-center justify-center transition">
-                  <div className="w-14 h-14 rounded-2xl bg-brand-500/90 group-hover:bg-brand-500 text-white flex items-center justify-center shadow-xl transform group-hover:scale-110 transition duration-200">
+                  <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-tr from-brand-600 to-purple-600 text-white flex items-center justify-center shadow-xl shadow-purple-600/30 transform group-hover:scale-110 transition duration-200 border border-white/20">
                     <Play className="w-6 h-6 fill-current ml-1" />
                   </div>
                 </div>
@@ -193,7 +208,7 @@ export const Videos: React.FC = () => {
                     e.stopPropagation();
                     handleToggleFavorite(video.id);
                   }}
-                  className={`absolute top-3 right-3 p-2 rounded-xl backdrop-blur-md transition ${
+                  className={`absolute top-3 right-3 p-2 rounded-xl backdrop-blur-md transition shadow-md active:scale-75 ${
                     video.isFavorite
                       ? 'bg-rose-500/80 text-white'
                       : 'bg-black/50 text-white/80 hover:text-white'
@@ -206,18 +221,18 @@ export const Videos: React.FC = () => {
               {/* Video Info Bar */}
               <div className="p-4 flex-1 flex flex-col justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-white group-hover:text-purple-300 transition truncate">
+                  <h3 className="text-sm font-bold text-white group-hover:text-purple-300 transition truncate">
                     {video.originalName}
                   </h3>
-                  <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
-                    <span>{formatBytes(video.size)}</span>
+                  <div className="flex items-center gap-2.5 text-xs text-slate-400 mt-1 font-medium">
+                    <span className="font-mono text-[11px] text-slate-300">{formatBytes(video.size)}</span>
                     <span>•</span>
                     <span>{formatDate(video.createdAt)}</span>
                   </div>
                 </div>
 
                 {/* Action Row */}
-                <div className="flex items-center justify-end gap-1.5 mt-3 pt-3 border-t border-slate-800/80">
+                <div className="flex items-center justify-end gap-1.5 mt-3 pt-3 border-t border-white/[0.08]">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();

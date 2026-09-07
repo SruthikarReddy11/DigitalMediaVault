@@ -237,38 +237,45 @@ export const Files: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight flex items-center gap-2.5">
-            <FolderClosed className="w-7 h-7 text-brand-400" />
-            Universal Files & Documents
-          </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Store, preview, organize, and manage files in structured folders
-          </p>
-        </div>
+      {/* Top Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-cyan-950/30 border border-white/[0.08] p-6 sm:p-8 shadow-2xl">
+        <div className="absolute -right-10 -bottom-10 w-72 h-72 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
 
-        <div className="flex items-center gap-2.5">
-          <button
-            onClick={() => setIsCreateFolderOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 text-sm font-semibold rounded-xl transition"
-          >
-            <FolderPlus className="w-4 h-4 text-brand-400" />
-            New Folder
-          </button>
-          <button
-            onClick={openUpload}
-            className="flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-sm font-semibold rounded-xl transition shadow-lg shadow-brand-600/25 active:scale-95"
-          >
-            <UploadCloud className="w-4 h-4" />
-            Upload
-          </button>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-xs font-bold text-cyan-400 uppercase tracking-wider">
+              <Sparkles className="w-4 h-4 animate-pulse" />
+              <span>Universal Cloud Drive</span>
+            </div>
+            <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight flex items-center gap-3">
+              Files & Workspaces
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed font-medium">
+              Store, preview, organize, and manage files in structured folders with multi-device synchronization.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setIsCreateFolderOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 bg-slate-900/90 hover:bg-slate-800 border border-white/10 text-slate-200 text-xs sm:text-sm font-semibold rounded-xl transition shadow hover:border-slate-700"
+            >
+              <FolderPlus className="w-4 h-4 text-cyan-400" />
+              <span>New Folder</span>
+            </button>
+            <button
+              onClick={openUpload}
+              className="flex items-center gap-2 px-4.5 py-2.5 bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white text-xs sm:text-sm font-bold rounded-xl transition shadow-lg shadow-cyan-600/25 border border-cyan-400/30 active:scale-95"
+            >
+              <UploadCloud className="w-4 h-4" />
+              <span>Upload Files</span>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Interactive Breadcrumb Bar */}
-      <div className="flex items-center gap-1.5 p-3 bg-slate-900/60 border border-slate-800 rounded-2xl text-xs font-semibold overflow-x-auto">
+      <div className="flex items-center gap-1.5 p-3 bg-slate-900/70 border border-white/[0.08] rounded-2xl text-xs font-semibold overflow-x-auto backdrop-blur-md">
         {breadcrumbs.map((crumb, idx) => {
           const isLast = idx === breadcrumbs.length - 1;
           return (
@@ -278,9 +285,9 @@ export const Files: React.FC = () => {
                   if (crumb.id === null) handleNavigateFolder(null);
                   else handleNavigateFolder({ id: crumb.id, name: crumb.name } as FolderItem);
                 }}
-                className={`px-2.5 py-1 rounded-lg transition whitespace-nowrap ${
+                className={`px-3 py-1.5 rounded-xl transition whitespace-nowrap ${
                   isLast
-                    ? 'text-white bg-slate-800'
+                    ? 'text-white bg-slate-800 border border-white/10 shadow-sm'
                     : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
                 }`}
               >
@@ -293,7 +300,7 @@ export const Files: React.FC = () => {
       </div>
 
       {/* Control / Filter Bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 p-4 bg-slate-900/80 border border-slate-800 rounded-2xl">
+      <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 sm:p-4 bg-slate-900/70 border border-white/[0.08] rounded-2xl backdrop-blur-md">
         {/* Search */}
         <div className="relative flex-1 min-w-[200px] max-w-md">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -301,49 +308,49 @@ export const Files: React.FC = () => {
             type="text"
             value={search}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Search in this library..."
-            className="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-200 focus:outline-none"
+            placeholder="Search files by name or extension..."
+            className="w-full bg-slate-950/80 border border-white/[0.08] focus:border-cyan-500 rounded-xl pl-10 pr-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition"
           />
         </div>
 
         {/* Filter Type Pills */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2.5">
           {/* File Type filter */}
           <select
             value={fileTypeFilter || ''}
             onChange={(e) => setFileTypeFilter((e.target.value as FileType) || undefined)}
-            className="bg-slate-950 border border-slate-800 text-xs text-slate-300 rounded-xl px-3 py-2 focus:outline-none"
+            className="bg-slate-950/80 border border-white/[0.08] text-xs font-medium text-slate-300 rounded-xl px-3 py-2 focus:outline-none focus:border-cyan-500 transition cursor-pointer"
           >
             <option value="">All File Types</option>
-            <option value="IMAGE">Images</option>
-            <option value="VIDEO">Videos</option>
-            <option value="AUDIO">Audio</option>
-            <option value="PDF">PDFs</option>
-            <option value="DOCUMENT">Documents</option>
+            <option value="IMAGE">Photos & Art</option>
+            <option value="VIDEO">Videos & Cinema</option>
+            <option value="AUDIO">Lossless Audio</option>
+            <option value="PDF">PDF Documents</option>
+            <option value="DOCUMENT">Text & Docs</option>
             <option value="SPREADSHEET">Spreadsheets</option>
-            <option value="ARCHIVE">Archives</option>
+            <option value="ARCHIVE">Zip Archives</option>
             <option value="OTHER">Other</option>
           </select>
 
           {/* Favorites */}
           <button
             onClick={() => setOnlyFavorites((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition ${
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition duration-150 ${
               onlyFavorites
-                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40'
-                : 'bg-slate-950 text-slate-400 border-slate-800 hover:text-white'
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-500/20'
+                : 'bg-slate-950/80 text-slate-400 border-white/[0.08] hover:text-white hover:border-slate-700'
             }`}
           >
             <Heart className={`w-3.5 h-3.5 ${onlyFavorites ? 'fill-current text-rose-500' : ''}`} />
-            Favorites
+            <span>Favorites</span>
           </button>
 
           {/* Grid / List View Toggle */}
-          <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-0.5">
+          <div className="flex items-center bg-slate-950/80 border border-white/[0.08] rounded-xl p-0.5">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-1.5 rounded-lg transition ${
-                viewMode === 'grid' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-white'
+                viewMode === 'grid' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
               }`}
               title="Grid View"
             >
@@ -352,7 +359,7 @@ export const Files: React.FC = () => {
             <button
               onClick={() => setViewMode('list')}
               className={`p-1.5 rounded-lg transition ${
-                viewMode === 'list' ? 'bg-brand-600 text-white' : 'text-slate-400 hover:text-white'
+                viewMode === 'list' ? 'bg-cyan-600 text-white shadow-sm' : 'text-slate-400 hover:text-white'
               }`}
               title="List View"
             >
@@ -365,23 +372,26 @@ export const Files: React.FC = () => {
       {/* Subfolders Grid */}
       {folders.length > 0 && (
         <div>
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Folders</h3>
+          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <FolderClosed className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Folders ({folders.length})</span>
+          </h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {folders.map((f) => (
               <div
                 key={f.id}
                 onClick={() => handleNavigateFolder(f)}
-                className="group relative p-3 bg-slate-900 border border-slate-800 hover:border-brand-500/50 rounded-2xl cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-lg flex items-center justify-between"
+                className="group relative p-3.5 bg-slate-900/60 backdrop-blur-xl border border-white/[0.08] hover:border-cyan-500/50 hover:bg-slate-800/60 rounded-2xl cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_8px_25px_rgba(6,182,212,0.12)] flex items-center justify-between"
               >
-                <div className="flex items-center gap-2.5 truncate">
-                  <div className="p-2 rounded-xl bg-brand-500/10 text-brand-400 shrink-0">
-                    <FolderClosed className="w-4 h-4" />
+                <div className="flex items-center gap-3 truncate min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-500/10 border border-cyan-500/25 text-cyan-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <FolderClosed className="w-5 h-5" />
                   </div>
-                  <div className="truncate">
-                    <p className="text-xs font-semibold text-white group-hover:text-brand-300 transition truncate">
+                  <div className="truncate min-w-0">
+                    <p className="text-xs font-bold text-white group-hover:text-cyan-300 transition truncate">
                       {f.name}
                     </p>
-                    <p className="text-[10px] text-slate-400">
+                    <p className="text-[10px] text-slate-400 font-medium">
                       {f._count?.files ?? 0} files
                     </p>
                   </div>
@@ -389,7 +399,7 @@ export const Files: React.FC = () => {
 
                 {/* Folder options */}
                 <div
-                  className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition"
+                  className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition bg-slate-950/80 rounded-lg p-0.5 border border-white/[0.08]"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
@@ -397,14 +407,14 @@ export const Files: React.FC = () => {
                       setRenameFolderTarget(f);
                       setNewFolderRename(f.name);
                     }}
-                    className="p-1 text-slate-400 hover:text-white transition"
+                    className="p-1 text-slate-400 hover:text-white transition rounded hover:bg-white/[0.08]"
                     title="Rename Folder"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => setDeleteFolderTarget(f)}
-                    className="p-1 text-slate-400 hover:text-rose-400 transition"
+                    className="p-1 text-slate-400 hover:text-rose-400 transition rounded hover:bg-white/[0.08]"
                     title="Delete Folder"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -418,14 +428,14 @@ export const Files: React.FC = () => {
 
       {/* Files Section */}
       <div>
-        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
-          Files ({files.length})
+        <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+          <span>Files ({files.length})</span>
         </h3>
 
         {isLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-              <div key={i} className="h-36 bg-slate-900 border border-slate-800 rounded-2xl animate-pulse" />
+            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
+              <div key={i} className="h-44 bg-slate-900/60 border border-white/[0.08] rounded-2xl animate-pulse" />
             ))}
           </div>
         ) : files.length === 0 && folders.length === 0 ? (
@@ -443,20 +453,22 @@ export const Files: React.FC = () => {
               <div
                 key={file.id}
                 onClick={() => handleFileClick(file)}
-                className="group relative bg-slate-900 border border-slate-800 hover:border-brand-500/50 rounded-2xl p-3.5 cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-xl flex flex-col justify-between"
+                className="group relative bg-slate-900/60 backdrop-blur-xl border border-white/[0.08] hover:border-cyan-500/50 hover:bg-slate-800/60 rounded-2xl p-3.5 cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(6,182,212,0.12)] flex flex-col justify-between"
               >
                 {/* Thumbnail / Icon area */}
-                <div className="aspect-video w-full rounded-xl bg-slate-950 flex items-center justify-center overflow-hidden mb-3 border border-slate-800 relative">
+                <div className="aspect-video w-full rounded-xl bg-slate-950/80 flex items-center justify-center overflow-hidden mb-3 border border-white/[0.06] relative group-hover:border-cyan-500/30 transition">
                   {file.fileType === 'IMAGE' ? (
                     <img
                       src={getMediaUrl(file.streamUrl)}
                       alt={file.originalName}
-                      className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                      className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                     />
                   ) : file.fileType === 'AUDIO' && file.music?.coverUrl ? (
                     <img src={file.music.coverUrl} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    renderFileIcon(file)
+                    <div className="p-3">
+                      {renderFileIcon(file)}
+                    </div>
                   )}
 
                   {/* Favorite indicator badge */}
@@ -465,10 +477,10 @@ export const Files: React.FC = () => {
                       e.stopPropagation();
                       handleToggleFavorite(file.id);
                     }}
-                    className={`absolute top-2 right-2 p-1.5 rounded-lg backdrop-blur-md transition ${
+                    className={`absolute top-2 right-2 p-1.5 rounded-xl backdrop-blur-md transition shadow-md ${
                       file.isFavorite
-                        ? 'bg-rose-500/80 text-white'
-                        : 'opacity-0 group-hover:opacity-100 bg-black/40 text-slate-300 hover:text-white'
+                        ? 'bg-rose-500/90 text-white'
+                        : 'opacity-0 group-hover:opacity-100 bg-slate-950/70 text-slate-300 hover:text-white border border-white/[0.1]'
                     }`}
                   >
                     <Heart className={`w-3.5 h-3.5 ${file.isFavorite ? 'fill-current' : ''}`} />
@@ -477,24 +489,24 @@ export const Files: React.FC = () => {
 
                 {/* File details */}
                 <div>
-                  <p className="text-xs font-semibold text-white group-hover:text-brand-300 transition truncate leading-snug">
+                  <p className="text-xs font-semibold text-white group-hover:text-cyan-300 transition truncate leading-snug">
                     {file.originalName}
                   </p>
                   <div className="flex items-center justify-between text-[11px] text-slate-400 mt-1.5">
-                    <span>{formatBytes(file.size)}</span>
+                    <span className="font-mono text-[10px]">{formatBytes(file.size)}</span>
                     <FileTypeBadge type={file.fileType} />
                   </div>
                 </div>
 
                 {/* Hover Action Strip */}
                 <div
-                  className="mt-2.5 pt-2 border-t border-slate-800/80 flex items-center justify-between opacity-0 group-hover:opacity-100 transition"
+                  className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between opacity-0 group-hover:opacity-100 transition"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center gap-1">
                     <button
                       onClick={() => setMoveTarget(file)}
-                      className="p-1 text-slate-400 hover:text-white rounded transition"
+                      className="p-1.5 text-slate-400 hover:text-white hover:bg-white/[0.08] rounded-lg transition"
                       title="Move to Folder"
                     >
                       <FolderInput className="w-3.5 h-3.5" />
@@ -504,7 +516,7 @@ export const Files: React.FC = () => {
                         setRenameTarget(file);
                         setNewName(file.originalName);
                       }}
-                      className="p-1 text-slate-400 hover:text-white rounded transition"
+                      className="p-1.5 text-slate-400 hover:text-white hover:bg-white/[0.08] rounded-lg transition"
                       title="Rename"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
@@ -515,14 +527,14 @@ export const Files: React.FC = () => {
                     <a
                       href={getMediaUrl(file.downloadUrl)}
                       download={file.originalName}
-                      className="p-1 text-slate-400 hover:text-white rounded transition"
+                      className="p-1.5 text-slate-400 hover:text-white hover:bg-white/[0.08] rounded-lg transition"
                       title="Download"
                     >
                       <Download className="w-3.5 h-3.5" />
                     </a>
                     <button
                       onClick={() => setDeleteTarget(file)}
-                      className="p-1 text-slate-400 hover:text-rose-400 rounded transition"
+                      className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
                       title="Delete"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -534,8 +546,8 @@ export const Files: React.FC = () => {
           </div>
         ) : (
           /* LIST VIEW */
-          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-            <div className="grid grid-cols-12 gap-4 px-4 py-3 border-b border-slate-800 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          <div className="bg-slate-900/60 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden shadow-2xl">
+            <div className="grid grid-cols-12 gap-4 px-4 py-3 border-b border-white/[0.08] bg-slate-950/40 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               <div className="col-span-6 sm:col-span-5">Name</div>
               <div className="hidden sm:block sm:col-span-2">Type</div>
               <div className="col-span-3 sm:col-span-2">Size</div>
@@ -543,45 +555,45 @@ export const Files: React.FC = () => {
               <div className="col-span-3 sm:col-span-1 text-right">Actions</div>
             </div>
 
-            <div className="divide-y divide-slate-800/60">
+            <div className="divide-y divide-white/[0.04]">
               {files.map((file) => (
                 <div
                   key={file.id}
                   onClick={() => handleFileClick(file)}
-                  className="grid grid-cols-12 gap-4 px-4 py-3 items-center text-xs text-slate-300 hover:bg-slate-800/50 cursor-pointer transition"
+                  className="grid grid-cols-12 gap-4 px-4 py-3.5 items-center text-xs text-slate-300 hover:bg-white/[0.03] cursor-pointer transition-colors duration-150"
                 >
                   <div className="col-span-6 sm:col-span-5 flex items-center gap-3 min-w-0">
                     <div className="shrink-0">{renderFileIcon(file)}</div>
-                    <span className="font-semibold text-white truncate">{file.originalName}</span>
+                    <span className="font-semibold text-white truncate group-hover:text-cyan-300">{file.originalName}</span>
                   </div>
 
                   <div className="hidden sm:block sm:col-span-2">
                     <FileTypeBadge type={file.fileType} />
                   </div>
 
-                  <div className="col-span-3 sm:col-span-2 font-mono text-slate-400">
+                  <div className="col-span-3 sm:col-span-2 font-mono text-[11px] text-slate-400">
                     {formatBytes(file.size)}
                   </div>
 
-                  <div className="hidden md:block md:col-span-2 text-slate-400">
+                  <div className="hidden md:block md:col-span-2 text-slate-400 text-[11px]">
                     {formatDate(file.createdAt)}
                   </div>
 
                   <div
-                    className="col-span-3 sm:col-span-1 flex items-center justify-end gap-1.5"
+                    className="col-span-3 sm:col-span-1 flex items-center justify-end gap-1"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <button
                       onClick={() => handleToggleFavorite(file.id)}
-                      className={`p-1 rounded transition ${
-                        file.isFavorite ? 'text-rose-400' : 'text-slate-400 hover:text-white'
+                      className={`p-1.5 rounded-lg transition ${
+                        file.isFavorite ? 'text-rose-400 bg-rose-500/10' : 'text-slate-400 hover:text-white hover:bg-white/[0.08]'
                       }`}
                     >
                       <Heart className={`w-3.5 h-3.5 ${file.isFavorite ? 'fill-current' : ''}`} />
                     </button>
                     <button
                       onClick={() => setMoveTarget(file)}
-                      className="p-1 text-slate-400 hover:text-white rounded transition"
+                      className="p-1.5 text-slate-400 hover:text-white hover:bg-white/[0.08] rounded-lg transition"
                       title="Move"
                     >
                       <FolderInput className="w-3.5 h-3.5" />
@@ -591,14 +603,14 @@ export const Files: React.FC = () => {
                         setRenameTarget(file);
                         setNewName(file.originalName);
                       }}
-                      className="p-1 text-slate-400 hover:text-white rounded transition"
+                      className="p-1.5 text-slate-400 hover:text-white hover:bg-white/[0.08] rounded-lg transition"
                       title="Rename"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       onClick={() => setDeleteTarget(file)}
-                      className="p-1 text-slate-400 hover:text-rose-400 rounded transition"
+                      className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition"
                       title="Delete"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -646,20 +658,20 @@ export const Files: React.FC = () => {
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
               placeholder="e.g. Work Documents"
-              className="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none"
+              className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition"
             />
           </div>
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+          <div className="flex justify-end gap-3 pt-3 border-t border-white/[0.08]">
             <button
               type="button"
               onClick={() => setIsCreateFolderOpen(false)}
-              className="px-4 py-2 text-sm text-slate-300 hover:text-white bg-slate-800 rounded-xl"
+              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-xl border border-white/[0.08] transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-xl shadow-lg shadow-brand-600/20"
+              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl shadow-lg shadow-cyan-600/25 border border-cyan-400/30 transition active:scale-95"
             >
               Create Folder
             </button>
@@ -682,20 +694,20 @@ export const Files: React.FC = () => {
               required
               value={newFolderRename}
               onChange={(e) => setNewFolderRename(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none"
+              className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition"
             />
           </div>
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+          <div className="flex justify-end gap-3 pt-3 border-t border-white/[0.08]">
             <button
               type="button"
               onClick={() => setRenameFolderTarget(null)}
-              className="px-4 py-2 text-sm text-slate-300 hover:text-white bg-slate-800 rounded-xl"
+              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-xl border border-white/[0.08] transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-xl shadow-lg shadow-brand-600/20"
+              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl shadow-lg shadow-cyan-600/25 border border-cyan-400/30 transition active:scale-95"
             >
               Rename
             </button>
@@ -729,20 +741,20 @@ export const Files: React.FC = () => {
               required
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl px-3.5 py-2 text-sm text-slate-200 focus:outline-none"
+              className="w-full bg-slate-950/80 border border-white/[0.1] focus:border-cyan-500 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:ring-1 focus:ring-cyan-500/30 transition"
             />
           </div>
-          <div className="flex justify-end gap-3 pt-3 border-t border-slate-800">
+          <div className="flex justify-end gap-3 pt-3 border-t border-white/[0.08]">
             <button
               type="button"
               onClick={() => setRenameTarget(null)}
-              className="px-4 py-2 text-sm text-slate-300 hover:text-white bg-slate-800 rounded-xl"
+              className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800/80 hover:bg-slate-700 rounded-xl border border-white/[0.08] transition"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-500 rounded-xl shadow-lg shadow-brand-600/20"
+              className="px-5 py-2 text-xs font-bold text-white bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 rounded-xl shadow-lg shadow-cyan-600/25 border border-cyan-400/30 transition active:scale-95"
             >
               Rename
             </button>

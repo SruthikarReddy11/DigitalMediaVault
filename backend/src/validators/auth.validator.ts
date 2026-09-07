@@ -17,6 +17,15 @@ export const registerSchema = z
       .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
       .regex(/[0-9]/, 'Password must contain at least one number'),
     confirmPassword: z.string(),
+    mobileNumber: z.string().max(30).optional().nullable(),
+    gender: z.string().max(30).optional().nullable(),
+    dob: z.string().optional().nullable(),
+    country: z.string().max(100).optional().nullable(),
+    state: z.string().max(100).optional().nullable(),
+    district: z.string().max(100).optional().nullable(),
+    village: z.string().max(100).optional().nullable(),
+    pincode: z.string().max(30).optional().nullable(),
+    occupation: z.string().max(100).optional().nullable(),
   })
   .refine((data) => data.password === data.confirmPassword, {
     message: 'Passwords do not match',
@@ -30,6 +39,15 @@ export const loginSchema = z.object({
 
 export const updateProfileSchema = z.object({
   name: z.string().min(2).max(100).optional(),
+  mobileNumber: z.string().max(30).optional().nullable(),
+  gender: z.string().max(30).optional().nullable(),
+  dob: z.string().optional().nullable(),
+  country: z.string().max(100).optional().nullable(),
+  state: z.string().max(100).optional().nullable(),
+  district: z.string().max(100).optional().nullable(),
+  village: z.string().max(100).optional().nullable(),
+  pincode: z.string().max(30).optional().nullable(),
+  occupation: z.string().max(100).optional().nullable(),
   currentPassword: z.string().optional(),
   newPassword: z
     .string()

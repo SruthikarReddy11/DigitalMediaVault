@@ -141,6 +141,12 @@ app.use(globalRateLimiter);
 // Populate req.user from session token cookie or bearer token
 app.use(authenticateToken);
 
+// Request tracing logger
+app.use((req: Request, _res: Response, next: NextFunction) => {
+  console.log(`[HTTP ${req.method}] ${req.originalUrl || req.url} - Auth: ${(req as any).user?.username || 'unauthenticated'}`);
+  next();
+});
+
 // Mount REST API
 app.use('/api', apiRoutes);
 

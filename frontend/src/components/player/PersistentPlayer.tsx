@@ -25,6 +25,7 @@ import {
   RotateCcw,
   ChevronUp,
   ChevronDown,
+  Heart,
 } from 'lucide-react';
 import { useAudioPlayer, EqualizerPreset } from '../../contexts/AudioPlayerContext';
 import { formatDuration } from '../../utils/formatters';
@@ -71,6 +72,11 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isSleepTimerOpen, setIsSleepTimerOpen] = useState(false);
   const [isEqOpen, setIsEqOpen] = useState(false);
+  const [isLiked, setIsLiked] = useState(false);
+  const [hoverScrubTime, setHoverScrubTime] = useState<number | null>(null);
+  const [hoverScrubPos, setHoverScrubPos] = useState<number | null>(null);
+  const [isHoveringScrub, setIsHoveringScrub] = useState(false);
+  const [isHoveringVolume, setIsHoveringVolume] = useState(false);
 
   if (!currentTrack) return null;
 
@@ -137,12 +143,14 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
             </button>
           </div>
 
-          {/* Center: Album Artwork & Animated Soundwave */}
-          <div className="flex flex-col items-center justify-center my-auto max-w-lg mx-auto w-full text-center space-y-6 py-4">
-            {/* Vinyl / Cover Art Glow */}
+          {/* Center: Modern Album Art Showcase & Soundwave Visualizer */}
+          <div className="flex flex-col items-center justify-center my-auto max-w-md mx-auto w-full text-center space-y-6 py-4">
+            {/* Album Artwork with Soft Ambient Glow */}
             <div className="relative group">
-              <div className="absolute -inset-4 bg-gradient-to-tr from-brand-600/30 via-indigo-600/30 to-amber-600/30 rounded-3xl blur-2xl opacity-75 group-hover:opacity-100 transition duration-500" />
-              <div className="relative w-56 h-56 sm:w-80 sm:h-80 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex items-center justify-center">
+              {/* Soft ambient aura based on track */}
+              <div className="absolute -inset-4 bg-brand-500/20 rounded-3xl blur-2xl opacity-60 group-hover:opacity-90 transition duration-500 pointer-events-none" />
+
+              <div className="relative w-60 h-60 sm:w-72 sm:h-72 rounded-3xl overflow-hidden bg-slate-900 border border-slate-700/60 shadow-2xl flex items-center justify-center">
                 {currentTrack.coverUrl ? (
                   <img
                     src={getMediaUrl(currentTrack.coverUrl)}
@@ -150,37 +158,39 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <Disc className={`w-28 h-28 sm:w-32 sm:h-32 text-slate-700 ${isPlaying ? 'animate-spin [animation-duration:8s]' : ''}`} />
+                  <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+                    <Music className="w-20 h-20 text-brand-400/80" />
+                  </div>
                 )}
               </div>
             </div>
 
             {/* Track Info */}
-            <div className="space-y-1 w-full px-2">
-              <h2 className="text-xl sm:text-3xl font-bold text-white truncate">
+            <div className="space-y-1 w-full px-4">
+              <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight truncate">
                 {currentTrack.title}
               </h2>
-              <p className="text-sm sm:text-base text-slate-400 truncate font-medium">
+              <p className="text-sm sm:text-base text-slate-300 truncate font-medium">
                 {currentTrack.artist} {currentTrack.album ? `— ${currentTrack.album}` : ''}
               </p>
               {currentTrack.genre && (
-                <p className="text-[11px] sm:text-xs text-brand-400 font-semibold tracking-wide uppercase mt-1">
+                <p className="text-xs text-brand-400 font-semibold tracking-wide uppercase mt-1">
                   {currentTrack.genre} {currentTrack.year ? `• ${currentTrack.year}` : ''}
                 </p>
               )}
             </div>
 
-            {/* Live Audio Visualizer Bars Simulation */}
-            <div className="flex items-center justify-center gap-1 sm:gap-1.5 h-10 w-full px-4">
-              {[40, 75, 55, 90, 60, 100, 70, 85, 45, 95, 65, 80, 50, 90, 70, 40].map((h, i) => (
+            {/* Clean Soundwave Equalizer Bars */}
+            <div className="flex items-center justify-center gap-1.5 h-9 w-full px-6">
+              {[35, 65, 45, 85, 55, 95, 60, 80, 40, 90, 60, 75, 50, 85, 65, 35].map((h, i) => (
                 <span
                   key={i}
-                  className={`w-1.5 rounded-full bg-gradient-to-t from-brand-600 to-amber-400 transition-all duration-150 ${
-                    isPlaying ? 'animate-pulse' : 'opacity-30'
+                  className={`w-1 rounded-full bg-brand-400 transition-all duration-200 ${
+                    isPlaying ? 'animate-pulse' : 'opacity-25'
                   }`}
                   style={{
-                    height: isPlaying ? `${Math.max(15, (h * (i % 2 === 0 ? 1 : 0.8)))}%` : '15%',
-                    animationDelay: `${(i * 0.1).toFixed(1)}s`,
+                    height: isPlaying ? `${Math.max(20, h)}%` : '15%',
+                    animationDelay: `${(i * 0.07).toFixed(2)}s`,
                   }}
                 />
               ))}
@@ -231,13 +241,13 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
 
               <button
                 onClick={togglePlay}
-                className="p-5 bg-brand-500 hover:bg-brand-400 text-white rounded-full transition shadow-xl shadow-brand-500/30 active:scale-95"
+                className="w-16 h-16 bg-white hover:bg-slate-100 text-slate-950 rounded-full shadow-2xl hover:scale-105 active:scale-95 transition-all flex items-center justify-center shrink-0"
                 title={isPlaying ? 'Pause' : 'Play'}
               >
                 {isPlaying ? (
-                  <Pause className="w-8 h-8 fill-current" />
+                  <Pause className="w-7 h-7 fill-current" />
                 ) : (
-                  <Play className="w-8 h-8 fill-current ml-1" />
+                  <Play className="w-7 h-7 fill-current ml-1" />
                 )}
               </button>
 
@@ -520,98 +530,176 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
         </div>
       )}
 
-      {/* 5. Persistent Bottom Bar (Mobile Responsive) */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-xl border-t border-slate-800/90 px-3 sm:px-6 py-2.5 shadow-2xl">
-        {/* Progress Bar (Clickable) */}
-        <div
-          className="group relative w-full h-1.5 bg-slate-800 rounded-full cursor-pointer -mt-3 mb-2"
-          onClick={(e) => {
-            const rect = e.currentTarget.getBoundingClientRect();
-            const pos = (e.clientX - rect.left) / rect.width;
-            seek(pos * duration);
-          }}
-        >
-          <div
-            className="bg-brand-500 group-hover:bg-brand-400 h-full rounded-full transition-all relative"
-            style={{ width: `${progressPercent}%` }}
-          >
-            <div className="opacity-100 sm:opacity-0 group-hover:opacity-100 absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 bg-white rounded-full shadow transition" />
-          </div>
-        </div>
+      {/* 5. Persistent Bottom Bar (World-Class Floating Glass Island Deck) */}
+      <div className="fixed bottom-2 sm:bottom-3.5 left-2 sm:left-4 right-2 sm:right-4 max-w-7xl mx-auto z-40">
+        {/* Soft Ambient Underglow */}
+        <div className="absolute -inset-1 bg-gradient-to-r from-brand-500/20 via-cyan-500/15 to-indigo-500/20 rounded-3xl blur-xl pointer-events-none opacity-60 group-hover:opacity-90 transition duration-700" />
 
-        <div className="flex items-center justify-between gap-2 sm:gap-4">
-          {/* Left: Track Info & Cover */}
-          <div className="flex items-center gap-2.5 min-w-0 max-w-[45%] sm:max-w-xs">
+        {/* Main Floating Island Glass Container */}
+        <div className="relative bg-slate-950/90 backdrop-blur-2xl border border-white/10 rounded-2xl sm:rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.85),0_1px_1px_rgba(255,255,255,0.15)] px-3.5 sm:px-6 py-2.5 sm:py-3 flex flex-col gap-2">
+          {/* Upper Rim Specular Sheen */}
+          <div className="absolute top-0 left-8 right-8 h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent pointer-events-none" />
+
+          {/* Precision Interactive Timeline Scrubber */}
+          <div className="relative w-full flex items-center gap-3 pt-0.5">
+            {/* Dual Time: Current Time */}
+            <span className="text-[11px] font-mono font-medium text-slate-400 min-w-[36px] text-right select-none">
+              {formatDuration(currentTime)}
+            </span>
+
+            {/* Interactive Scrub Track */}
             <div
-              onClick={() => setIsExpanded(true)}
-              className="relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl bg-slate-900 border border-slate-800 shrink-0 overflow-hidden shadow-md flex items-center justify-center cursor-pointer group"
-              title="Expand player"
+              className="group/scrub relative flex-1 h-1.5 hover:h-2.5 bg-slate-800/80 hover:bg-slate-800 rounded-full cursor-pointer transition-all duration-150 flex items-center"
+              onClick={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                seek(pos * duration);
+              }}
+              onMouseMove={(e) => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pos = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                setHoverScrubPos(pos);
+                setHoverScrubTime(pos * duration);
+              }}
+              onMouseEnter={() => setIsHoveringScrub(true)}
+              onMouseLeave={() => {
+                setIsHoveringScrub(false);
+                setHoverScrubTime(null);
+                setHoverScrubPos(null);
+              }}
             >
-              {currentTrack.coverUrl ? (
-                <img
-                  src={getMediaUrl(currentTrack.coverUrl)}
-                  alt={currentTrack.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition"
-                />
-              ) : (
-                <Music className="w-5 h-5 text-slate-400" />
-              )}
-              {isPlaying && (
-                <div className="absolute inset-0 bg-black/40 flex items-center justify-center gap-0.5">
-                  <span className="w-1 h-3 bg-brand-400 rounded-full animate-bounce" />
-                  <span className="w-1 h-4 bg-brand-400 rounded-full animate-bounce [animation-delay:0.2s]" />
-                  <span className="w-1 h-2 bg-brand-400 rounded-full animate-bounce [animation-delay:0.4s]" />
+              {/* Floating Hover Time Tooltip */}
+              {isHoveringScrub && hoverScrubTime !== null && hoverScrubPos !== null && (
+                <div
+                  className="absolute -top-7 transform -translate-x-1/2 px-2 py-0.5 bg-slate-900/95 border border-slate-700/80 text-[10px] font-mono font-bold text-white rounded-md shadow-xl pointer-events-none z-50 backdrop-blur-md"
+                  style={{ left: `${hoverScrubPos * 100}%` }}
+                >
+                  {formatDuration(hoverScrubTime)}
                 </div>
               )}
-            </div>
 
-            <div className="min-w-0 cursor-pointer" onClick={() => setIsExpanded(true)}>
-              <h4 className="text-xs sm:text-sm font-semibold text-white truncate leading-tight hover:text-brand-300 transition">
-                {currentTrack.title}
-              </h4>
-              <p className="text-[10px] sm:text-xs text-slate-400 truncate mt-0.5">
-                {currentTrack.artist} {currentTrack.album ? `• ${currentTrack.album}` : ''}
-              </p>
-            </div>
-
-            {onAddToPlaylist && (
-              <button
-                onClick={() => onAddToPlaylist(currentTrack.id)}
-                className="hidden md:inline-flex p-1.5 text-slate-400 hover:text-brand-400 hover:bg-slate-900 rounded-lg transition"
-                title="Add to playlist"
+              {/* Gradient Progress Fill */}
+              <div
+                className="bg-gradient-to-r from-brand-500 via-cyan-400 to-indigo-400 h-full rounded-full transition-all relative"
+                style={{ width: `${progressPercent}%` }}
               >
-                <Plus className="w-4 h-4" />
-              </button>
-            )}
+                {/* Glowing Playhead Thumb */}
+                <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-[0_0_12px_rgba(56,189,248,0.9)] border-2 border-slate-950 opacity-0 group-hover/scrub:opacity-100 group-hover/scrub:scale-125 transition-all duration-150" />
+              </div>
+            </div>
+
+            {/* Dual Time: Total Duration / Remaining */}
+            <span className="text-[11px] font-mono font-medium text-slate-400 min-w-[36px] select-none">
+              {formatDuration(duration)}
+            </span>
           </div>
 
-          {/* Center: Main Playback Controls */}
-          <div className="flex flex-col items-center gap-0.5">
-            <div className="flex items-center gap-1.5 sm:gap-4">
+          {/* Main Controls Dock Row */}
+          <div className="flex items-center justify-between gap-3 sm:gap-6">
+            {/* Left: Artwork, Track Info, Audiophile Badges, & Heart */}
+            <div className="flex items-center gap-3 min-w-0 max-w-[45%] sm:max-w-xs md:max-w-sm">
+              {/* Artwork with Micro Equalizer & Hover Expand */}
+              <div
+                onClick={() => setIsExpanded(true)}
+                className="relative w-12 h-12 sm:w-13 sm:h-13 rounded-2xl bg-slate-900 border border-white/10 shrink-0 shadow-lg overflow-hidden flex items-center justify-center cursor-pointer group/art transition-transform duration-200 active:scale-95"
+                title="Expand fullscreen player"
+              >
+                {currentTrack.coverUrl ? (
+                  <img
+                    src={getMediaUrl(currentTrack.coverUrl)}
+                    alt={currentTrack.title}
+                    className="w-full h-full object-cover group-hover/art:scale-110 transition duration-300"
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
+                    <Music className="w-6 h-6 text-brand-400" />
+                  </div>
+                )}
+
+                {/* Animated Spectrum Waveform Overlay */}
+                {isPlaying && (
+                  <div className="absolute inset-0 bg-black/40 backdrop-blur-[1px] flex items-center justify-center gap-0.5">
+                    <span className="w-0.5 h-3 bg-brand-400 rounded-full animate-pulse" />
+                    <span className="w-0.5 h-4.5 bg-brand-400 rounded-full animate-pulse [animation-delay:0.2s]" />
+                    <span className="w-0.5 h-2.5 bg-brand-400 rounded-full animate-pulse [animation-delay:0.4s]" />
+                  </div>
+                )}
+
+                {/* Expand Hint on Hover */}
+                <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover/art:opacity-100 transition duration-200 flex items-center justify-center">
+                  <Maximize2 className="w-4 h-4 text-white" />
+                </div>
+              </div>
+
+              {/* Title, Artist, & Audiophile Pill */}
+              <div className="min-w-0 cursor-pointer" onClick={() => setIsExpanded(true)}>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs sm:text-sm font-bold text-white tracking-tight truncate leading-tight hover:text-brand-300 transition">
+                    {currentTrack.title}
+                  </h4>
+                  <span className="hidden xl:inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[9px] font-mono font-bold tracking-wider shrink-0">
+                    <Sparkles className="w-2.5 h-2.5" /> LOSSLESS
+                  </span>
+                </div>
+                <p className="text-[11px] sm:text-xs text-slate-400 truncate mt-0.5 font-medium">
+                  {currentTrack.artist} {currentTrack.album ? `• ${currentTrack.album}` : ''}
+                </p>
+              </div>
+
+              {/* Like / Heart Toggle Button */}
+              <button
+                onClick={() => setIsLiked(!isLiked)}
+                className={`p-1.5 rounded-full transition-all duration-200 active:scale-75 shrink-0 ${
+                  isLiked ? 'text-rose-500 hover:text-rose-400 scale-105' : 'text-slate-400 hover:text-white'
+                }`}
+                title={isLiked ? 'Liked' : 'Like'}
+              >
+                <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
+              </button>
+
+              {/* Add to Playlist Shortcut */}
+              {onAddToPlaylist && (
+                <button
+                  onClick={() => onAddToPlaylist(currentTrack.id)}
+                  className="hidden md:inline-flex p-1.5 text-slate-400 hover:text-brand-400 hover:bg-slate-900 rounded-lg transition shrink-0"
+                  title="Add to playlist"
+                >
+                  <Plus className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+
+            {/* Center: Hero Playback Deck */}
+            <div className="flex items-center gap-2 sm:gap-4">
               {/* Shuffle */}
               <button
                 onClick={toggleShuffle}
-                className={`p-1.5 rounded-lg transition ${
-                  isShuffle ? 'text-brand-400 bg-brand-500/10' : 'text-slate-400 hover:text-white'
+                className={`p-2 rounded-xl transition relative ${
+                  isShuffle
+                    ? 'text-brand-400 bg-brand-500/15 shadow-sm shadow-brand-500/20'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
                 }`}
                 title={isShuffle ? 'Shuffle on' : 'Shuffle off'}
               >
-                <Shuffle className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                <Shuffle className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                {isShuffle && (
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-brand-400" />
+                )}
               </button>
 
               {/* Prev */}
               <button
                 onClick={prevTrack}
-                className="p-1 sm:p-1.5 text-slate-300 hover:text-white transition active:scale-95"
+                className="p-2 text-slate-300 hover:text-white transition active:scale-90 hover:bg-slate-900/60 rounded-xl"
                 title="Previous track (P)"
               >
                 <SkipBack className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
               </button>
 
-              {/* Play / Pause */}
+              {/* Center Hero Play / Pause Button */}
               <button
                 onClick={togglePlay}
-                className="p-2 sm:p-2.5 bg-brand-500 hover:bg-brand-400 text-white rounded-full transition shadow-lg shadow-brand-500/30 active:scale-95"
+                className="w-10 h-10 sm:w-11 sm:h-11 bg-white hover:bg-slate-100 text-slate-950 rounded-full shadow-[0_0_20px_rgba(255,255,255,0.25)] hover:scale-105 active:scale-95 transition-all duration-150 flex items-center justify-center shrink-0"
                 title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
               >
                 {isPlaying ? (
@@ -624,7 +712,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               {/* Next */}
               <button
                 onClick={nextTrack}
-                className="p-1 sm:p-1.5 text-slate-300 hover:text-white transition active:scale-95"
+                className="p-2 text-slate-300 hover:text-white transition active:scale-90 hover:bg-slate-900/60 rounded-xl"
                 title="Next track (N)"
               >
                 <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
@@ -633,128 +721,150 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               {/* Repeat Mode */}
               <button
                 onClick={cycleRepeatMode}
-                className={`p-1.5 rounded-lg transition ${
+                className={`p-2 rounded-xl transition relative ${
                   repeatMode !== 'off'
-                    ? 'text-brand-400 bg-brand-500/10'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'text-brand-400 bg-brand-500/15 shadow-sm shadow-brand-500/20'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
                 }`}
-                title={`Repeat mode: ${repeatMode}`}
+                title={`Repeat: ${repeatMode}`}
               >
                 {repeatMode === 'one' ? (
-                  <Repeat1 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <Repeat1 className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
                 ) : (
-                  <Repeat className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <Repeat className="w-4 h-4 sm:w-4.5 sm:h-4.5" />
+                )}
+                {repeatMode !== 'off' && (
+                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-brand-400" />
                 )}
               </button>
             </div>
 
-            {/* Time labels */}
-            <div className="hidden sm:flex items-center gap-2 text-[11px] text-slate-400">
-              <span>{formatDuration(currentTime)}</span>
-              <span>/</span>
-              <span>{formatDuration(duration)}</span>
-            </div>
-          </div>
-
-          {/* Right: Sound EQ, Sleep Timer, Volume, Queue & Expand */}
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            {/* Equalizer Button */}
-            <button
-              onClick={() => {
-                setIsEqOpen((prev) => !prev);
-                setIsSleepTimerOpen(false);
-              }}
-              className={`p-1.5 rounded-lg border transition ${
-                isEqOpen || equalizerPreset !== 'flat'
-                  ? 'bg-brand-600/20 text-brand-300 border-brand-500/40'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800'
-              }`}
-              title="Sound Equalizer"
-            >
-              <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-
-            {/* Sleep Timer Button */}
-            <button
-              onClick={() => {
-                setIsSleepTimerOpen((prev) => !prev);
-                setIsEqOpen(false);
-              }}
-              className={`p-1.5 rounded-lg border transition flex items-center gap-1 ${
-                sleepTimerSeconds !== null
-                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800'
-              }`}
-              title="Sleep Timer"
-            >
-              <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              {sleepTimerSeconds !== null && (
-                <span className="font-mono text-[10px] hidden md:inline">
-                  {formatSleepTimer(sleepTimerSeconds)}
-                </span>
-              )}
-            </button>
-
-            {/* Speed Rate Pill */}
-            <button
-              onClick={() => {
-                const rates = [1, 1.25, 1.5, 2];
-                const nextRate = rates[(rates.indexOf(playbackRate) + 1) % rates.length];
-                setPlaybackRate(nextRate);
-              }}
-              className="hidden md:inline-block px-2 py-0.5 text-xs font-semibold bg-slate-900 border border-slate-800 text-slate-300 hover:text-white rounded-md transition"
-              title="Playback speed"
-            >
-              {playbackRate}x
-            </button>
-
-            {/* Volume Control */}
-            <div className="hidden lg:flex items-center gap-2">
-              <button onClick={toggleMute} className="text-slate-400 hover:text-white" title="Mute (M)">
-                {isMuted || volume === 0 ? (
-                  <VolumeX className="w-4 h-4 text-rose-400" />
-                ) : volume < 0.5 ? (
-                  <Volume1 className="w-4 h-4" />
-                ) : (
-                  <Volume2 className="w-4 h-4" />
+            {/* Right: Audiophile Utilities & Tools */}
+            <div className="flex items-center gap-1.5 sm:gap-2.5">
+              {/* Equalizer Preset Pill */}
+              <button
+                onClick={() => {
+                  setIsEqOpen((prev) => !prev);
+                  setIsSleepTimerOpen(false);
+                }}
+                className={`p-2 rounded-xl border transition flex items-center gap-1.5 ${
+                  isEqOpen || equalizerPreset !== 'flat'
+                    ? 'bg-brand-500/20 text-brand-300 border-brand-500/40 shadow-sm shadow-brand-500/20'
+                    : 'bg-slate-900/80 text-slate-400 hover:text-white border-slate-800'
+                }`}
+                title="Sound Equalizer"
+              >
+                <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                {equalizerPreset !== 'flat' && (
+                  <span className="hidden xl:inline text-[10px] font-bold uppercase font-mono">
+                    {equalizerPreset}
+                  </span>
                 )}
               </button>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={isMuted ? 0 : volume}
-                onChange={(e) => setVolume(parseFloat(e.target.value))}
-                className="w-16 sm:w-20 accent-brand-500 h-1 bg-slate-800 rounded-lg cursor-pointer"
-              />
+
+              {/* Sleep Timer */}
+              <button
+                onClick={() => {
+                  setIsSleepTimerOpen((prev) => !prev);
+                  setIsEqOpen(false);
+                }}
+                className={`p-2 rounded-xl border transition flex items-center gap-1.5 ${
+                  sleepTimerSeconds !== null
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/20'
+                    : 'bg-slate-900/80 text-slate-400 hover:text-white border-slate-800'
+                }`}
+                title="Sleep Timer"
+              >
+                <Moon className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                {sleepTimerSeconds !== null && (
+                  <span className="font-mono text-[10px] font-bold hidden sm:inline">
+                    {formatSleepTimer(sleepTimerSeconds)}
+                  </span>
+                )}
+              </button>
+
+              {/* Playback Speed Switcher */}
+              <button
+                onClick={() => {
+                  const rates = [1, 1.25, 1.5, 2];
+                  const nextRate = rates[(rates.indexOf(playbackRate) + 1) % rates.length];
+                  setPlaybackRate(nextRate);
+                }}
+                className="hidden md:inline-flex px-2.5 py-1 text-xs font-semibold font-mono bg-slate-900/80 border border-slate-800 text-slate-300 hover:text-white rounded-xl transition hover:border-slate-700"
+                title="Playback speed"
+              >
+                {playbackRate}x
+              </button>
+
+              {/* Volume Slider with Interactive Dynamic Speaker & Percentage */}
+              <div
+                className="hidden lg:flex items-center gap-2 pl-1 group/vol relative"
+                onMouseEnter={() => setIsHoveringVolume(true)}
+                onMouseLeave={() => setIsHoveringVolume(false)}
+              >
+                <button
+                  onClick={toggleMute}
+                  className="text-slate-400 hover:text-white transition"
+                  title="Mute (M)"
+                >
+                  {isMuted || volume === 0 ? (
+                    <VolumeX className="w-4 h-4 text-rose-400" />
+                  ) : volume < 0.35 ? (
+                    <Volume1 className="w-4 h-4" />
+                  ) : (
+                    <Volume2 className="w-4 h-4" />
+                  )}
+                </button>
+
+                <div className="relative flex items-center">
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={isMuted ? 0 : volume}
+                    onChange={(e) => setVolume(parseFloat(e.target.value))}
+                    className="w-18 sm:w-22 accent-brand-400 h-1.5 bg-slate-800/90 rounded-lg cursor-pointer hover:h-2 transition-all"
+                  />
+                  {isHoveringVolume && (
+                    <div className="absolute -top-6 left-1/2 -translate-x-1/2 px-1.5 py-0.5 bg-slate-900 border border-slate-800 text-[9px] font-mono text-white rounded shadow-md pointer-events-none">
+                      {isMuted ? '0%' : `${Math.round(volume * 100)}%`}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Queue Drawer Toggle with Counter Badge */}
+              <button
+                onClick={() => {
+                  setIsQueueOpen((prev) => !prev);
+                  setIsSleepTimerOpen(false);
+                  setIsEqOpen(false);
+                }}
+                className={`p-2 rounded-xl border transition relative ${
+                  isQueueOpen
+                    ? 'bg-brand-600 text-white border-brand-500 shadow-md shadow-brand-500/25'
+                    : 'bg-slate-900/80 text-slate-400 hover:text-white border-slate-800'
+                }`}
+                title="View Queue"
+              >
+                <ListMusic className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                {queue.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-brand-500 text-white font-bold text-[9px] rounded-full flex items-center justify-center shadow-md">
+                    {queue.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Expand Fullscreen Button */}
+              <button
+                onClick={() => setIsExpanded(true)}
+                className="p-2 rounded-xl bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700 transition"
+                title="Fullscreen Visualizer"
+              >
+                <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
             </div>
-
-            {/* Queue Toggle Button */}
-            <button
-              onClick={() => {
-                setIsQueueOpen((prev) => !prev);
-                setIsSleepTimerOpen(false);
-                setIsEqOpen(false);
-              }}
-              className={`p-1.5 sm:p-2 rounded-xl border transition ${
-                isQueueOpen
-                  ? 'bg-brand-600 text-white border-brand-500'
-                  : 'bg-slate-900 text-slate-400 hover:text-white border-slate-800'
-              }`}
-              title="View Queue"
-            >
-              <ListMusic className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
-
-            {/* Expand Fullscreen Button */}
-            <button
-              onClick={() => setIsExpanded(true)}
-              className="p-1.5 sm:p-2 rounded-xl bg-slate-900 text-slate-400 hover:text-white border border-slate-800 transition"
-              title="Fullscreen Visualizer"
-            >
-              <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-            </button>
           </div>
         </div>
       </div>
