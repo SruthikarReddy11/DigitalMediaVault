@@ -187,14 +187,16 @@ export const Music: React.FC = () => {
               Stream studio tracks, manage playlists, tune real-time 5-band DSP equalizers, and immerse in lossless acoustics.
             </p>
 
-            <div className="flex flex-wrap items-center gap-3 pt-2">
+            <div className="flex flex-wrap items-center gap-3 pt-2 shrink-0">
               {songs.length > 0 && (
                 <>
                   <button
                     onClick={() => playPlaylistNow(songs, 0)}
-                    className="flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-sm rounded-2xl transition btn-3d active:scale-95 shadow-amber-500/25"
+                    className="group relative overflow-hidden flex items-center gap-2.5 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs sm:text-sm rounded-2xl transition-all duration-200 active:scale-95 shadow-xl shadow-amber-500/25 whitespace-nowrap cursor-pointer"
                   >
-                    <Play className="w-4 h-4 fill-current" />
+                    <div className="p-1 rounded-lg bg-black/10 group-hover:scale-110 transition-transform duration-300">
+                      <Play className="w-4 h-4 fill-current text-slate-950" />
+                    </div>
                     <span>Play Collection</span>
                   </button>
                   <button
@@ -202,10 +204,12 @@ export const Music: React.FC = () => {
                       const shuffled = [...songs].sort(() => Math.random() - 0.5);
                       playPlaylistNow(shuffled, 0);
                     }}
-                    className="flex items-center gap-2 px-4 py-3 bg-slate-800 hover:bg-slate-700 text-white font-bold text-sm rounded-2xl transition border border-slate-700/60 shadow"
+                    className="group flex items-center gap-2.5 px-5 py-2.5 bg-slate-900/80 hover:bg-slate-800 text-slate-200 hover:text-white font-bold text-xs sm:text-sm rounded-2xl transition-all duration-200 border border-white/10 hover:border-amber-500/40 shadow-lg backdrop-blur-md active:scale-95 whitespace-nowrap cursor-pointer"
                     title="Shuffle All"
                   >
-                    <Shuffle className="w-4 h-4" />
+                    <div className="p-1 rounded-lg bg-amber-500/15 group-hover:scale-110 transition-transform duration-300">
+                      <Shuffle className="w-4 h-4 text-amber-400" />
+                    </div>
                     <span>Shuffle</span>
                   </button>
                 </>
@@ -213,9 +217,11 @@ export const Music: React.FC = () => {
 
               <button
                 onClick={openUpload}
-                className="flex items-center gap-2 px-4 py-3 bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm rounded-2xl transition btn-3d active:scale-95 shadow-brand-600/20"
+                className="group relative overflow-hidden flex items-center gap-2.5 px-5 py-2.5 bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 hover:from-brand-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm rounded-2xl transition-all duration-200 shadow-xl shadow-brand-600/25 hover:shadow-brand-600/40 border border-white/20 active:scale-95 whitespace-nowrap cursor-pointer"
               >
-                <UploadCloud className="w-4 h-4" />
+                <div className="p-1 rounded-lg bg-white/20 group-hover:rotate-12 transition-transform duration-300">
+                  <UploadCloud className="w-4 h-4 text-white" />
+                </div>
                 <span>Upload Audio</span>
               </button>
             </div>

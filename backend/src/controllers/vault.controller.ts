@@ -30,7 +30,22 @@ export class VaultController {
           error: { message: '6-digit Authenticator code is required.' },
         });
       }
-      const result = await VaultService.verify2FA(req.user!.id, String(token));
+      const result = await VaultService.verify2FA(req.user!.id, String(token), {
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+      });
+      res.json({ success: true, data: result });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async lockVault(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const result = await VaultService.lockVault(req.user!.id, {
+        ip: req.ip,
+        userAgent: req.get('user-agent'),
+      });
       res.json({ success: true, data: result });
     } catch (err) {
       next(err);

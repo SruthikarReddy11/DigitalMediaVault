@@ -12,6 +12,7 @@ router.get('/2fa/status', VaultController.get2FAStatus);
 router.post('/2fa/setup', VaultController.setup2FA);
 router.post('/2fa/verify', VaultController.verify2FA);
 router.post('/2fa/disable', VaultController.disable2FA);
+router.post('/lock', VaultController.lockVault);
 
 // Password-Protected Folders Endpoints
 router.get('/folders', VaultController.listFolders);

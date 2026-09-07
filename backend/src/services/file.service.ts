@@ -144,12 +144,26 @@ export class FileService {
       }
     }
 
+    let folderName = 'Root';
+    if (folderId) {
+      const folder = await prisma.folder.findUnique({ where: { id: folderId }, select: { name: true } });
+      if (folder) folderName = folder.name;
+    }
+
     await ActivityService.log({
       userId: user.id,
       action: 'FILE_UPLOAD',
       resourceType: 'FILE',
       resourceId: dbFile.id,
-      metadata: { originalName: file.originalname, size, fileType },
+      metadata: {
+        fileName: file.originalname,
+        originalName: file.originalname,
+        size,
+        fileType,
+        mimeType,
+        folderId: folderId || null,
+        folderName,
+      },
     });
 
     return this.serializeFile(dbFile, user.id);
@@ -297,14 +311,22 @@ export class FileService {
       action: 'FILE_RENAME',
       resourceType: 'FILE',
       resourceId: fileId,
-      metadata: { oldName: file.originalName, newName: newName.trim() },
+      metadata: {
+        fileName: updated.originalName,
+        oldName: file.originalName,
+        newName: newName.trim(),
+        fileType: file.fileType,
+      },
     });
 
     return this.serializeFile(updated, user.id);
   }
 
   public static async moveFile(fileId: string, folderId: string | null, user: AuthUser) {
-    const file = await prisma.file.findUnique({ where: { id: fileId } });
+    const file = await prisma.file.findUnique({
+      where: { id: fileId },
+      include: { folder: { select: { name: true } } },
+    });
     if (!file) {
       const err: any = new Error('File not found.');
       err.statusCode = 404;
@@ -319,6 +341,7 @@ export class FileService {
       throw err;
     }
 
+    let targetFolderName = 'Root';
     if (folderId) {
       const folder = await prisma.folder.findUnique({ where: { id: folderId } });
       if (!folder || !isOwnerOrAdmin(folder.userId, user)) {
@@ -327,6 +350,7 @@ export class FileService {
         err.code = 'FORBIDDEN';
         throw err;
       }
+      targetFolderName = folder.name;
     }
 
     const updated = await prisma.file.update({
@@ -336,6 +360,19 @@ export class FileService {
         folder: { select: { id: true, name: true } },
         music: true,
         favorites: { where: { userId: user.id }, select: { id: true } },
+      },
+    });
+
+    await ActivityService.log({
+      userId: user.id,
+      action: 'FILE_MOVE',
+      resourceType: 'FILE',
+      resourceId: fileId,
+      metadata: {
+        fileName: file.originalName,
+        fileType: file.fileType,
+        fromFolder: file.folder?.name || 'Root',
+        toFolder: targetFolderName,
       },
     });
 
@@ -368,7 +405,12 @@ export class FileService {
       action: 'FILE_DELETE',
       resourceType: 'FILE',
       resourceId: fileId,
-      metadata: { originalName: file.originalName, softDelete: true },
+      metadata: {
+        fileName: file.originalName,
+        fileType: file.fileType,
+        size: Number(file.size),
+        softDelete: true,
+      },
     });
 
     return { success: true, message: 'File moved to trash.' };
@@ -393,6 +435,17 @@ export class FileService {
     await prisma.file.update({
       where: { id: fileId },
       data: { deletedAt: null },
+    });
+
+    await ActivityService.log({
+      userId: user.id,
+      action: 'FILE_RESTORE',
+      resourceType: 'FILE',
+      resourceId: fileId,
+      metadata: {
+        fileName: file.originalName,
+        fileType: file.fileType,
+      },
     });
 
     return { success: true, message: 'File restored.' };
@@ -426,7 +479,10 @@ export class FileService {
       action: 'FILE_PERMANENT_DELETE',
       resourceType: 'FILE',
       resourceId: fileId,
-      metadata: { originalName: file.originalName },
+      metadata: {
+        fileName: file.originalName,
+        fileType: file.fileType,
+      },
     });
 
     return { success: true, message: 'File permanently deleted.' };

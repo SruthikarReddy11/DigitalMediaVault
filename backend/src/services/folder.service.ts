@@ -1,6 +1,7 @@
 import { prisma } from '../database/prisma';
 import { AuthUser } from '../types';
 import { isOwnerOrAdmin } from '../middleware/ownership';
+import { ActivityService } from './activity.service';
 
 export class FolderService {
   public static async createFolder(name: string, parentId: string | null | undefined, user: AuthUser) {
@@ -14,7 +15,7 @@ export class FolderService {
       }
     }
 
-    return prisma.folder.create({
+    const folder = await prisma.folder.create({
       data: {
         name: name.trim(),
         parentId: parentId || null,
@@ -24,6 +25,19 @@ export class FolderService {
         _count: { select: { files: true, children: true } },
       },
     });
+
+    await ActivityService.log({
+      userId: user.id,
+      action: 'FOLDER_CREATE',
+      resourceType: 'FOLDER',
+      resourceId: folder.id,
+      metadata: {
+        folderName: folder.name,
+        parentId: folder.parentId,
+      },
+    });
+
+    return folder;
   }
 
   public static async getFolders(user: AuthUser, parentId?: string | null) {
@@ -88,10 +102,23 @@ export class FolderService {
       throw err;
     }
 
-    return prisma.folder.update({
+    const updated = await prisma.folder.update({
       where: { id: folderId },
       data: { name: newName.trim() },
     });
+
+    await ActivityService.log({
+      userId: user.id,
+      action: 'FOLDER_RENAME',
+      resourceType: 'FOLDER',
+      resourceId: folderId,
+      metadata: {
+        oldName: folder.name,
+        newName: newName.trim(),
+      },
+    });
+
+    return updated;
   }
 
   public static async deleteFolder(folderId: string, user: AuthUser) {
@@ -117,6 +144,17 @@ export class FolderService {
     });
 
     await prisma.folder.delete({ where: { id: folderId } });
+
+    await ActivityService.log({
+      userId: user.id,
+      action: 'FOLDER_DELETE',
+      resourceType: 'FOLDER',
+      resourceId: folderId,
+      metadata: {
+        folderName: folder.name,
+      },
+    });
+
     return { success: true, message: 'Folder deleted.' };
   }
 }

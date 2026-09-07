@@ -27,12 +27,47 @@ export function formatDate(dateString?: string | null): string {
 export function formatDateTime(dateString?: string | null): string {
   if (!dateString) return '—';
   const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', {
+  if (isNaN(date.getTime())) return '—';
+  return date.toLocaleString('en-US', {
+    year: 'numeric',
     month: 'short',
     day: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+export function formatDetailedDateTime(dateString?: string | null): {
+  date: string;
+  time: string;
+  full: string;
+} {
+  if (!dateString) {
+    return { date: '—', time: '—', full: '—' };
+  }
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) {
+    return { date: '—', time: '—', full: '—' };
+  }
+
+  const datePart = date.toLocaleDateString('en-US', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }); // e.g. "07 Sep 2026"
+
+  const timePart = date.toLocaleTimeString('en-US', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true,
+  }); // e.g. "06:45:12 PM"
+
+  return {
+    date: datePart,
+    time: timePart,
+    full: `${datePart}, ${timePart}`,
+  };
 }
 
 export function calculateAge(dob?: string | null): number | null {

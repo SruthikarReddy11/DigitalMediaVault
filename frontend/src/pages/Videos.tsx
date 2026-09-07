@@ -121,12 +121,14 @@ export const Videos: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0 self-start md:self-center">
             <button
               onClick={openUpload}
-              className="flex items-center gap-2 px-4.5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold rounded-xl transition shadow-lg shadow-purple-600/25 border border-purple-400/30 active:scale-95"
+              className="group relative overflow-hidden flex items-center gap-2.5 px-5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white text-xs sm:text-sm font-black rounded-2xl transition-all duration-200 shadow-xl shadow-purple-600/25 hover:shadow-purple-600/40 border border-white/20 active:scale-95 whitespace-nowrap cursor-pointer"
             >
-              <UploadCloud className="w-4 h-4" />
+              <div className="p-1 rounded-lg bg-white/20 group-hover:rotate-12 transition-transform duration-300">
+                <UploadCloud className="w-4 h-4 text-white" />
+              </div>
               <span>Upload Video</span>
             </button>
           </div>

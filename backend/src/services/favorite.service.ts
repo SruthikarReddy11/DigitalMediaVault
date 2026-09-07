@@ -2,6 +2,7 @@ import { prisma } from '../database/prisma';
 import { AuthUser } from '../types';
 import { isOwnerOrAdmin } from '../middleware/ownership';
 import { FileService } from './file.service';
+import { ActivityService } from './activity.service';
 
 export class FavoriteService {
   public static async toggleFavorite(fileId: string, user: AuthUser) {
@@ -33,6 +34,18 @@ export class FavoriteService {
       await prisma.favorite.delete({
         where: { id: existing.id },
       });
+
+      await ActivityService.log({
+        userId: user.id,
+        action: 'FAVORITE_REMOVE',
+        resourceType: 'FILE',
+        resourceId: fileId,
+        metadata: {
+          fileName: file.originalName,
+          fileType: file.fileType,
+        },
+      });
+
       return { isFavorite: false, message: 'Removed from favorites.' };
     } else {
       await prisma.favorite.create({
@@ -41,6 +54,18 @@ export class FavoriteService {
           fileId,
         },
       });
+
+      await ActivityService.log({
+        userId: user.id,
+        action: 'FAVORITE_ADD',
+        resourceType: 'FILE',
+        resourceId: fileId,
+        metadata: {
+          fileName: file.originalName,
+          fileType: file.fileType,
+        },
+      });
+
       return { isFavorite: true, message: 'Added to favorites.' };
     }
   }

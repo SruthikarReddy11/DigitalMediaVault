@@ -113,14 +113,14 @@ export const Dashboard: React.FC = () => {
       )}
 
       {/* Hero Welcome Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-indigo-950/40 border border-white/[0.08] p-6 sm:p-8 shadow-2xl">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-slate-900/95 to-indigo-950/40 border border-white/[0.08] p-6 sm:p-8 shadow-2xl">
         <div className="absolute -right-10 -bottom-10 w-80 h-80 bg-brand-500/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute top-0 right-1/3 w-60 h-60 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 text-xs font-bold text-brand-400 uppercase tracking-wider">
-              <Sparkles className="w-4 h-4 animate-pulse" />
+              <Sparkles className="w-4 h-4 animate-pulse text-brand-400" />
               <span>Personal Media Cloud Studio</span>
             </div>
             <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight">
@@ -131,20 +131,20 @@ export const Dashboard: React.FC = () => {
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0 self-start md:self-center">
             <button
               onClick={openUpload}
-              className="flex items-center gap-2 px-4.5 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold rounded-xl transition shadow-lg shadow-brand-500/25 border border-brand-400/30 active:scale-95"
+              className="group relative overflow-hidden flex items-center gap-2.5 px-5 py-2.5 bg-gradient-to-r from-brand-600 via-indigo-600 to-purple-600 hover:from-brand-500 hover:via-indigo-500 hover:to-purple-500 text-white text-xs sm:text-sm font-black rounded-2xl transition-all duration-200 shadow-xl shadow-brand-500/25 border border-white/20 active:scale-95 whitespace-nowrap cursor-pointer"
             >
-              <UploadCloud className="w-4 h-4" />
-              <span>Upload Media</span>
+              <UploadCloud className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 shrink-0" />
+              <span className="whitespace-nowrap">Upload Media</span>
             </button>
             <Link
               to="/vault"
-              className="flex items-center gap-2 px-4 py-2.5 bg-slate-900/90 hover:bg-slate-800 text-amber-400 text-xs sm:text-sm font-semibold rounded-xl transition border border-amber-500/30 shadow hover:border-amber-500/50"
+              className="group flex items-center gap-2.5 px-5 py-2.5 bg-slate-900/80 hover:bg-slate-800 text-amber-300 hover:text-amber-200 text-xs sm:text-sm font-bold rounded-2xl transition-all duration-200 border border-amber-500/30 hover:border-amber-500/50 shadow-lg shadow-black/30 backdrop-blur-md active:scale-95 whitespace-nowrap cursor-pointer"
             >
-              <KeyRound className="w-4 h-4" />
-              <span>Secret Vault</span>
+              <KeyRound className="w-4 h-4 text-amber-400 transition-transform group-hover:rotate-12 shrink-0" />
+              <span className="whitespace-nowrap">Secret Vault</span>
             </Link>
           </div>
         </div>

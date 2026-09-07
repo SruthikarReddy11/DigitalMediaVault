@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { prisma } from '../database/prisma';
 import { generateSecret, verifyTOTP, getOtpAuthUrl, generateQrCodeDataUrl } from '../lib/totp';
+import { ActivityService } from './activity.service';
 
 const VAULT_SECRET_KEY = process.env.JWT_SECRET || 'vault_super_secret_fallback_key';
 
@@ -57,10 +58,10 @@ export class VaultService {
     };
   }
 
-  public static async verify2FA(userId: string, token: string) {
+  public static async verify2FA(userId: string, token: string, meta?: { ip?: string; userAgent?: string }) {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { twoFactorSecret: true, twoFactorEnabled: true },
+      select: { twoFactorSecret: true, twoFactorEnabled: true, username: true, email: true, name: true },
     });
 
     if (!user?.twoFactorSecret) {
@@ -72,6 +73,18 @@ export class VaultService {
 
     const isValid = verifyTOTP(token, user.twoFactorSecret, 2, 30);
     if (!isValid) {
+      await ActivityService.log({
+        userId,
+        action: 'VAULT_UNLOCK_FAILED',
+        resourceType: 'VAULT',
+        metadata: {
+          username: user.username,
+          reason: 'Invalid 6-digit Authenticator code',
+        },
+        ipAddress: meta?.ip,
+        userAgent: meta?.userAgent,
+      });
+
       const err: any = new Error('Invalid 6-digit code. Please verify your Google Authenticator app and try again.');
       err.statusCode = 401;
       err.code = 'INVALID_TOTP';
@@ -86,10 +99,48 @@ export class VaultService {
     }
 
     const vaultSessionToken = createVaultSessionToken(userId);
+
+    await ActivityService.log({
+      userId,
+      action: 'VAULT_OPEN',
+      resourceType: 'VAULT',
+      metadata: {
+        username: user.username,
+        name: user.name,
+        message: 'Secure Vault space unlocked & opened via Google Authenticator 2FA',
+        unlockedAt: new Date().toISOString(),
+      },
+      ipAddress: meta?.ip,
+      userAgent: meta?.userAgent,
+    });
+
     return {
       verified: true,
       vaultSessionToken,
     };
+  }
+
+  public static async lockVault(userId: string, meta?: { ip?: string; userAgent?: string }) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { username: true, name: true },
+    });
+
+    await ActivityService.log({
+      userId,
+      action: 'VAULT_CLOSE',
+      resourceType: 'VAULT',
+      metadata: {
+        username: user?.username,
+        name: user?.name,
+        message: 'Secure Vault space exited & locked',
+        lockedAt: new Date().toISOString(),
+      },
+      ipAddress: meta?.ip,
+      userAgent: meta?.userAgent,
+    });
+
+    return { success: true, message: 'Vault space locked.' };
   }
 
   public static async disable2FA(userId: string, token: string) {
@@ -188,6 +239,18 @@ export class VaultService {
       },
     });
 
+    await ActivityService.log({
+      userId,
+      action: 'VAULT_FOLDER_CREATE',
+      resourceType: 'VAULT_FOLDER',
+      resourceId: folder.id,
+      metadata: {
+        folderName: folder.name,
+        color: folder.color,
+        icon: folder.icon,
+      },
+    });
+
     return {
       ...folder,
       cellCount: 0,
@@ -213,11 +276,34 @@ export class VaultService {
 
     const isMatch = await bcrypt.compare(password, folder.passwordHash);
     if (!isMatch) {
+      await ActivityService.log({
+        userId,
+        action: 'VAULT_FOLDER_UNLOCK_FAILED',
+        resourceType: 'VAULT_FOLDER',
+        resourceId: folderId,
+        metadata: {
+          folderName: folder.name,
+          reason: 'Incorrect folder password',
+        },
+      });
+
       const err: any = new Error('Incorrect password for this folder.');
       err.statusCode = 401;
       err.code = 'INVALID_FOLDER_PASSWORD';
       throw err;
     }
+
+    await ActivityService.log({
+      userId,
+      action: 'VAULT_FOLDER_UNLOCK',
+      resourceType: 'VAULT_FOLDER',
+      resourceId: folder.id,
+      metadata: {
+        folderName: folder.name,
+        cellCount: folder.cells.length,
+        unlockedAt: new Date().toISOString(),
+      },
+    });
 
     return {
       unlocked: true,
@@ -304,6 +390,17 @@ export class VaultService {
       },
     });
 
+    await ActivityService.log({
+      userId,
+      action: 'VAULT_FOLDER_UPDATE',
+      resourceType: 'VAULT_FOLDER',
+      resourceId: folderId,
+      metadata: {
+        folderName: updated.name,
+        passwordChanged: !!data.newPassword,
+      },
+    });
+
     return updated;
   }
 
@@ -320,6 +417,16 @@ export class VaultService {
 
     await prisma.vaultFolder.delete({
       where: { id: folderId },
+    });
+
+    await ActivityService.log({
+      userId,
+      action: 'VAULT_FOLDER_DELETE',
+      resourceType: 'VAULT_FOLDER',
+      resourceId: folderId,
+      metadata: {
+        folderName: folder.name,
+      },
     });
 
     return { success: true };
@@ -372,6 +479,19 @@ export class VaultService {
       },
     });
 
+    await ActivityService.log({
+      userId,
+      action: 'VAULT_CELL_CREATE',
+      resourceType: 'VAULT_CELL',
+      resourceId: cell.id,
+      metadata: {
+        title: cell.title,
+        url: cell.url,
+        folderId,
+        folderName: folder.name,
+      },
+    });
+
     return cell;
   }
 
@@ -382,6 +502,7 @@ export class VaultService {
   ) {
     const cell = await prisma.vaultCell.findFirst({
       where: { id: cellId, userId },
+      include: { folder: { select: { name: true } } },
     });
 
     if (!cell) {
@@ -406,12 +527,25 @@ export class VaultService {
       data: updateData,
     });
 
+    await ActivityService.log({
+      userId,
+      action: 'VAULT_CELL_UPDATE',
+      resourceType: 'VAULT_CELL',
+      resourceId: cellId,
+      metadata: {
+        title: updated.title,
+        url: updated.url,
+        folderName: cell.folder?.name,
+      },
+    });
+
     return updated;
   }
 
   public static async deleteCell(userId: string, cellId: string) {
     const cell = await prisma.vaultCell.findFirst({
       where: { id: cellId, userId },
+      include: { folder: { select: { name: true } } },
     });
 
     if (!cell) {
@@ -422,6 +556,18 @@ export class VaultService {
 
     await prisma.vaultCell.delete({
       where: { id: cellId },
+    });
+
+    await ActivityService.log({
+      userId,
+      action: 'VAULT_CELL_DELETE',
+      resourceType: 'VAULT_CELL',
+      resourceId: cellId,
+      metadata: {
+        title: cell.title,
+        url: cell.url,
+        folderName: cell.folder?.name,
+      },
     });
 
     return { success: true };

@@ -169,7 +169,23 @@ export class AuthService {
       action: 'REGISTER',
       resourceType: 'USER',
       resourceId: user.id,
-      metadata: { role: user.role },
+      metadata: {
+        name: user.name,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        mobileNumber: user.mobileNumber || null,
+        gender: user.gender || null,
+        dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
+        country: user.country || null,
+        state: user.state || null,
+        district: user.district || null,
+        village: user.village || null,
+        pincode: user.pincode || null,
+        occupation: user.occupation || null,
+        securityPinAssigned: !!securityPin,
+        registeredAt: new Date().toISOString(),
+      },
       ipAddress: meta?.ip,
       userAgent: meta?.userAgent,
     });
@@ -183,6 +199,15 @@ export class AuthService {
       where: { id: userId },
       data: { securityPin: newPin },
     });
+
+    await ActivityService.log({
+      userId,
+      action: 'PIN_REGENERATE',
+      resourceType: 'USER',
+      resourceId: userId,
+      metadata: { message: 'Security PIN regenerated' },
+    });
+
     return newPin;
   }
 
@@ -199,6 +224,17 @@ export class AuthService {
     });
 
     if (!user) {
+      await ActivityService.log({
+        action: 'LOGIN_FAILED',
+        resourceType: 'USER',
+        metadata: {
+          attemptedIdentifier: identifier,
+          reason: 'User account not found',
+        },
+        ipAddress: meta?.ip,
+        userAgent: meta?.userAgent,
+      });
+
       const err: any = new Error('Invalid email/username or password.');
       err.statusCode = 401;
       err.code = 'INVALID_CREDENTIALS';
@@ -206,6 +242,19 @@ export class AuthService {
     }
 
     if (!user.isActive) {
+      await ActivityService.log({
+        userId: user.id,
+        action: 'LOGIN_FAILED',
+        resourceType: 'USER',
+        resourceId: user.id,
+        metadata: {
+          attemptedIdentifier: identifier,
+          reason: 'Account is disabled',
+        },
+        ipAddress: meta?.ip,
+        userAgent: meta?.userAgent,
+      });
+
       const err: any = new Error('Account is disabled. Please contact an administrator.');
       err.statusCode = 403;
       err.code = 'ACCOUNT_DISABLED';
@@ -214,6 +263,21 @@ export class AuthService {
 
     const isValidPassword = await comparePassword(data.password, user.passwordHash);
     if (!isValidPassword) {
+      await ActivityService.log({
+        userId: user.id,
+        action: 'LOGIN_FAILED',
+        resourceType: 'USER',
+        resourceId: user.id,
+        metadata: {
+          attemptedIdentifier: identifier,
+          username: user.username,
+          email: user.email,
+          reason: 'Incorrect password',
+        },
+        ipAddress: meta?.ip,
+        userAgent: meta?.userAgent,
+      });
+
       const err: any = new Error('Invalid email/username or password.');
       err.statusCode = 401;
       err.code = 'INVALID_CREDENTIALS';
@@ -242,6 +306,14 @@ export class AuthService {
       action: 'LOGIN',
       resourceType: 'USER',
       resourceId: user.id,
+      metadata: {
+        username: user.username,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        authMethod: 'Password',
+        loginTime: new Date().toISOString(),
+      },
       ipAddress: meta?.ip,
       userAgent: meta?.userAgent,
     });
@@ -280,11 +352,22 @@ export class AuthService {
     }
 
     if (userId) {
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { username: true, email: true, name: true },
+      });
+
       await ActivityService.log({
         userId,
         action: 'LOGOUT',
         resourceType: 'USER',
         resourceId: userId,
+        metadata: {
+          username: user?.username,
+          email: user?.email,
+          name: user?.name,
+          logoutTime: new Date().toISOString(),
+        },
         ipAddress: meta?.ip,
         userAgent: meta?.userAgent,
       });
@@ -376,7 +459,11 @@ export class AuthService {
       action: 'USER_UPDATE',
       resourceType: 'USER',
       resourceId: userId,
-      metadata: { updatedFields: Object.keys(updateData) },
+      metadata: {
+        username: updated.username,
+        updatedFields: Object.keys(updateData).filter((k) => k !== 'passwordHash'),
+        passwordChanged: !!data.newPassword,
+      },
     });
 
     return this.formatUser(updated);

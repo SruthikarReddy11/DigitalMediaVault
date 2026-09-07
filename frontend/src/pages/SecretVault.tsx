@@ -67,8 +67,14 @@ export const SecretVault: React.FC = () => {
     activeFolderRef.current = activeFolder;
   }, [activeFolder]);
 
+  const isUnlockedRef = useRef(isUnlocked);
+  useEffect(() => {
+    isUnlockedRef.current = isUnlocked;
+  }, [isUnlocked]);
+
   // Lock Entire Vault Space (Google Authenticator Gate) - called on manual Lock Space or Route Exit
   const handleLockVault = useCallback(() => {
+    vaultApi.lockVault().catch(() => {});
     setIsUnlocked(false);
     setIsGateOpen(true);
     setActiveFolder(null);
@@ -76,6 +82,15 @@ export const SecretVault: React.FC = () => {
     setIsFolderLocked(true);
     setPasswordTargetFolder(null);
     setViewingCell(null);
+  }, []);
+
+  // When unmounting or navigating away from SecretVault page, lock the vault session
+  useEffect(() => {
+    return () => {
+      if (isUnlockedRef.current) {
+        vaultApi.lockVault().catch(() => {});
+      }
+    };
   }, []);
 
   // Lock Active Folder only - called on tab change so that returning asks for that folder's password, not the space authenticator code
@@ -331,31 +346,37 @@ export const SecretVault: React.FC = () => {
             </div>
 
             {/* Actions: Add Folder / Add Cell & Immediate Lock */}
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-3 shrink-0 self-start sm:self-center">
               {activeFolder ? (
                 <button
                   onClick={() => setCellModalTarget({ isOpen: true, cell: null })}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-2xl transition shadow-lg shadow-brand-600/25 active:scale-95"
+                  className="group relative overflow-hidden flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-black rounded-2xl transition-all duration-200 shadow-xl shadow-brand-600/25 hover:shadow-brand-600/40 border border-white/20 active:scale-95 whitespace-nowrap cursor-pointer"
                 >
-                  <Plus className="w-4 h-4" />
+                  <div className="p-1 rounded-lg bg-white/20 group-hover:rotate-90 transition-transform duration-300">
+                    <Plus className="w-3.5 h-3.5 text-white" />
+                  </div>
                   <span>Add Link Cell</span>
                 </button>
               ) : (
                 <button
                   onClick={() => setIsCreateFolderOpen(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold rounded-2xl transition shadow-lg shadow-brand-600/25 active:scale-95"
+                  className="group relative overflow-hidden flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-black rounded-2xl transition-all duration-200 shadow-xl shadow-brand-600/25 hover:shadow-brand-600/40 border border-white/20 active:scale-95 whitespace-nowrap cursor-pointer"
                 >
-                  <Plus className="w-4 h-4" />
+                  <div className="p-1 rounded-lg bg-white/20 group-hover:rotate-90 transition-transform duration-300">
+                    <Plus className="w-3.5 h-3.5 text-white" />
+                  </div>
                   <span>New Protected Folder</span>
                 </button>
               )}
 
               <button
                 onClick={handleLockVault}
-                className="flex items-center gap-1.5 px-3.5 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold rounded-2xl transition active:scale-95"
+                className="group flex items-center gap-2 px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 border border-rose-500/30 text-xs sm:text-sm font-bold rounded-2xl transition-all duration-200 backdrop-blur-md active:scale-95 whitespace-nowrap cursor-pointer"
                 title="Exit and Lock Vault Space (requires Google Authenticator to re-open)"
               >
-                <Lock className="w-4 h-4" />
+                <div className="p-1 rounded-lg bg-rose-500/20 group-hover:scale-110 transition-transform duration-300">
+                  <Lock className="w-3.5 h-3.5 text-rose-300" />
+                </div>
                 <span>Exit Space</span>
               </button>
             </div>

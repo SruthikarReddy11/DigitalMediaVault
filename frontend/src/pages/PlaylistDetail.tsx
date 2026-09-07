@@ -185,22 +185,24 @@ export const PlaylistDetail: React.FC = () => {
         </div>
 
         {/* Action buttons */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        <div className="flex flex-wrap items-center gap-3 shrink-0 self-start md:self-center">
           {playlist.songs && playlist.songs.length > 0 && (
             <>
               <button
                 onClick={() => playPlaylistNow(playlist.songs!, 0)}
-                className="flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-brand-600/25 active:scale-95"
+                className="group relative overflow-hidden flex items-center gap-2.5 px-5 py-2.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white font-black text-xs sm:text-sm rounded-2xl transition-all duration-200 shadow-xl shadow-brand-600/25 hover:shadow-brand-600/40 border border-white/20 active:scale-95 whitespace-nowrap cursor-pointer"
               >
-                <Play className="w-4 h-4 fill-current" />
-                Play All
+                <div className="p-1 rounded-lg bg-white/20 group-hover:scale-110 transition-transform duration-300">
+                  <Play className="w-4 h-4 fill-current text-white" />
+                </div>
+                <span>Play All</span>
               </button>
               <button
                 onClick={() => {
                   const shuffled = [...playlist.songs!].sort(() => Math.random() - 0.5);
                   playPlaylistNow(shuffled, 0);
                 }}
-                className="p-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition"
+                className="p-3 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-2xl transition-all duration-200 border border-white/10 hover:border-amber-500/40 shadow-lg active:scale-95 cursor-pointer"
                 title="Shuffle"
               >
                 <Shuffle className="w-4 h-4" />
@@ -210,7 +212,7 @@ export const PlaylistDetail: React.FC = () => {
 
           <button
             onClick={() => setIsEditOpen(true)}
-            className="p-2.5 bg-slate-800 hover:bg-slate-700 text-white rounded-xl transition"
+            className="p-3 bg-slate-900/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-2xl transition-all duration-200 border border-white/10 hover:border-brand-500/40 shadow-lg active:scale-95 cursor-pointer"
             title="Edit playlist"
           >
             <Edit2 className="w-4 h-4" />
@@ -218,7 +220,7 @@ export const PlaylistDetail: React.FC = () => {
 
           <button
             onClick={() => setIsDeleteOpen(true)}
-            className="p-2.5 bg-slate-800 hover:bg-rose-600 text-white rounded-xl transition"
+            className="p-3 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 rounded-2xl transition-all duration-200 border border-rose-500/30 shadow-lg active:scale-95 cursor-pointer"
             title="Delete playlist"
           >
             <Trash2 className="w-4 h-4" />

@@ -25,6 +25,11 @@ export const vaultApi = {
     return res.data.data;
   },
 
+  async lockVault() {
+    const res = await api.post<{ success: boolean; data: { success: boolean; message: string } }>('/vault/lock');
+    return res.data.data;
+  },
+
   async getFolders() {
     const res = await api.get<{ success: boolean; data: VaultFolder[] }>('/vault/folders');
     return res.data.data;

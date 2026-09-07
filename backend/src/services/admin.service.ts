@@ -353,7 +353,7 @@ export class AdminService {
     }
 
     const page = Math.max(1, query.page || 1);
-    const limit = Math.min(100, Math.max(1, query.limit || 50));
+    const limit = Math.min(500, Math.max(1, query.limit || 50));
     const skip = (page - 1) * limit;
 
     const [total, logs] = await Promise.all([
