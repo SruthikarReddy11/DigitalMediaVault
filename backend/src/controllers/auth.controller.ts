@@ -243,4 +243,35 @@ export class AuthController {
       next(err);
     }
   }
+
+  public static async revokeSession(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const sessionId = String(req.params.id);
+      await AuthService.revokeSession(req.user!.id, sessionId);
+      res.json({
+        success: true,
+        data: { message: 'Device session revoked successfully' },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async revokeAllSessions(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const includeCurrent = req.query.includeCurrent !== 'false';
+      const result = await AuthService.revokeAllSessions(req.user!.id, req.sessionId, includeCurrent);
+      res.json({
+        success: true,
+        data: {
+          message: includeCurrent
+            ? `Signed out from all ${result.count} devices.`
+            : `Signed out from ${result.count} other devices.`,
+          count: result.count,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

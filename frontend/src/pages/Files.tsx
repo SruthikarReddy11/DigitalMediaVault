@@ -24,6 +24,7 @@ import {
   Eye,
   File,
   Sparkles,
+  Share2,
 } from 'lucide-react';
 import { filesApi } from '../services/filesApi';
 import { foldersApi } from '../services/foldersApi';
@@ -37,6 +38,7 @@ import { MoveFileModal } from '../components/files/MoveFileModal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Modal } from '../components/common/Modal';
 import { EmptyState } from '../components/common/EmptyState';
+import { ShareModal } from '../components/share/ShareModal';
 import { useToast } from '../contexts/ToastContext';
 import { useAudioPlayer } from '../contexts/AudioPlayerContext';
 
@@ -68,6 +70,8 @@ export const Files: React.FC = () => {
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
   const [moveTarget, setMoveTarget] = useState<FileItem | null>(null);
   const [renameTarget, setRenameTarget] = useState<FileItem | null>(null);
+  const [shareFileTarget, setShareFileTarget] = useState<FileItem | null>(null);
+  const [shareFolderTarget, setShareFolderTarget] = useState<FolderItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FileItem | null>(null);
   const [newName, setNewName] = useState('');
 
@@ -407,6 +411,13 @@ export const Files: React.FC = () => {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
+                    onClick={() => setShareFolderTarget(f)}
+                    className="p-1 text-slate-400 hover:text-brand-400 transition rounded hover:bg-white/[0.08]"
+                    title="Share Folder"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
                     onClick={() => {
                       setRenameFolderTarget(f);
                       setNewFolderRename(f.name);
@@ -509,6 +520,13 @@ export const Files: React.FC = () => {
                 >
                   <div className="flex items-center gap-1">
                     <button
+                      onClick={() => setShareFileTarget(file)}
+                      className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition"
+                      title="Share Link"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
+                    <button
                       onClick={() => setMoveTarget(file)}
                       className="p-1.5 text-slate-400 hover:text-white hover:bg-white/[0.08] rounded-lg transition"
                       title="Move to Folder"
@@ -587,6 +605,13 @@ export const Files: React.FC = () => {
                     className="col-span-3 sm:col-span-1 flex items-center justify-end gap-1"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    <button
+                      onClick={() => setShareFileTarget(file)}
+                      className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition"
+                      title="Share Link"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => handleToggleFavorite(file.id)}
                       className={`p-1.5 rounded-lg transition ${
@@ -775,6 +800,17 @@ export const Files: React.FC = () => {
         message={`Move "${deleteTarget?.originalName}" to trash?`}
         confirmText="Move to Trash"
         isDangerous
+      />
+
+      {/* Share File / Folder Modal */}
+      <ShareModal
+        isOpen={!!shareFileTarget || !!shareFolderTarget}
+        onClose={() => {
+          setShareFileTarget(null);
+          setShareFolderTarget(null);
+        }}
+        file={shareFileTarget}
+        folder={shareFolderTarget}
       />
     </div>
   );

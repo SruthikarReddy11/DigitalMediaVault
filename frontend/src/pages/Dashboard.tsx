@@ -27,6 +27,7 @@ import { getMediaUrl } from '../services/api';
 import { Skeleton } from '../components/common/Skeleton';
 import { ImageLightbox } from '../components/gallery/ImageLightbox';
 import { FilePreviewModal } from '../components/files/FilePreviewModal';
+import { UpcomingEventsWidget } from '../components/dashboard/UpcomingEventsWidget';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -259,6 +260,9 @@ export const Dashboard: React.FC = () => {
           />
         </div>
       </div>
+
+      {/* Upcoming Schedule & Smart Reminders Widget */}
+      <UpcomingEventsWidget />
 
       {/* Recently Added Media Grid */}
       <div>

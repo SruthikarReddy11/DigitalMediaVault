@@ -4,6 +4,13 @@ import { User } from '../types';
 export interface UserSession {
   id: string;
   isCurrent: boolean;
+  deviceName: string;
+  browser: string;
+  os: string;
+  deviceType: 'DESKTOP' | 'MOBILE' | 'TABLET' | 'OTHER';
+  ipAddress: string;
+  location: string;
+  status: 'ONLINE' | 'ACTIVE_NOW' | 'IDLE' | 'OFFLINE';
   createdAt: string;
   lastUsedAt: string;
   expiresAt: string;
@@ -94,6 +101,19 @@ export const authApi = {
 
   async revokeOtherSessions() {
     const res = await api.delete<{ success: boolean; data: { message: string; count: number } }>('/auth/sessions/other');
+    return res.data.data;
+  },
+
+  async revokeSession(id: string) {
+    const res = await api.delete<{ success: boolean; data: { message: string } }>(`/auth/sessions/${id}`);
+    return res.data.data;
+  },
+
+  async revokeAllSessions(includeCurrent = true) {
+    const res = await api.delete<{ success: boolean; data: { message: string; count: number } }>(
+      '/auth/sessions/all',
+      { params: { includeCurrent } }
+    );
     return res.data.data;
   },
 };

@@ -4,6 +4,7 @@ import { config } from '../config';
 import { AuthUser } from '../types';
 import { ActivityService } from './activity.service';
 import { StorageFactory } from '../storage/StorageFactory';
+import { parseUserAgent, formatIpLocation } from '../utils/deviceParser';
 import path from 'path';
 
 export interface RegisterDto {
@@ -162,7 +163,7 @@ export class AuthService {
       },
     });
 
-    const { token, expiresAt } = await this.createSession(user.id);
+    const { token, expiresAt } = await this.createSession(user.id, meta);
 
     await ActivityService.log({
       userId: user.id,
@@ -299,7 +300,7 @@ export class AuthService {
       });
     }
 
-    const { token, expiresAt } = await this.createSession(user.id);
+    const { token, expiresAt } = await this.createSession(user.id, meta);
 
     await ActivityService.log({
       userId: user.id,
@@ -325,16 +326,36 @@ export class AuthService {
     };
   }
 
-  public static async createSession(userId: string): Promise<{ token: string; expiresAt: Date }> {
+  public static async createSession(
+    userId: string,
+    meta?: { ip?: string; userAgent?: string }
+  ): Promise<{ token: string; expiresAt: Date }> {
     const rawToken = generateSecureToken();
     const tokenHash = hashToken(rawToken);
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + config.session.maxAgeDays);
 
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { state: true, district: true, village: true },
+    });
+    const userLocation = user?.village || user?.district || user?.state || null;
+
+    const parsedDevice = parseUserAgent(meta?.userAgent);
+    const ipAddress = meta?.ip ? meta.ip.replace(/^::ffff:/, '') : '127.0.0.1';
+    const location = formatIpLocation(ipAddress, userLocation);
+
     await prisma.session.create({
       data: {
         userId,
         tokenHash,
+        deviceName: parsedDevice.deviceName,
+        browser: parsedDevice.browser,
+        os: parsedDevice.os,
+        deviceType: parsedDevice.deviceType,
+        ipAddress,
+        location,
+        userAgent: meta?.userAgent ? meta.userAgent.slice(0, 500) : null,
         expiresAt,
       },
     });
@@ -607,19 +628,75 @@ export class AuthService {
       orderBy: { lastUsedAt: 'desc' },
       select: {
         id: true,
+        deviceName: true,
+        browser: true,
+        os: true,
+        deviceType: true,
+        ipAddress: true,
+        location: true,
         createdAt: true,
         lastUsedAt: true,
         expiresAt: true,
       },
     });
 
-    return sessions.map((s) => ({
-      id: s.id,
-      isCurrent: s.id === currentSessionId,
-      createdAt: s.createdAt,
-      lastUsedAt: s.lastUsedAt,
-      expiresAt: s.expiresAt,
-    }));
+    const now = Date.now();
+
+    return sessions.map((s) => {
+      const isCurrent = s.id === currentSessionId;
+      const msSinceLastActive = now - new Date(s.lastUsedAt).getTime();
+
+      let status: 'ONLINE' | 'ACTIVE_NOW' | 'IDLE' | 'OFFLINE' = 'OFFLINE';
+      if (isCurrent) {
+        status = 'ACTIVE_NOW';
+      } else if (msSinceLastActive < 5 * 60 * 1000) {
+        status = 'ONLINE';
+      } else if (msSinceLastActive < 60 * 60 * 1000) {
+        status = 'IDLE';
+      }
+
+      return {
+        id: s.id,
+        isCurrent,
+        deviceName: s.deviceName || (s.os ? `${s.os} Device` : 'Web Browser Session'),
+        browser: s.browser || 'Web Browser',
+        os: s.os || 'Unknown OS',
+        deviceType: s.deviceType || 'DESKTOP',
+        ipAddress: s.ipAddress || '127.0.0.1',
+        location: s.location || 'Local Network',
+        status,
+        createdAt: s.createdAt,
+        lastUsedAt: s.lastUsedAt,
+        expiresAt: s.expiresAt,
+      };
+    });
+  }
+
+  public static async revokeSession(userId: string, sessionId: string) {
+    const session = await prisma.session.findFirst({
+      where: { id: sessionId, userId },
+    });
+    if (!session) {
+      throw new Error('Session not found or already revoked');
+    }
+
+    await prisma.session.delete({
+      where: { id: sessionId },
+    });
+
+    await ActivityService.log({
+      userId,
+      action: 'SESSION_REVOKED',
+      resourceType: 'SESSION',
+      resourceId: sessionId,
+      metadata: {
+        deviceName: session.deviceName,
+        browser: session.browser,
+        ipAddress: session.ipAddress,
+      },
+    });
+
+    return { success: true };
   }
 
   public static async revokeOtherSessions(userId: string, currentSessionId?: string | null) {
@@ -632,6 +709,37 @@ export class AuthService {
         id: { not: currentSessionId },
       },
     });
+
+    await ActivityService.log({
+      userId,
+      action: 'ALL_OTHER_SESSIONS_REVOKED',
+      resourceType: 'SESSION',
+      metadata: { count: result.count },
+    });
+
+    return { count: result.count };
+  }
+
+  public static async revokeAllSessions(userId: string, currentSessionId?: string | null, includeCurrent = false) {
+    const whereClause: any = { userId };
+    if (!includeCurrent && currentSessionId) {
+      whereClause.id = { not: currentSessionId };
+    }
+
+    const result = await prisma.session.deleteMany({
+      where: whereClause,
+    });
+
+    await ActivityService.log({
+      userId,
+      action: includeCurrent ? 'ALL_SESSIONS_REVOKED_INCLUDING_CURRENT' : 'ALL_OTHER_SESSIONS_REVOKED',
+      resourceType: 'SESSION',
+      metadata: {
+        count: result.count,
+        includeCurrent,
+      },
+    });
+
     return { count: result.count };
   }
 }

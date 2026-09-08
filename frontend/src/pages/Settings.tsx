@@ -31,6 +31,13 @@ import {
   Globe,
   CheckCircle,
   ShieldCheck,
+  Bell,
+  Volume2,
+  VolumeX,
+  Smartphone,
+  Tablet,
+  Wifi,
+  Clock,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -42,11 +49,16 @@ import { useToast } from '../contexts/ToastContext';
 import { getMediaUrl } from '../services/api';
 
 export const Settings: React.FC = () => {
-  const { user, updateUser, refreshUser, isAdmin } = useAuth();
+  const { user, updateUser, refreshUser, isAdmin, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { success, error } = useToast();
 
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'storage'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'storage' | 'notifications'>('profile');
+  const [reminderSoundEnabled, setReminderSoundEnabled] = useState(() => localStorage.getItem('pdl_reminder_sound') !== 'false');
+  const [headerAlertsEnabled, setHeaderAlertsEnabled] = useState(() => localStorage.getItem('pdl_header_alerts') !== 'false');
+  const [browserNotificationsEnabled, setBrowserNotificationsEnabled] = useState(
+    () => typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted'
+  );
   const [isEditingProfile, setIsEditingProfile] = useState(false);
 
   // Profile fields
@@ -390,11 +402,46 @@ export const Settings: React.FC = () => {
     setIsRevokingSessions(true);
     try {
       const res = await authApi.revokeOtherSessions();
-      success(res.message);
-      fetchUserData();
+      success(res.message || 'Other device sessions revoked.');
+      await fetchUserData();
     } catch (err: any) {
       error(err.message || 'Failed to revoke other sessions.');
     } finally {
+      setIsRevokingSessions(false);
+    }
+  };
+
+  const handleRevokeSingleSession = async (sessionId: string) => {
+    if (!window.confirm('Are you sure you want to disconnect this device session?')) {
+      return;
+    }
+    setIsRevokingSessions(true);
+    try {
+      const res = await authApi.revokeSession(sessionId);
+      success(res.message || 'Device session revoked successfully.');
+      await fetchUserData();
+    } catch (err: any) {
+      error(err.message || 'Failed to revoke session.');
+    } finally {
+      setIsRevokingSessions(false);
+    }
+  };
+
+  const handleSignOutAllDevices = async () => {
+    if (
+      !window.confirm(
+        'Are you sure you want to sign out from ALL devices? This will invalidate all active sessions, including this current device, and return you to the login screen.'
+      )
+    ) {
+      return;
+    }
+    setIsRevokingSessions(true);
+    try {
+      await authApi.revokeAllSessions(true);
+      success('Successfully signed out from all devices.');
+      await logout();
+    } catch (err: any) {
+      error(err.message || 'Failed to sign out from all devices.');
       setIsRevokingSessions(false);
     }
   };
@@ -561,6 +608,18 @@ export const Settings: React.FC = () => {
         >
           <HardDrive className="w-3.5 h-3.5" />
           <span>Storage & Export</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('notifications')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all duration-150 ${
+            activeTab === 'notifications'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/25'
+              : 'text-slate-400 hover:text-white hover:bg-white/[0.05]'
+          }`}
+        >
+          <Bell className="w-3.5 h-3.5" />
+          <span>Notifications & Alerts</span>
         </button>
       </div>
 
@@ -1383,74 +1442,222 @@ export const Settings: React.FC = () => {
             </div>
           </div>
 
-          {/* Active Sessions Section */}
-          <div className="p-6 sm:p-8 bg-slate-900/60 backdrop-blur-xl border border-white/[0.08] rounded-3xl shadow-xl space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/[0.08] pb-4">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-emerald-400" />
-                  <span>Active Login Sessions</span>
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Devices and browsers currently authenticated to your account
-                </p>
+          {/* Your Devices & Multi-Device Sync Section */}
+          <div className="p-6 sm:p-8 bg-slate-900/60 backdrop-blur-xl border border-white/[0.08] rounded-3xl shadow-xl space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
+              <div className="space-y-1">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-2xl bg-gradient-to-br from-brand-500/20 via-purple-500/20 to-sky-500/20 border border-brand-500/30 text-brand-300">
+                    <Laptop className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h3 className="text-base sm:text-lg font-bold text-white tracking-wide">
+                        Your Devices & Multi-Device Sync
+                      </h3>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 shadow-sm shadow-emerald-500/10">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Sync Active
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Real-time encrypted synchronization across all your logged-in phones, computers, and tablets.
+                    </p>
+                  </div>
+                </div>
               </div>
 
-              {sessions.length > 1 && (
+              <div className="flex flex-wrap items-center gap-2">
+                {sessions.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={handleRevokeSessions}
+                    disabled={isRevokingSessions}
+                    className="px-3.5 py-2 bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 border border-white/10 text-xs font-semibold rounded-xl transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                    title="Log out of all other devices except this current one"
+                  >
+                    <LogOut className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Revoke Others ({sessions.length - 1})</span>
+                  </button>
+                )}
                 <button
-                  onClick={handleRevokeSessions}
+                  type="button"
+                  onClick={handleSignOutAllDevices}
                   disabled={isRevokingSessions}
-                  className="px-4 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-bold rounded-xl transition flex items-center gap-1.5 active:scale-95"
+                  className="px-3.5 py-2 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-bold rounded-xl transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50 shadow-lg shadow-rose-500/10"
+                  title="Sign out and disconnect from all devices including this one"
                 >
-                  <LogOut className="w-3.5 h-3.5" />
-                  <span>{isRevokingSessions ? 'Revoking...' : 'Revoke Other Sessions'}</span>
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Sign out from all devices</span>
                 </button>
-              )}
+              </div>
             </div>
 
+            {/* Multi-Device Cloud Sync Banner */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-brand-950/40 via-purple-950/30 to-slate-950/50 border border-brand-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-brand-500/15 border border-brand-500/30 flex items-center justify-center text-brand-300 shrink-0">
+                  <Wifi className="w-4 h-4 animate-pulse text-brand-400" />
+                </div>
+                <div>
+                  <div className="font-semibold text-white flex items-center gap-2">
+                    <span>Multi-Device Synchronization</span>
+                    <span className="text-[10px] px-2 py-0.2 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 rounded-full font-mono">
+                      LIVE
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Files, lossless music playlists, photo galleries, and smart reminders sync instantaneously with end-to-end security.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/[0.04] border border-white/[0.08] text-slate-300 font-medium shrink-0">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{sessions.length} {sessions.length === 1 ? 'Device' : 'Devices'} Connected</span>
+              </div>
+            </div>
+
+            {/* Devices List */}
             {isLoadingSessions ? (
-              <div className="space-y-2">
-                <div className="h-16 bg-slate-950/80 rounded-2xl animate-pulse" />
+              <div className="space-y-3">
+                <div className="h-20 bg-slate-950/80 rounded-2xl animate-pulse" />
+                <div className="h-20 bg-slate-950/80 rounded-2xl animate-pulse" />
               </div>
             ) : sessions.length === 0 ? (
-              <p className="text-xs text-slate-400">Current session active.</p>
+              <div className="p-8 text-center rounded-2xl bg-slate-950/60 border border-white/[0.06]">
+                <Laptop className="w-8 h-8 text-slate-500 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-slate-300">No active sessions found</p>
+                <p className="text-xs text-slate-500 mt-1">Current session is active in this browser.</p>
+              </div>
             ) : (
-              <div className="space-y-2.5">
-                {sessions.map((s) => (
-                  <div
-                    key={s.id}
-                    className={`p-4 rounded-2xl border text-xs flex items-center justify-between transition-all duration-200 ${
-                      s.isCurrent
-                        ? 'bg-brand-500/10 border-brand-500/40 text-brand-300 shadow-lg shadow-brand-500/5'
-                        : 'bg-slate-950/70 border-white/[0.06] text-slate-300'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <div className="w-10 h-10 rounded-xl bg-slate-800/80 border border-white/[0.08] flex items-center justify-center text-slate-300">
-                        <Laptop className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-bold text-white">
-                            {s.isCurrent ? 'Current Browser Session' : 'Authenticated Client'}
-                          </span>
-                          {s.isCurrent && (
-                            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold rounded-full">
-                              ACTIVE NOW
-                            </span>
+              <div className="space-y-3">
+                {sessions.map((s) => {
+                  const isMob = s.deviceType === 'MOBILE' || (s.deviceName || '').toLowerCase().includes('android') || (s.deviceName || '').toLowerCase().includes('iphone');
+                  const isTab = s.deviceType === 'TABLET' || (s.deviceName || '').toLowerCase().includes('ipad') || (s.deviceName || '').toLowerCase().includes('tablet');
+                  const isPc = s.deviceType === 'DESKTOP' || (s.deviceName || '').toLowerCase().includes('pc') || (s.deviceName || '').toLowerCase().includes('windows') || (s.deviceName || '').toLowerCase().includes('mac');
+
+                  const isCurrentSession = !!s.isCurrent;
+                  const isLive = isCurrentSession || s.status === 'ACTIVE_NOW';
+                  const isOnline = s.status === 'ONLINE';
+                  const isIdle = s.status === 'IDLE';
+
+                  return (
+                    <div
+                      key={s.id}
+                      className={`p-4 sm:p-5 rounded-2xl border transition-all duration-200 ${
+                        isCurrentSession
+                          ? 'bg-brand-500/[0.07] border-brand-500/40 shadow-lg shadow-brand-500/5'
+                          : 'bg-slate-950/60 hover:bg-slate-950/80 border-white/[0.07]'
+                      }`}
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                        {/* Device Info */}
+                        <div className="flex items-start sm:items-center gap-3.5">
+                          <div
+                            className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 ${
+                              isCurrentSession
+                                ? 'bg-brand-500/20 border-brand-500/40 text-brand-300'
+                                : isMob
+                                ? 'bg-indigo-500/15 border-indigo-500/30 text-indigo-400'
+                                : isTab
+                                ? 'bg-purple-500/15 border-purple-500/30 text-purple-400'
+                                : 'bg-sky-500/15 border-sky-500/30 text-sky-400'
+                            }`}
+                          >
+                            {isMob ? (
+                              <Smartphone className="w-5 h-5" />
+                            ) : isTab ? (
+                              <Tablet className="w-5 h-5" />
+                            ) : isPc ? (
+                              <Laptop className="w-5 h-5" />
+                            ) : (
+                              <Globe className="w-5 h-5" />
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-bold text-sm text-white flex items-center gap-1.5">
+                                {isMob ? '📱' : isTab ? '📟' : isPc ? '💻' : '🌐'} {s.deviceName || (isCurrentSession ? 'Current Device' : 'Authorized Device')}
+                              </span>
+
+                              {isCurrentSession && (
+                                <span className="px-2 py-0.5 bg-brand-500/20 text-brand-300 border border-brand-500/40 text-[10px] font-extrabold rounded-md tracking-wider">
+                                  THIS DEVICE
+                                </span>
+                              )}
+
+                              {isLive ? (
+                                <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-bold rounded-full flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                                  ONLINE / ACTIVE
+                                </span>
+                              ) : isOnline ? (
+                                <span className="px-2 py-0.5 bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold rounded-full flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                  ONLINE
+                                </span>
+                              ) : isIdle ? (
+                                <span className="px-2 py-0.5 bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold rounded-full flex items-center gap-1">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                                  IDLE
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-slate-800 text-slate-400 border border-white/10 text-[10px] font-semibold rounded-full">
+                                  OFFLINE
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Metadata Subline */}
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-400">
+                              <span className="text-slate-300 font-medium">
+                                {s.browser || 'Browser'} • {s.os || 'Operating System'}
+                              </span>
+                              <span className="text-slate-600 hidden sm:inline">•</span>
+                              <span className="flex items-center gap-1 text-slate-400">
+                                <MapPin className="w-3 h-3 text-slate-500" />
+                                <span>{s.ipAddress || '127.0.0.1'}</span>
+                                {s.location && <span className="text-slate-500">({s.location})</span>}
+                              </span>
+                            </div>
+
+                            {/* Timestamps */}
+                            <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-slate-500">
+                              <span className="flex items-center gap-1">
+                                <Clock className="w-3 h-3" />
+                                <span>Login: {formatDate(s.createdAt)}</span>
+                              </span>
+                              <span className="text-slate-600 hidden sm:inline">•</span>
+                              <span>Last active: {formatDate(s.lastUsedAt)}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                          {isCurrentSession ? (
+                            <div className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Current Session</span>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleRevokeSingleSession(s.id)}
+                              disabled={isRevokingSessions}
+                              className="px-3.5 py-1.5 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 text-xs font-bold rounded-xl transition flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                              title="Disconnect this device"
+                            >
+                              <LogOut className="w-3.5 h-3.5" />
+                              <span>Revoke Session</span>
+                            </button>
                           )}
                         </div>
-                        <p className="text-[11px] text-slate-400 mt-0.5">
-                          Last active: {formatDate(s.lastUsedAt)}
-                        </p>
                       </div>
                     </div>
-
-                    <div className="text-right text-[11px] text-slate-400 font-mono">
-                      Expires: {formatDate(s.expiresAt)}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1536,6 +1743,126 @@ export const Settings: React.FC = () => {
               <Download className="w-4 h-4 text-emerald-400" />
               <span>Export JSON Archive</span>
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 4: Notifications & Alerts */}
+      {activeTab === 'notifications' && (
+        <div className="space-y-6">
+          <div className="p-6 sm:p-8 bg-slate-900/60 backdrop-blur-xl border border-white/[0.08] rounded-3xl space-y-6 shadow-xl">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <Bell className="w-5 h-5 text-brand-400" />
+                <span>Calendar & Smart Reminder Preferences</span>
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Customize how VaultMedia notifies you of scheduled meetings, deadlines, and tasks.
+              </p>
+            </div>
+
+            <div className="space-y-4 divide-y divide-slate-800/80">
+              {/* Sound alert chime toggle */}
+              <div className="pt-4 flex items-center justify-between gap-4">
+                <div className="space-y-1 max-w-lg">
+                  <div className="flex items-center gap-2">
+                    <Volume2 className="w-4 h-4 text-emerald-400" />
+                    <p className="text-sm font-semibold text-white">Audible Reminder Chimes</p>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Play a gentle electronic synthesizer chime when a scheduled reminder or event trigger occurs.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !reminderSoundEnabled;
+                    setReminderSoundEnabled(next);
+                    localStorage.setItem('pdl_reminder_sound', String(next));
+                    success(next ? 'Reminder sound alerts enabled' : 'Reminder sound alerts muted');
+                  }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    reminderSoundEnabled ? 'bg-brand-600' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition duration-200 ease-in-out ${
+                      reminderSoundEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Header notifications badge */}
+              <div className="pt-4 flex items-center justify-between gap-4">
+                <div className="space-y-1 max-w-lg">
+                  <div className="flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-brand-400" />
+                    <p className="text-sm font-semibold text-white">Top Navigation Bell Alerts</p>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Display glowing urgency badges and popup notification panels in the global header bar.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = !headerAlertsEnabled;
+                    setHeaderAlertsEnabled(next);
+                    localStorage.setItem('pdl_header_alerts', String(next));
+                    success(next ? 'Header notifications enabled' : 'Header notifications muted');
+                  }}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    headerAlertsEnabled ? 'bg-brand-600' : 'bg-slate-800'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-lg transition duration-200 ease-in-out ${
+                      headerAlertsEnabled ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {/* Browser Desktop Notifications */}
+              <div className="pt-4 flex items-center justify-between gap-4">
+                <div className="space-y-1 max-w-lg">
+                  <div className="flex items-center gap-2">
+                    <Laptop className="w-4 h-4 text-indigo-400" />
+                    <p className="text-sm font-semibold text-white">Browser Desktop Notifications</p>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Receive native OS desktop notifications even when VaultMedia is running in the background.
+                  </p>
+                </div>
+                {browserNotificationsEnabled ? (
+                  <span className="px-3 py-1 bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 text-xs font-bold rounded-xl flex items-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Granted
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if ('Notification' in window) {
+                        const perm = await Notification.requestPermission();
+                        if (perm === 'granted') {
+                          setBrowserNotificationsEnabled(true);
+                          success('Desktop notifications enabled!');
+                        } else {
+                          error('Desktop notifications permission denied in browser');
+                        }
+                      } else {
+                        error('Desktop notifications not supported in this browser');
+                      }
+                    }}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold rounded-xl transition shadow-md shadow-indigo-600/20 active:scale-95 shrink-0"
+                  >
+                    Enable Permission
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -8,6 +8,11 @@ import favoriteRoutes from './favorite.routes';
 import trashRoutes from './trash.routes';
 import adminRoutes from './admin.routes';
 import vaultRoutes from './vault.routes';
+import shareRoutes from './share.routes';
+import searchRoutes from './search.routes';
+import albumRoutes from './album.routes';
+import galleryRoutes from './gallery.routes';
+import calendarRoutes from './calendar.routes';
 
 const router = Router();
 
@@ -20,6 +25,11 @@ router.use('/favorites', favoriteRoutes);
 router.use('/trash', trashRoutes);
 router.use('/admin', adminRoutes);
 router.use('/vault', vaultRoutes);
+router.use('/share', shareRoutes);
+router.use('/search', searchRoutes);
+router.use('/albums', albumRoutes);
+router.use('/gallery', galleryRoutes);
+router.use('/calendar', calendarRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {

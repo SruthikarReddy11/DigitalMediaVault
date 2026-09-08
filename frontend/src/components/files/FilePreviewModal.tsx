@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Modal } from '../common/Modal';
 import { FileItem } from '../../types';
-import { Download, FileText, FileCode, FileSpreadsheet, Eye, ExternalLink } from 'lucide-react';
+import { Download, FileText, FileCode, FileSpreadsheet, Eye, ExternalLink, Share2 } from 'lucide-react';
 import { formatBytes, formatDate } from '../../utils/formatters';
 import { api, getMediaUrl } from '../../services/api';
+import { ShareModal } from '../share/ShareModal';
 
 interface FilePreviewModalProps {
   file: FileItem | null;
@@ -16,6 +17,7 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
   isOpen,
   onClose,
 }) => {
+  const [isShareOpen, setIsShareOpen] = useState<boolean>(false);
   const [textContent, setTextContent] = useState<string | null>(null);
   const [loadingText, setLoadingText] = useState<boolean>(false);
 
@@ -138,16 +140,33 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
             </div>
           </div>
 
-          <a
-            href={getMediaUrl(file.downloadUrl)}
-            download={file.originalName}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition"
-          >
-            <Download className="w-3.5 h-3.5" />
-            Download
-          </a>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsShareOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white font-medium rounded-lg transition active:scale-95 cursor-pointer shadow-md shadow-brand-600/20"
+              title="Share file link"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>Share</span>
+            </button>
+
+            <a
+              href={getMediaUrl(file.downloadUrl)}
+              download={file.originalName}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white font-medium rounded-lg transition"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download
+            </a>
+          </div>
         </div>
       </div>
+
+      <ShareModal
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        file={file}
+      />
     </Modal>
   );
 };

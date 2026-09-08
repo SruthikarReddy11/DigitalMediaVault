@@ -11,6 +11,7 @@ import {
   Download,
   Film,
   Sparkles,
+  Share2,
 } from 'lucide-react';
 import { filesApi } from '../services/filesApi';
 import { favoritesApi } from '../services/favoritesApi';
@@ -21,6 +22,7 @@ import { VideoPlayerModal } from '../components/video/VideoPlayerModal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Modal } from '../components/common/Modal';
 import { EmptyState } from '../components/common/EmptyState';
+import { ShareModal } from '../components/share/ShareModal';
 import { useToast } from '../contexts/ToastContext';
 
 export const Videos: React.FC = () => {
@@ -33,6 +35,7 @@ export const Videos: React.FC = () => {
   const [onlyFavorites, setOnlyFavorites] = useState(false);
 
   const [activeVideo, setActiveVideo] = useState<FileItem | null>(null);
+  const [shareTarget, setShareTarget] = useState<FileItem | null>(null);
   const [renameTarget, setRenameTarget] = useState<FileItem | null>(null);
   const [newName, setNewName] = useState('');
   const [deleteTarget, setDeleteTarget] = useState<FileItem | null>(null);
@@ -238,6 +241,16 @@ export const Videos: React.FC = () => {
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
+                      setShareTarget(video);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-brand-400 rounded-lg hover:bg-slate-800 transition"
+                    title="Share Video Link"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
                       setRenameTarget(video);
                       setNewName(video.originalName);
                     }}
@@ -326,6 +339,13 @@ export const Videos: React.FC = () => {
         message={`Move "${deleteTarget?.originalName}" to trash?`}
         confirmText="Move to Trash"
         isDangerous
+      />
+
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={!!shareTarget}
+        onClose={() => setShareTarget(null)}
+        file={shareTarget}
       />
     </div>
   );

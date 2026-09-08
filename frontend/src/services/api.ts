@@ -1,7 +1,22 @@
 import axios from 'axios';
 
+const getBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname.startsWith('192.168.') ||
+      hostname.startsWith('10.')
+    ) {
+      return '/api';
+    }
+  }
+  return (import.meta as any).env?.VITE_API_URL || '/api';
+};
+
 export const api = axios.create({
-  baseURL: (import.meta as any).env?.VITE_API_URL || '/api',
+  baseURL: getBaseUrl(),
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -40,7 +55,14 @@ export const getMediaUrl = (url: string | null | undefined): string => {
     return url;
   }
 
-  const rawBase = (import.meta as any).env?.VITE_API_URL;
+  const isLocal =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname.startsWith('192.168.') ||
+      window.location.hostname.startsWith('10.'));
+
+  const rawBase = isLocal ? '' : (import.meta as any).env?.VITE_API_URL;
   let fullUrl = url;
 
   if (rawBase) {

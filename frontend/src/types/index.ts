@@ -219,3 +219,261 @@ export interface TwoFactorSetup {
   qrCodeDataUrl: string;
   otpAuthUrl: string;
 }
+
+export interface ShareLinkItem {
+  id: string;
+  userId: string;
+  fileId?: string | null;
+  folderId?: string | null;
+  token: string;
+  title?: string | null;
+  hasPassword: boolean;
+  expiresAt?: string | null;
+  allowDownload: boolean;
+  maxDownloads?: number | null;
+  downloadCount: number;
+  viewCount: number;
+  isRevoked: boolean;
+  isExpired: boolean;
+  status: 'active' | 'revoked' | 'expired';
+  createdAt: string;
+  updatedAt: string;
+  file?: {
+    id: string;
+    originalName: string;
+    mimeType: string;
+    fileType: FileType;
+    size: number;
+  } | null;
+  folder?: {
+    id: string;
+    name: string;
+  } | null;
+  accessLogsCount?: number;
+}
+
+export interface ShareAccessLogItem {
+  id: string;
+  shareLinkId: string;
+  action: 'VIEW' | 'DOWNLOAD' | 'STREAM';
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  fileId?: string | null;
+  createdAt: string;
+}
+
+export interface CreateShareInput {
+  fileId?: string;
+  folderId?: string;
+  title?: string;
+  password?: string;
+  expiresAtOption?: '1h' | '1d' | '7d' | '30d' | 'never' | string;
+  customExpiresAt?: string;
+  allowDownload?: boolean;
+  maxDownloads?: number | null;
+}
+
+export interface PublicShareFile {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  fileType: FileType;
+  extension: string;
+  size: number;
+  createdAt: string;
+  streamUrl: string;
+  downloadUrl: string;
+}
+
+export interface PublicShareData {
+  isUnlocked: boolean;
+  hasPassword: boolean;
+  token: string;
+  title: string;
+  type: 'FILE' | 'FOLDER' | 'ALBUM';
+  allowDownload: boolean;
+  isDownloadLimitReached?: boolean;
+  maxDownloads?: number | null;
+  downloadCount: number;
+  viewCount: number;
+  expiresAt?: string | null;
+  createdAt: string;
+  owner: {
+    name: string;
+    avatarUrl?: string | null;
+  };
+  file?: PublicShareFile | null;
+  folder?: {
+    id: string;
+    name: string;
+    createdAt: string;
+    files: PublicShareFile[];
+  } | null;
+  album?: {
+    id: string;
+    name: string;
+    description?: string | null;
+    photoCount: number;
+    photos: PublicShareFile[];
+  } | null;
+}
+
+// Global Search Types
+export interface SearchFolderResult {
+  id: string;
+  name: string;
+  parentId: string | null;
+  path: string;
+  fileCount: number;
+  subfolderCount: number;
+  itemCount: number;
+  matchReason: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SearchFileResult {
+  id: string;
+  name: string;
+  fileType: FileType;
+  extension: string;
+  size: number;
+  mimeType: string;
+  folderId: string | null;
+  folderName: string | null;
+  folderPath: string | null;
+  streamUrl: string;
+  downloadUrl: string;
+  isFavorite: boolean;
+  matchReason: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SearchMusicResult {
+  id: string;
+  fileId: string;
+  title: string;
+  artist: string;
+  album: string | null;
+  albumArtist: string | null;
+  genre: string | null;
+  year: number | null;
+  duration: number;
+  coverUrl: string | null;
+  streamUrl: string;
+  downloadUrl: string;
+  extension: string;
+  size: number;
+  isFavorite: boolean;
+  matchReason: string;
+  folderPath: string | null;
+  tags: string[];
+  file?: {
+    id: string;
+    originalName: string;
+    size: number;
+    mimeType: string;
+    fileType: FileType;
+    createdAt: string;
+    isFavorite: boolean;
+  };
+}
+
+export interface GlobalSearchCategories {
+  files: { count: number; items: SearchFileResult[] };
+  music: { count: number; items: SearchMusicResult[] };
+  videos: { count: number; items: SearchFileResult[] };
+  photos: { count: number; items: SearchFileResult[] };
+  folders: { count: number; items: SearchFolderResult[] };
+}
+
+export interface GlobalSearchResponse {
+  query: string;
+  totalMatches: number;
+  categories: GlobalSearchCategories;
+}
+
+export interface PhotoTimelineGroup {
+  year: number;
+  month: number;
+  monthName: string;
+  count: number;
+  photos: FileItem[];
+}
+
+export interface ExifMetadataResult {
+  hasExif: boolean;
+  dimensions?: {
+    width: number;
+    height: number;
+    aspectRatio: string;
+  };
+  camera?: {
+    make?: string;
+    model?: string;
+    lens?: string;
+  };
+  exposure?: {
+    aperture?: string;
+    shutterSpeed?: string;
+    iso?: number;
+    focalLength?: string;
+    flash?: string;
+  };
+  dateTaken?: string;
+  gps?: {
+    latitude?: number;
+    longitude?: number;
+    altitude?: number;
+  };
+  fileDetails: {
+    name: string;
+    size: number;
+    mimeType: string;
+    createdAt: string;
+  };
+}
+
+export interface DuplicatePhotoGroup {
+  reason: 'exact_hash' | 'matching_size';
+  size: number;
+  photos: FileItem[];
+}
+
+export interface DuplicatePhotosResponse {
+  totalGroups: number;
+  totalDuplicates: number;
+  groups: DuplicatePhotoGroup[];
+}
+
+export interface PhotoAlbum {
+  id: string;
+  name: string;
+  description?: string | null;
+  coverFileId?: string | null;
+  coverUrl?: string | null;
+  photoCount: number;
+  previewFileIds?: string[];
+  photos?: FileItem[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateAlbumInput {
+  name: string;
+  description?: string;
+  coverFileId?: string;
+}
+
+export interface UpdateAlbumInput {
+  name?: string;
+  description?: string;
+  coverFileId?: string | null;
+}
+
+export * from './calendar';
+
+
+

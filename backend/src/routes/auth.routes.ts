@@ -29,9 +29,11 @@ router.get('/session', AuthController.getMe);
 router.patch('/profile', requireAuth, validateBody(updateProfileSchema), AuthController.updateProfile);
 router.post('/pin/regenerate', requireAuth, AuthController.regeneratePin);
 
-// Active Session Management
+// Active Session & Multi-Device Sync Management
 router.get('/sessions', requireAuth, AuthController.getSessions);
+router.delete('/sessions/all', requireAuth, AuthController.revokeAllSessions);
 router.delete('/sessions/other', requireAuth, AuthController.revokeOtherSessions);
+router.delete('/sessions/:id', requireAuth, AuthController.revokeSession);
 
 // Avatar management routes
 router.post('/avatar', requireAuth, upload.single('avatar'), AuthController.uploadAvatar);

@@ -17,6 +17,8 @@ import {
   HardDrive,
   Sparkles,
   KeyRound,
+  Share2,
+  Calendar,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -39,6 +41,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: '/vault', label: 'Secret Vault', icon: KeyRound },
     { to: '/favorites', label: 'Favorites', icon: Heart },
     { to: '/playlists', label: 'Playlists', icon: ListMusic },
+    { to: '/shared-links', label: 'Shared Links', icon: Share2 },
     { to: '/trash', label: 'Trash', icon: Trash2 },
     { to: '/settings', label: 'Settings', icon: Settings },
   ];
@@ -102,6 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 { to: '/videos', label: 'Cinema & Video', icon: Video },
                 { to: '/music', label: 'Lossless Music', icon: Music, badge: 'Hi-Fi' },
                 { to: '/files', label: 'Files Drive', icon: FolderClosed },
+                { to: '/calendar', label: 'Calendar', icon: Calendar },
               ].map((item) => {
                 const Icon = item.icon;
                 return (

@@ -16,6 +16,10 @@ import { Favorites } from '../pages/Favorites';
 import { Trash } from '../pages/Trash';
 import { Settings } from '../pages/Settings';
 import { SecretVault } from '../pages/SecretVault';
+import { SharePublicPage } from '../pages/SharePublicPage';
+import { SharedLinks } from '../pages/SharedLinks';
+import { SearchPage } from '../pages/SearchPage';
+import { CalendarPage } from '../pages/CalendarPage';
 
 // Admin Pages
 import { AdminDashboard } from '../pages/admin/AdminDashboard';
@@ -79,6 +83,7 @@ export const AppRoutes: React.FC = () => {
         path="/register"
         element={isAuthenticated ? <Navigate to="/" replace /> : <Register />}
       />
+      <Route path="/share/:token" element={<SharePublicPage />} />
 
       {/* Protected App Routes wrapped in AppLayout */}
       <Route
@@ -97,7 +102,10 @@ export const AppRoutes: React.FC = () => {
         <Route path="/files" element={<Files />} />
         <Route path="/vault" element={<SecretVault />} />
         <Route path="/favorites" element={<Favorites />} />
+        <Route path="/shared-links" element={<SharedLinks />} />
         <Route path="/trash" element={<Trash />} />
+        <Route path="/search" element={<SearchPage />} />
+        <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/settings" element={<Settings />} />
 
         {/* Admin Console Routes */}

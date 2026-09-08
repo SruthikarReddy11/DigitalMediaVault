@@ -568,6 +568,7 @@ export class FileService {
       folder: file.folder,
       music: file.music,
       isFavorite: file.favorites ? file.favorites.length > 0 : false,
+      tags: file.tags || [],
       streamUrl: `/api/files/${file.id}/stream`,
       downloadUrl: `/api/files/${file.id}/download`,
     };
