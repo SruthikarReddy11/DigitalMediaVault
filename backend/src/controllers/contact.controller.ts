@@ -7,7 +7,11 @@ export class ContactController {
    * Helper to verify contacts unlock token from headers
    */
   private static requireUnlock(req: AuthenticatedRequest, res: Response): boolean {
-    const token = (req.headers['x-contacts-token'] as string) || (req.query.unlockToken as string);
+    const token =
+      (req.headers['x-contacts-token'] as string) ||
+      (req.headers['X-Contacts-Token'] as string) ||
+      (req.query.unlockToken as string) ||
+      (req.body?._contactsToken as string);
     if (!token || !ContactService.verifyUnlock(req.user!.id, token)) {
       res.status(401).json({
         success: false,

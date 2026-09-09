@@ -102,7 +102,18 @@ app.use(
     },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Range', 'X-Requested-With', 'Accept', 'x-share-password'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'Range',
+      'X-Requested-With',
+      'Accept',
+      'x-share-password',
+      'x-contacts-token',
+      'X-Contacts-Token',
+      'x-vault-token',
+      'X-Vault-Token',
+    ],
     exposedHeaders: ['Content-Range', 'Accept-Ranges', 'Content-Length', 'Content-Disposition'],
     maxAge: 86400, // Cache preflight for 24 hours
   })

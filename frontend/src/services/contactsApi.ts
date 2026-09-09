@@ -57,39 +57,50 @@ class ContactsApiService {
     type?: string;
     favoriteOnly?: boolean;
   }): Promise<SecureContact[]> {
+    const token = this.getUnlockToken();
     const res = await api.get<{ success: boolean; data: SecureContact[] }>('/contacts', {
-      params,
+      params: { ...params, ...(token ? { unlockToken: token } : {}) },
       headers: this.getHeaders(),
     });
     return res.data.data;
   }
 
   public async createContact(data: ContactInput): Promise<SecureContact> {
-    const res = await api.post<{ success: boolean; data: SecureContact }>('/contacts', data, {
+    const token = this.getUnlockToken();
+    const payload = token ? { ...data, _contactsToken: token } : data;
+    const res = await api.post<{ success: boolean; data: SecureContact }>('/contacts', payload, {
       headers: this.getHeaders(),
     });
     return res.data.data;
   }
 
   public async updateContact(id: string, data: Partial<ContactInput>): Promise<SecureContact> {
-    const res = await api.put<{ success: boolean; data: SecureContact }>(`/contacts/${id}`, data, {
+    const token = this.getUnlockToken();
+    const payload = token ? { ...data, _contactsToken: token } : data;
+    const res = await api.put<{ success: boolean; data: SecureContact }>(`/contacts/${id}`, payload, {
       headers: this.getHeaders(),
     });
     return res.data.data;
   }
 
   public async deleteContact(id: string): Promise<{ success: boolean }> {
+    const token = this.getUnlockToken();
     const res = await api.delete<{ success: boolean; data: { success: boolean } }>(`/contacts/${id}`, {
+      params: token ? { unlockToken: token } : {},
       headers: this.getHeaders(),
     });
     return res.data.data;
   }
 
   public async toggleFavorite(id: string): Promise<SecureContact> {
+    const token = this.getUnlockToken();
     const res = await api.post<{ success: boolean; data: SecureContact }>(
       `/contacts/${id}/favorite`,
-      {},
-      { headers: this.getHeaders() }
+      token ? { _contactsToken: token } : {},
+      {
+        params: token ? { unlockToken: token } : {},
+        headers: this.getHeaders(),
+      }
     );
     return res.data.data;
   }
