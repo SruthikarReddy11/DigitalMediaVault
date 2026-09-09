@@ -210,6 +210,34 @@ export interface VaultCell {
   updatedAt: string;
 }
 
+export interface SecureContact {
+  id: string;
+  userId: string;
+  name: string;
+  phoneNumber: string;
+  contactType: string;
+  occupation?: string | null;
+  email?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  isFavorite: boolean;
+  color?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ContactInput {
+  name: string;
+  phoneNumber: string;
+  contactType?: string;
+  occupation?: string | null;
+  email?: string | null;
+  address?: string | null;
+  notes?: string | null;
+  isFavorite?: boolean;
+  color?: string | null;
+}
+
 export interface TwoFactorStatus {
   enabled: boolean;
 }

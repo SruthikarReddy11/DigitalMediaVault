@@ -61,6 +61,7 @@ model User {
   photoAlbums  PhotoAlbum[]
   calendarEvents    CalendarEvent[]
   calendarReminders CalendarReminder[]
+  secureContacts    SecureContact[]
 
   @@index([email])
   @@index([username])
@@ -476,6 +477,28 @@ model CalendarAttachment {
   @@index([eventId])
   @@index([fileId])
   @@map("calendar_attachments")
+}
+
+model SecureContact {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  phoneNumber String
+  contactType String   @default("Personal")
+  occupation  String?
+  email       String?
+  address     String?
+  notes       String?
+  isFavorite  Boolean  @default(false)
+  color       String?  @default("#06b6d4")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, isFavorite])
+  @@map("secure_contacts")
 }
 
 

@@ -21,6 +21,7 @@ import { SharePublicPage } from '../pages/SharePublicPage';
 import { SharedLinks } from '../pages/SharedLinks';
 import { SearchPage } from '../pages/SearchPage';
 import { CalendarPage } from '../pages/CalendarPage';
+import { ContactsPage } from '../pages/ContactsPage';
 
 // Admin Pages
 import { AdminDashboard } from '../pages/admin/AdminDashboard';
@@ -106,6 +107,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="/playlists/:id" element={<PlaylistDetail />} />
         <Route path="/files" element={<Files />} />
         <Route path="/vault" element={<SecretVault />} />
+        <Route path="/contacts" element={<ContactsPage />} />
         <Route path="/favorites" element={<Favorites />} />
         <Route path="/shared-links" element={<SharedLinks />} />
         <Route path="/trash" element={<Trash />} />

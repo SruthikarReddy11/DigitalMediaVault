@@ -19,6 +19,7 @@ import {
   KeyRound,
   Share2,
   Calendar,
+  BookUser,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -147,6 +148,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             <nav className="space-y-1">
               {[
                 { to: '/vault', label: 'Secret Vault', icon: KeyRound, badge: '2FA', badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30' },
+                { to: '/contacts', label: 'Secure Contacts', icon: BookUser, badge: 'Vault', badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
                 { to: '/favorites', label: 'Favorites', icon: Heart },
                 { to: '/playlists', label: 'Playlists', icon: ListMusic },
                 { to: '/trash', label: 'Trash', icon: Trash2 },
