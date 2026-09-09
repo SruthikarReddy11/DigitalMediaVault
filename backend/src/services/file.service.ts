@@ -551,6 +551,35 @@ export class FileService {
   }
 
   public static serializeFile(file: any, currentUserId?: string) {
+    const streamUrl = `/api/files/${file.id}/stream`;
+    const downloadUrl = `/api/files/${file.id}/download`;
+
+    let serializedMusic = null;
+    if (file.music) {
+      serializedMusic = {
+        ...file.music,
+        streamUrl,
+        downloadUrl,
+        coverUrl: file.music.coverArtFileId
+          ? `/api/files/${file.music.coverArtFileId}/stream`
+          : null,
+      };
+    } else if (file.fileType === 'AUDIO' || file.fileType === FileType.AUDIO) {
+      serializedMusic = {
+        id: file.id,
+        fileId: file.id,
+        title: path.parse(file.originalName || 'Audio').name,
+        artist: 'Unknown Artist',
+        album: file.folder?.name || 'Files Drive',
+        albumArtist: 'Unknown Artist',
+        genre: 'Audio',
+        duration: 0,
+        coverUrl: null,
+        streamUrl,
+        downloadUrl,
+      };
+    }
+
     return {
       id: file.id,
       userId: file.userId,
@@ -566,11 +595,11 @@ export class FileService {
       updatedAt: file.updatedAt,
       deletedAt: file.deletedAt,
       folder: file.folder,
-      music: file.music,
+      music: serializedMusic,
       isFavorite: file.favorites ? file.favorites.length > 0 : false,
       tags: file.tags || [],
-      streamUrl: `/api/files/${file.id}/stream`,
-      downloadUrl: `/api/files/${file.id}/download`,
+      streamUrl,
+      downloadUrl,
     };
   }
 }

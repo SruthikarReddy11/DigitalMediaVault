@@ -25,12 +25,13 @@ import {
   File,
   Sparkles,
   Share2,
+  Play,
 } from 'lucide-react';
 import { filesApi } from '../services/filesApi';
 import { foldersApi } from '../services/foldersApi';
 import { favoritesApi } from '../services/favoritesApi';
-import { FileItem, FolderItem, FileType } from '../types';
-import { formatBytes, formatDate } from '../utils/formatters';
+import { FileItem, FolderItem, FileType, MusicItem } from '../types';
+import { formatBytes, formatDate, fileItemToMusicItem } from '../utils/formatters';
 import { getMediaUrl } from '../services/api';
 import { FileTypeBadge } from '../components/common/Badge';
 import { FilePreviewModal } from '../components/files/FilePreviewModal';
@@ -211,8 +212,14 @@ export const Files: React.FC = () => {
   };
 
   const handleFileClick = (file: FileItem) => {
-    if (file.fileType === 'AUDIO' && file.music) {
-      playSongNow(file.music);
+    if (file.fileType === 'AUDIO') {
+      const musicItem = fileItemToMusicItem(file);
+      const audioQueue: MusicItem[] = files
+        .filter((f) => f.fileType === 'AUDIO')
+        .map((f) => fileItemToMusicItem(f));
+
+      playSongNow(musicItem, audioQueue.length > 0 ? audioQueue : undefined);
+      success(`Playing "${musicItem.title}"`);
     } else {
       setPreviewFile(file);
     }
@@ -486,6 +493,15 @@ export const Files: React.FC = () => {
                     </div>
                   )}
 
+                  {/* Audio quick play overlay */}
+                  {file.fileType === 'AUDIO' && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="w-10 h-10 rounded-full bg-amber-500 hover:bg-amber-400 text-slate-950 flex items-center justify-center shadow-lg shadow-amber-500/30 transition transform hover:scale-110">
+                        <Play className="w-5 h-5 fill-current ml-0.5" />
+                      </div>
+                    </div>
+                  )}
+
                   {/* Favorite indicator badge */}
                   <button
                     onClick={(e) => {
@@ -519,6 +535,15 @@ export const Files: React.FC = () => {
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center gap-1">
+                    {file.fileType === 'AUDIO' && (
+                      <button
+                        onClick={() => handleFileClick(file)}
+                        className="p-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition"
+                        title="Play in Music Player"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                      </button>
+                    )}
                     <button
                       onClick={() => setShareFileTarget(file)}
                       className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition"
@@ -605,6 +630,15 @@ export const Files: React.FC = () => {
                     className="col-span-3 sm:col-span-1 flex items-center justify-end gap-1"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    {file.fileType === 'AUDIO' && (
+                      <button
+                        onClick={() => handleFileClick(file)}
+                        className="p-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 rounded-lg transition"
+                        title="Play Audio"
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                      </button>
+                    )}
                     <button
                       onClick={() => setShareFileTarget(file)}
                       className="p-1.5 text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 rounded-lg transition"

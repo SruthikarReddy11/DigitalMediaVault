@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { favoritesApi } from '../services/favoritesApi';
 import { FileItem } from '../types';
-import { formatBytes, formatDate } from '../utils/formatters';
+import { formatBytes, formatDate, fileItemToMusicItem } from '../utils/formatters';
 import { getMediaUrl } from '../services/api';
 import { FileTypeBadge } from '../components/common/Badge';
 import { FilePreviewModal } from '../components/files/FilePreviewModal';
@@ -68,8 +68,13 @@ export const Favorites: React.FC = () => {
   };
 
   const handleFileClick = (file: FileItem) => {
-    if (file.fileType === 'AUDIO' && file.music) {
-      playSongNow(file.music);
+    if (file.fileType === 'AUDIO') {
+      const musicItem = fileItemToMusicItem(file);
+      const audioQueue = favorites
+        .filter((f) => f.fileType === 'AUDIO')
+        .map((f) => fileItemToMusicItem(f));
+      playSongNow(musicItem, audioQueue.length > 0 ? audioQueue : undefined);
+      success(`Playing "${musicItem.title}"`);
     } else {
       setPreviewFile(file);
     }

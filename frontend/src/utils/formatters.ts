@@ -1,3 +1,5 @@
+import { FileItem, MusicItem } from '../types';
+
 export function formatBytes(bytes: number, decimals = 1): string {
   if (bytes === 0) return '0 B';
   const k = 1024;
@@ -221,6 +223,36 @@ export function getTrashRetentionInfo(deletedAt?: string | null, retentionDays =
     badgeColor,
     isUrgent,
     isWarning,
+  };
+}
+
+export function fileItemToMusicItem(file: FileItem): MusicItem {
+  return {
+    id: file.music?.id || file.id,
+    fileId: file.id,
+    title: file.music?.title || file.originalName.replace(/\.[^/.]+$/, ''),
+    artist: file.music?.artist || 'Unknown Artist',
+    album: file.music?.album || 'Files Drive',
+    albumArtist: file.music?.albumArtist || file.music?.artist || 'Unknown Artist',
+    genre: file.music?.genre || 'Audio',
+    year: file.music?.year || null,
+    trackNumber: file.music?.trackNumber || null,
+    discNumber: file.music?.discNumber || null,
+    duration: file.music?.duration || 0,
+    coverArtFileId: file.music?.coverArtFileId || null,
+    coverUrl:
+      file.music?.coverUrl ||
+      (file.music?.coverArtFileId ? `/api/files/${file.music.coverArtFileId}/stream` : null),
+    streamUrl: file.music?.streamUrl || file.streamUrl || `/api/files/${file.id}/stream`,
+    downloadUrl: file.music?.downloadUrl || file.downloadUrl || `/api/files/${file.id}/download`,
+    file: {
+      id: file.id,
+      originalName: file.originalName,
+      size: file.size,
+      mimeType: file.mimeType,
+      createdAt: file.createdAt,
+      isFavorite: file.isFavorite,
+    },
   };
 }
 

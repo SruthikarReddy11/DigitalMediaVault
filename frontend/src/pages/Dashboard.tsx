@@ -22,16 +22,18 @@ import { filesApi } from '../services/filesApi';
 import { DashboardStats, FileItem } from '../types';
 import { useAuth } from '../contexts/AuthContext';
 import { useAudioPlayer } from '../contexts/AudioPlayerContext';
-import { formatBytes, formatDate } from '../utils/formatters';
+import { formatBytes, formatDate, fileItemToMusicItem } from '../utils/formatters';
 import { getMediaUrl } from '../services/api';
 import { Skeleton } from '../components/common/Skeleton';
 import { ImageLightbox } from '../components/gallery/ImageLightbox';
 import { FilePreviewModal } from '../components/files/FilePreviewModal';
 import { UpcomingEventsWidget } from '../components/dashboard/UpcomingEventsWidget';
+import { useToast } from '../contexts/ToastContext';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const { playSongNow } = useAudioPlayer();
+  const { success } = useToast();
   const { openUpload } = useOutletContext<{ openUpload: () => void }>() || { openUpload: () => {} };
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -73,8 +75,14 @@ export const Dashboard: React.FC = () => {
     if (file.fileType === 'IMAGE') {
       const idx = imagesOnly.findIndex((img) => img.id === file.id);
       setLightboxIndex(idx >= 0 ? idx : 0);
-    } else if (file.fileType === 'AUDIO' && file.music) {
-      playSongNow(file.music);
+    } else if (file.fileType === 'AUDIO') {
+      const musicItem = fileItemToMusicItem(file);
+      const audioQueue =
+        stats?.recentFiles
+          .filter((f) => f.fileType === 'AUDIO')
+          .map((f) => fileItemToMusicItem(f)) || [];
+      playSongNow(musicItem, audioQueue.length > 0 ? audioQueue : undefined);
+      success(`Playing "${musicItem.title}"`);
     } else {
       setPreviewFile(file);
     }
