@@ -162,7 +162,7 @@ export class ShareController {
     try {
       const token = String(req.params.token);
       const fileId = req.params.fileId ? String(req.params.fileId) : undefined;
-      const password = (req.headers['x-share-password'] || req.query.password) as string | undefined;
+      const password = (req.headers['x-share-password'] || req.query.password || req.query.pwd) as string | undefined;
 
       const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
@@ -196,7 +196,7 @@ export class ShareController {
     try {
       const token = String(req.params.token);
       const fileId = req.params.fileId ? String(req.params.fileId) : undefined;
-      const password = (req.headers['x-share-password'] || req.query.password) as string | undefined;
+      const password = (req.headers['x-share-password'] || req.query.password || req.query.pwd) as string | undefined;
 
       const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];
@@ -285,7 +285,7 @@ export class ShareController {
   public static async downloadAllPublic(req: Request, res: Response, next: NextFunction) {
     try {
       const token = String(req.params.token);
-      const password = (req.headers['x-share-password'] || req.query.password) as string | undefined;
+      const password = (req.headers['x-share-password'] || req.query.password || req.query.pwd) as string | undefined;
 
       const ip = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
       const userAgent = req.headers['user-agent'];

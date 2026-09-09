@@ -585,8 +585,8 @@ export class ShareService {
             extension: share.file.extension,
             size: Number(share.file.size),
             createdAt: share.file.createdAt,
-            streamUrl: `/api/share/public/${share.token}/stream`,
-            downloadUrl: `/api/share/public/${share.token}/download`,
+            streamUrl: `/api/share/public/${share.token}/stream${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
+            downloadUrl: `/api/share/public/${share.token}/download${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
           }
         : null,
       folder: share.folder
@@ -602,8 +602,8 @@ export class ShareService {
               extension: f.extension,
               size: Number(f.size),
               createdAt: f.createdAt,
-              streamUrl: `/api/share/public/${share.token}/stream/${f.id}`,
-              downloadUrl: `/api/share/public/${share.token}/download/${f.id}`,
+              streamUrl: `/api/share/public/${share.token}/stream/${f.id}${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
+              downloadUrl: `/api/share/public/${share.token}/download/${f.id}${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
             })),
           }
         : null,
@@ -621,8 +621,8 @@ export class ShareService {
               extension: it.file.extension,
               size: Number(it.file.size),
               createdAt: it.file.createdAt,
-              streamUrl: `/api/share/public/${share.token}/stream/${it.file.id}`,
-              downloadUrl: `/api/share/public/${share.token}/download/${it.file.id}`,
+              streamUrl: `/api/share/public/${share.token}/stream/${it.file.id}${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
+              downloadUrl: `/api/share/public/${share.token}/download/${it.file.id}${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
             })),
           }
         : null,

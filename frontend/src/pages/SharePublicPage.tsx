@@ -44,6 +44,13 @@ export const SharePublicPage: React.FC = () => {
 
   // Password Unlock state
   const [passwordInput, setPasswordInput] = useState('');
+  const [activePassword, setActivePassword] = useState<string>(() => {
+    try {
+      return token ? sessionStorage.getItem(`share_pwd_${token}`) || '' : '';
+    } catch {
+      return '';
+    }
+  });
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [unlockError, setUnlockError] = useState<string | null>(null);
 
@@ -59,15 +66,33 @@ export const SharePublicPage: React.FC = () => {
   const [lightboxIndex, setLightboxIndex] = useState<number>(-1);
   const [isSlideshowOpen, setIsSlideshowOpen] = useState(false);
 
+  // Helper to ensure password query param is attached to stream/download URLs
+  const appendPasswordToUrl = (rawUrl: string | null | undefined): string => {
+    if (!rawUrl) return '';
+    const base = getMediaUrl(rawUrl);
+    if (!activePassword) return base;
+    if (base.includes('pwd=') || base.includes('password=')) return base;
+    const sep = base.includes('?') ? '&' : '?';
+    return `${base}${sep}pwd=${encodeURIComponent(activePassword)}`;
+  };
+
   const fetchShareData = async (pwd?: string) => {
     if (!token) return;
     setLoading(true);
     setErrorMessage(null);
     setUnlockError(null);
 
+    const effectivePwd = pwd !== undefined ? pwd : (activePassword || undefined);
+
     try {
-      const data = await shareApi.getPublicShare(token, pwd);
+      const data = await shareApi.getPublicShare(token, effectivePwd);
       setShareData(data);
+      if (effectivePwd && data.isUnlocked) {
+        setActivePassword(effectivePwd);
+        try {
+          sessionStorage.setItem(`share_pwd_${token}`, effectivePwd);
+        } catch {}
+      }
       if (data.folder && data.folder.files.length > 0) {
         setActiveFolderFile(data.folder.files[0]);
       }
@@ -87,12 +112,13 @@ export const SharePublicPage: React.FC = () => {
 
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!passwordInput.trim()) return;
+    const pwd = passwordInput.trim();
+    if (!pwd) return;
     setIsUnlocking(true);
     setUnlockError(null);
 
     try {
-      await fetchShareData(passwordInput.trim());
+      await fetchShareData(pwd);
     } catch (err: any) {
       setUnlockError(err.message || 'Incorrect password.');
       setIsUnlocking(false);
@@ -376,7 +402,7 @@ export const SharePublicPage: React.FC = () => {
                 {shareData.allowDownload ? (
                   shareData.album ? (
                     <a
-                      href={getMediaUrl(`/api/share/public/${shareData.token}/download-all`)}
+                      href={appendPasswordToUrl(`/api/share/public/${shareData.token}/download-all`)}
                       download={`${shareData.album.name || 'album'}.zip`}
                       className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-pink-600/25 transition active:scale-95"
                     >
@@ -385,7 +411,7 @@ export const SharePublicPage: React.FC = () => {
                     </a>
                   ) : shareData.file ? (
                     <a
-                      href={getMediaUrl(shareData.file.downloadUrl)}
+                      href={appendPasswordToUrl(shareData.file.downloadUrl)}
                       download={shareData.file.originalName}
                       className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-emerald-600/25 transition active:scale-95"
                     >
@@ -394,7 +420,7 @@ export const SharePublicPage: React.FC = () => {
                     </a>
                   ) : shareData.folder ? (
                     <a
-                      href={getMediaUrl(`/api/share/public/${shareData.token}/download-all`)}
+                      href={appendPasswordToUrl(`/api/share/public/${shareData.token}/download-all`)}
                       download={`${shareData.folder.name || 'folder'}.zip`}
                       className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-emerald-600/25 transition active:scale-95"
                     >
@@ -416,7 +442,7 @@ export const SharePublicPage: React.FC = () => {
                 {shareData.file.fileType === 'IMAGE' ? (
                   <div className="flex items-center justify-center max-h-[600px] overflow-hidden rounded-2xl bg-slate-950">
                     <img
-                      src={getMediaUrl(shareData.file.streamUrl)}
+                      src={appendPasswordToUrl(shareData.file.streamUrl)}
                       alt={shareData.file.originalName}
                       className="max-h-[600px] w-auto object-contain rounded-2xl"
                     />
@@ -426,7 +452,7 @@ export const SharePublicPage: React.FC = () => {
                     <video
                       controls
                       controlsList={shareData.allowDownload ? undefined : 'nodownload'}
-                      src={getMediaUrl(shareData.file.streamUrl)}
+                      src={appendPasswordToUrl(shareData.file.streamUrl)}
                       className="w-full max-h-[560px]"
                     />
                   </div>
@@ -444,7 +470,7 @@ export const SharePublicPage: React.FC = () => {
                     <audio
                       controls
                       controlsList={shareData.allowDownload ? undefined : 'nodownload'}
-                      src={getMediaUrl(shareData.file.streamUrl)}
+                      src={appendPasswordToUrl(shareData.file.streamUrl)}
                       className="w-full max-w-md"
                     />
                   </div>
@@ -465,7 +491,7 @@ export const SharePublicPage: React.FC = () => {
 
                     {shareData.allowDownload && (
                       <a
-                        href={getMediaUrl(shareData.file.downloadUrl)}
+                        href={appendPasswordToUrl(shareData.file.downloadUrl)}
                         download={shareData.file.originalName}
                         className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold transition shadow-lg shadow-brand-600/25 active:scale-95"
                       >
@@ -511,7 +537,7 @@ export const SharePublicPage: React.FC = () => {
                       <div className="flex items-center gap-2 shrink-0">
                         {shareData.allowDownload && (
                           <a
-                            href={getMediaUrl(file.downloadUrl)}
+                            href={appendPasswordToUrl(file.downloadUrl)}
                             download={file.originalName}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer"
                           >
@@ -555,7 +581,7 @@ export const SharePublicPage: React.FC = () => {
                         className="group relative aspect-square bg-slate-950/80 border border-white/[0.08] hover:border-pink-500/50 rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
                       >
                         <img
-                          src={getMediaUrl(photo.streamUrl)}
+                          src={appendPasswordToUrl(photo.streamUrl)}
                           alt={photo.originalName}
                           className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
                           loading="lazy"
@@ -566,7 +592,7 @@ export const SharePublicPage: React.FC = () => {
                           <div className="flex justify-end">
                             {shareData.allowDownload && (
                               <a
-                                href={getMediaUrl(photo.downloadUrl)}
+                                href={appendPasswordToUrl(photo.downloadUrl)}
                                 download={photo.originalName}
                                 onClick={(e) => e.stopPropagation()}
                                 className="p-1.5 rounded-lg bg-black/60 hover:bg-emerald-600 text-white/80 hover:text-white backdrop-blur-md transition"
@@ -607,8 +633,8 @@ export const SharePublicPage: React.FC = () => {
             createdAt: p.createdAt,
             updatedAt: p.createdAt,
             isFavorite: false,
-            streamUrl: p.streamUrl,
-            downloadUrl: p.downloadUrl,
+            streamUrl: appendPasswordToUrl(p.streamUrl),
+            downloadUrl: appendPasswordToUrl(p.downloadUrl),
           }))}
           currentIndex={lightboxIndex}
           isOpen={lightboxIndex >= 0}
@@ -636,8 +662,8 @@ export const SharePublicPage: React.FC = () => {
             createdAt: p.createdAt,
             updatedAt: p.createdAt,
             isFavorite: false,
-            streamUrl: p.streamUrl,
-            downloadUrl: p.downloadUrl,
+            streamUrl: appendPasswordToUrl(p.streamUrl),
+            downloadUrl: appendPasswordToUrl(p.downloadUrl),
           }))}
           isOpen={isSlideshowOpen}
           onClose={() => setIsSlideshowOpen(false)}
