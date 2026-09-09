@@ -183,7 +183,19 @@ export class ShareController {
       res.setHeader('Content-Length', Number(file.size));
 
       stream.pipe(res);
-    } catch (err) {
+    } catch (err: any) {
+      const token = String(req.params.token);
+      const isHtmlNav =
+        !req.xhr &&
+        !req.headers['x-requested-with'] &&
+        (req.headers['accept']?.includes('text/html') || !req.headers['accept']?.includes('application/json'));
+
+      if (isHtmlNav && token) {
+        const origin = (process.env.CORS_ORIGIN || 'https://digital-media-vault.vercel.app').split(',')[0].trim();
+        const code = err.code || (err.statusCode === 403 ? 'DOWNLOAD_LIMIT_REACHED' : 'DOWNLOAD_ERROR');
+        return res.redirect(`${origin}/share/${token}?error=${encodeURIComponent(code)}&msg=${encodeURIComponent(err.message || 'Download error')}`);
+      }
+
       next(err);
     }
   }
@@ -291,7 +303,19 @@ export class ShareController {
       const userAgent = req.headers['user-agent'];
 
       await ShareService.downloadAllFilesZip(token, password, res, { ip, userAgent });
-    } catch (err) {
+    } catch (err: any) {
+      const token = String(req.params.token);
+      const isHtmlNav =
+        !req.xhr &&
+        !req.headers['x-requested-with'] &&
+        (req.headers['accept']?.includes('text/html') || !req.headers['accept']?.includes('application/json'));
+
+      if (isHtmlNav && token) {
+        const origin = (process.env.CORS_ORIGIN || 'https://digital-media-vault.vercel.app').split(',')[0].trim();
+        const code = err.code || (err.statusCode === 403 ? 'DOWNLOAD_LIMIT_REACHED' : 'DOWNLOAD_ERROR');
+        return res.redirect(`${origin}/share/${token}?error=${encodeURIComponent(code)}&msg=${encodeURIComponent(err.message || 'Download error')}`);
+      }
+
       next(err);
     }
   }

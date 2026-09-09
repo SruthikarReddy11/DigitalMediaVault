@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useSearchParams, Link } from 'react-router-dom';
+import axios from 'axios';
 import {
   Shield,
   Lock,
@@ -36,11 +37,17 @@ import { SlideshowModal } from '../components/gallery/SlideshowModal';
 
 export const SharePublicPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [shareData, setShareData] = useState<PublicShareData | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
+
+  // Download limit and error modal state
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [downloadLimitModalOpen, setDownloadLimitModalOpen] = useState(false);
+  const [downloadErrorDetail, setDownloadErrorDetail] = useState<string | null>(null);
 
   // Password Unlock state
   const [passwordInput, setPasswordInput] = useState('');
@@ -76,6 +83,67 @@ export const SharePublicPage: React.FC = () => {
     return `${base}${sep}pwd=${encodeURIComponent(activePassword)}`;
   };
 
+  // Safe in-page download handler (prevents raw JSON error screens)
+  const handleDownloadFile = async (rawUrl: string, filename: string, id: string = 'main') => {
+    setDownloadingId(id);
+    try {
+      const fullUrl = appendPasswordToUrl(rawUrl);
+      const response = await axios.get(fullUrl, {
+        responseType: 'blob',
+      });
+
+      const blob = new Blob([response.data]);
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+
+      // Increment download count locally
+      setShareData((prev) => {
+        if (!prev) return prev;
+        const newCount = (prev.downloadCount || 0) + 1;
+        const limitReached = prev.maxDownloads != null && newCount >= prev.maxDownloads;
+        return {
+          ...prev,
+          downloadCount: newCount,
+          isDownloadLimitReached: limitReached,
+          allowDownload: prev.allowDownload && !limitReached,
+        };
+      });
+    } catch (err: any) {
+      console.error('Download failed:', err);
+      let errMsg = 'Failed to download file.';
+      let errCode = 'ERROR';
+
+      if (err.response?.data instanceof Blob) {
+        try {
+          const text = await err.response.data.text();
+          const json = JSON.parse(text);
+          errMsg = json.error?.message || json.message || errMsg;
+          errCode = json.error?.code || json.code || errCode;
+        } catch {}
+      } else if (err.response?.data) {
+        errMsg = err.response.data.error?.message || err.response.data.message || errMsg;
+        errCode = err.response.data.error?.code || err.response.data.code || errCode;
+      }
+
+      if (errCode === 'DOWNLOAD_LIMIT_REACHED' || errMsg.toLowerCase().includes('download limit')) {
+        setShareData((prev) => (prev ? { ...prev, isDownloadLimitReached: true, allowDownload: false } : prev));
+        setDownloadErrorDetail(errMsg);
+        setDownloadLimitModalOpen(true);
+      } else {
+        setDownloadErrorDetail(errMsg);
+        setDownloadLimitModalOpen(true);
+      }
+    } finally {
+      setDownloadingId(null);
+    }
+  };
+
   const fetchShareData = async (pwd?: string) => {
     if (!token) return;
     setLoading(true);
@@ -109,6 +177,23 @@ export const SharePublicPage: React.FC = () => {
   useEffect(() => {
     fetchShareData();
   }, [token]);
+
+  // Handle URL redirect query error parameters
+  useEffect(() => {
+    const err = searchParams.get('error');
+    const msg = searchParams.get('msg');
+    if (err) {
+      if (err === 'DOWNLOAD_LIMIT_REACHED' || err.toLowerCase().includes('limit')) {
+        setDownloadErrorDetail(msg || 'The maximum download limit for this link has been reached.');
+        setDownloadLimitModalOpen(true);
+        setShareData((prev) => (prev ? { ...prev, isDownloadLimitReached: true, allowDownload: false } : prev));
+      }
+      const newParams = new URLSearchParams(searchParams);
+      newParams.delete('error');
+      newParams.delete('msg');
+      setSearchParams(newParams, { replace: true });
+    }
+  }, [searchParams]);
 
   const handleUnlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -398,35 +483,83 @@ export const SharePublicPage: React.FC = () => {
                   </button>
                 )}
 
-                {/* Download Album (ZIP) or Download File */}
-                {shareData.allowDownload ? (
+                {/* Download Actions */}
+                {shareData.isDownloadLimitReached ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDownloadErrorDetail(
+                        `The maximum download limit (${shareData.maxDownloads} ${shareData.maxDownloads === 1 ? 'download' : 'downloads'}) for this link has been reached.`
+                      );
+                      setDownloadLimitModalOpen(true);
+                    }}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-xs sm:text-sm font-bold transition shadow-lg shadow-amber-500/10 cursor-pointer active:scale-95"
+                    title="Click to view download limit details"
+                  >
+                    <Lock className="w-4 h-4 text-amber-400" />
+                    <span>Download Limit Reached</span>
+                  </button>
+                ) : shareData.allowDownload ? (
                   shareData.album ? (
-                    <a
-                      href={appendPasswordToUrl(`/api/share/public/${shareData.token}/download-all`)}
-                      download={`${shareData.album.name || 'album'}.zip`}
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-pink-600/25 transition active:scale-95"
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleDownloadFile(
+                          `/api/share/public/${shareData.token}/download-all`,
+                          `${shareData.album!.name || 'album'}.zip`,
+                          'album'
+                        )
+                      }
+                      disabled={downloadingId === 'album'}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-pink-600 to-rose-600 hover:from-pink-500 hover:to-rose-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-pink-600/25 transition active:scale-95 disabled:opacity-60 cursor-pointer"
                     >
-                      <Download className="w-4 h-4" />
-                      <span>Download Album (ZIP)</span>
-                    </a>
+                      {downloadingId === 'album' ? (
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
+                      <span>{downloadingId === 'album' ? 'Preparing ZIP...' : 'Download Album (ZIP)'}</span>
+                    </button>
                   ) : shareData.file ? (
-                    <a
-                      href={appendPasswordToUrl(shareData.file.downloadUrl)}
-                      download={shareData.file.originalName}
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-emerald-600/25 transition active:scale-95"
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleDownloadFile(
+                          shareData.file!.downloadUrl,
+                          shareData.file!.originalName,
+                          'file'
+                        )
+                      }
+                      disabled={downloadingId === 'file'}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-emerald-600/25 transition active:scale-95 disabled:opacity-60 cursor-pointer"
                     >
-                      <Download className="w-4 h-4" />
-                      <span>Download File</span>
-                    </a>
+                      {downloadingId === 'file' ? (
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
+                      <span>{downloadingId === 'file' ? 'Downloading...' : 'Download File'}</span>
+                    </button>
                   ) : shareData.folder ? (
-                    <a
-                      href={appendPasswordToUrl(`/api/share/public/${shareData.token}/download-all`)}
-                      download={`${shareData.folder.name || 'folder'}.zip`}
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-emerald-600/25 transition active:scale-95"
+                    <button
+                      type="button"
+                      onClick={() =>
+                        handleDownloadFile(
+                          `/api/share/public/${shareData.token}/download-all`,
+                          `${shareData.folder!.name || 'folder'}.zip`,
+                          'folder'
+                        )
+                      }
+                      disabled={downloadingId === 'folder'}
+                      className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-black shadow-lg shadow-emerald-600/25 transition active:scale-95 disabled:opacity-60 cursor-pointer"
                     >
-                      <Download className="w-4 h-4" />
-                      <span>Download All (ZIP)</span>
-                    </a>
+                      {downloadingId === 'folder' ? (
+                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      ) : (
+                        <Download className="w-4 h-4" />
+                      )}
+                      <span>{downloadingId === 'folder' ? 'Preparing ZIP...' : 'Download All (ZIP)'}</span>
+                    </button>
                   ) : null
                 ) : (
                   <span className="px-3 py-1.5 rounded-xl bg-slate-800 text-slate-400 text-xs font-semibold border border-slate-700">
@@ -435,6 +568,42 @@ export const SharePublicPage: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Maximum Download Limit Reached In-Page Alert Banner */}
+            {shareData.isDownloadLimitReached && (
+              <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-orange-950/30 to-slate-950/60 border border-amber-500/30 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-amber-200 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="flex items-start sm:items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 mt-0.5 sm:mt-0">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-white text-sm flex items-center gap-2 flex-wrap">
+                      <span>Maximum Download Limit Reached</span>
+                      {shareData.maxDownloads !== null && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+                          {shareData.downloadCount || shareData.maxDownloads} / {shareData.maxDownloads} Used
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-amber-200/80 mt-0.5 leading-relaxed">
+                      The download allowance for this link has been filled. You can still view, preview, and stream this file anytime online.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDownloadErrorDetail(
+                      `The maximum download limit (${shareData.maxDownloads} ${shareData.maxDownloads === 1 ? 'download' : 'downloads'}) for this link has been reached. Online streaming and viewing remain active.`
+                    );
+                    setDownloadLimitModalOpen(true);
+                  }}
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 font-bold text-xs transition shrink-0 cursor-pointer active:scale-95"
+                >
+                  View Details
+                </button>
+              </div>
+            )}
 
             {/* SINGLE FILE PREVIEW */}
             {shareData.file && (
@@ -489,16 +658,26 @@ export const SharePublicPage: React.FC = () => {
                       </p>
                     </div>
 
-                    {shareData.allowDownload && (
-                      <a
-                        href={appendPasswordToUrl(shareData.file.downloadUrl)}
-                        download={shareData.file.originalName}
-                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold transition shadow-lg shadow-brand-600/25 active:scale-95"
+                    {shareData.allowDownload && !shareData.isDownloadLimitReached ? (
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadFile(shareData.file!.downloadUrl, shareData.file!.originalName, 'doc')}
+                        disabled={downloadingId === 'doc'}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold transition shadow-lg shadow-brand-600/25 active:scale-95 cursor-pointer disabled:opacity-60"
                       >
-                        <Download className="w-4 h-4" />
-                        <span>Download to View</span>
-                      </a>
-                    )}
+                        {downloadingId === 'doc' ? (
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
+                        <span>{downloadingId === 'doc' ? 'Downloading...' : 'Download to View'}</span>
+                      </button>
+                    ) : shareData.isDownloadLimitReached ? (
+                      <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold">
+                        <Lock className="w-3.5 h-3.5 text-amber-400" />
+                        <span>Download Limit Reached</span>
+                      </div>
+                    ) : null}
                   </div>
                 )}
               </div>
@@ -535,16 +714,28 @@ export const SharePublicPage: React.FC = () => {
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
-                        {shareData.allowDownload && (
-                          <a
-                            href={appendPasswordToUrl(file.downloadUrl)}
-                            download={file.originalName}
-                            className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer"
+                        {shareData.allowDownload && !shareData.isDownloadLimitReached ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadFile(file.downloadUrl, file.originalName, file.id)}
+                            disabled={downloadingId === file.id}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer disabled:opacity-50"
                           >
-                            <Download className="w-3.5 h-3.5 text-emerald-400" />
-                            <span className="hidden sm:inline">Download</span>
-                          </a>
-                        )}
+                            {downloadingId === file.id ? (
+                              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                            ) : (
+                              <Download className="w-3.5 h-3.5 text-emerald-400" />
+                            )}
+                            <span className="hidden sm:inline">
+                              {downloadingId === file.id ? 'Saving...' : 'Download'}
+                            </span>
+                          </button>
+                        ) : shareData.isDownloadLimitReached ? (
+                          <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500/10 text-amber-400/80 border border-amber-500/20 text-[11px] font-medium">
+                            <Lock className="w-3 h-3 text-amber-400" />
+                            <span className="hidden sm:inline">Limit Reached</span>
+                          </span>
+                        ) : null}
                       </div>
                     </div>
                   ))}
@@ -590,17 +781,38 @@ export const SharePublicPage: React.FC = () => {
                         {/* Hover Overlay */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-transparent to-black/40 opacity-0 group-hover:opacity-100 transition-opacity p-2.5 flex flex-col justify-between">
                           <div className="flex justify-end">
-                            {shareData.allowDownload && (
-                              <a
-                                href={appendPasswordToUrl(photo.downloadUrl)}
-                                download={photo.originalName}
-                                onClick={(e) => e.stopPropagation()}
-                                className="p-1.5 rounded-lg bg-black/60 hover:bg-emerald-600 text-white/80 hover:text-white backdrop-blur-md transition"
+                            {shareData.allowDownload && !shareData.isDownloadLimitReached ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDownloadFile(photo.downloadUrl, photo.originalName, photo.id);
+                                }}
+                                disabled={downloadingId === photo.id}
+                                className="p-1.5 rounded-lg bg-black/60 hover:bg-emerald-600 text-white/80 hover:text-white backdrop-blur-md transition cursor-pointer disabled:opacity-50"
                                 title="Download photo"
                               >
-                                <Download className="w-3.5 h-3.5" />
-                              </a>
-                            )}
+                                {downloadingId === photo.id ? (
+                                  <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                  <Download className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            ) : shareData.isDownloadLimitReached ? (
+                              <div
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDownloadErrorDetail(
+                                    `The maximum download limit (${shareData.maxDownloads} ${shareData.maxDownloads === 1 ? 'download' : 'downloads'}) for this link has been reached.`
+                                  );
+                                  setDownloadLimitModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-lg bg-amber-950/80 border border-amber-500/40 text-amber-300 backdrop-blur-md transition cursor-pointer"
+                                title="Download limit reached"
+                              >
+                                <Lock className="w-3.5 h-3.5" />
+                              </div>
+                            ) : null}
                           </div>
 
                           <div className="p-1.5 bg-black/50 backdrop-blur-md rounded-lg border border-white/10">
@@ -678,6 +890,83 @@ export const SharePublicPage: React.FC = () => {
         shareUrl={window.location.href}
         qrDataUrl={qrDataUrl}
       />
+
+      {/* Download Limit Reached & Error Modal */}
+      {downloadLimitModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md bg-slate-900/95 border border-amber-500/30 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-amber-500/10 overflow-hidden text-center">
+            {/* Glowing amber accent */}
+            <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-48 h-48 bg-amber-500/15 blur-3xl pointer-events-none rounded-full" />
+
+            {/* Lock Icon */}
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto mb-4 shadow-lg shadow-amber-500/20 relative">
+              <Lock className="w-8 h-8" />
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
+              </span>
+            </div>
+
+            {/* Title */}
+            <h3 className="text-lg sm:text-xl font-black text-white tracking-tight">
+              Download Limit Reached
+            </h3>
+
+            {/* Message */}
+            <p className="text-xs sm:text-sm text-slate-300 mt-2 leading-relaxed">
+              {downloadErrorDetail ||
+                'The maximum number of downloads permitted for this shared link has been reached.'}
+            </p>
+
+            {/* Info Box */}
+            <div className="mt-5 p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-left space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-400 font-medium">Shared Resource:</span>
+                <span className="text-white font-semibold truncate max-w-[200px]">
+                  {shareData?.title || 'Shared Content'}
+                </span>
+              </div>
+              {shareData?.owner?.name && (
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-400 font-medium">Shared By:</span>
+                  <span className="text-slate-200 font-semibold">{shareData.owner.name}</span>
+                </div>
+              )}
+              {shareData?.maxDownloads !== null && shareData?.maxDownloads !== undefined && (
+                <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/80">
+                  <span className="text-amber-400 font-medium">Download Quota:</span>
+                  <span className="text-amber-300 font-bold font-mono">
+                    {shareData.downloadCount || shareData.maxDownloads} / {shareData.maxDownloads} Used
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Reassurance note */}
+            <div className="mt-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-xs flex items-center justify-center gap-2">
+              <Eye className="w-4 h-4 shrink-0 text-emerald-400" />
+              <span>Online viewing & streaming are fully available!</span>
+            </div>
+
+            {/* Actions */}
+            <div className="mt-6 flex flex-col sm:flex-row items-center gap-2.5">
+              <button
+                type="button"
+                onClick={() => setDownloadLimitModalOpen(false)}
+                className="w-full py-3 px-5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm shadow-lg shadow-amber-500/20 transition active:scale-[0.98] cursor-pointer"
+              >
+                Continue Viewing Online
+              </button>
+              <Link
+                to="/"
+                className="w-full sm:w-auto py-3 px-5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-semibold transition text-center whitespace-nowrap"
+              >
+                VaultMedia
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
