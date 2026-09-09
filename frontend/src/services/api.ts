@@ -1,5 +1,7 @@
 import axios from 'axios';
 
+const PROD_API_FALLBACK = 'https://digital-media-vault-api.onrender.com/api';
+
 const getBaseUrl = (): string => {
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
@@ -12,7 +14,7 @@ const getBaseUrl = (): string => {
       return '/api';
     }
   }
-  return (import.meta as any).env?.VITE_API_URL || '/api';
+  return import.meta.env.VITE_API_URL || PROD_API_FALLBACK;
 };
 
 export const api = axios.create({
@@ -62,7 +64,7 @@ export const getMediaUrl = (url: string | null | undefined): string => {
       window.location.hostname.startsWith('192.168.') ||
       window.location.hostname.startsWith('10.'));
 
-  const rawBase = isLocal ? '' : (import.meta as any).env?.VITE_API_URL;
+  const rawBase = isLocal ? '' : (import.meta.env.VITE_API_URL || PROD_API_FALLBACK);
   let fullUrl = url;
 
   if (rawBase) {
