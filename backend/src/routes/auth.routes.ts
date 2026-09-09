@@ -29,6 +29,11 @@ router.get('/session', AuthController.getMe);
 router.patch('/profile', requireAuth, validateBody(updateProfileSchema), AuthController.updateProfile);
 router.post('/pin/regenerate', requireAuth, AuthController.regeneratePin);
 
+// Password Reset (Verified via saved DOB & 10-digit mobile number)
+router.post('/reset/challenge', authRateLimiter, AuthController.forgotPasswordChallenge);
+router.post('/reset/verify', authRateLimiter, AuthController.forgotPasswordVerify);
+router.post('/reset/confirm', authRateLimiter, AuthController.forgotPasswordConfirm);
+
 // Active Session & Multi-Device Sync Management
 router.get('/sessions', requireAuth, AuthController.getSessions);
 router.delete('/sessions/all', requireAuth, AuthController.revokeAllSessions);

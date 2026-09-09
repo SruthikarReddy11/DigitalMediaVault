@@ -6,6 +6,7 @@ import { AppLayout } from '../components/layout/AppLayout';
 // Pages
 import { Login } from '../pages/Login';
 import { Register } from '../pages/Register';
+import { ForgotPassword } from '../pages/ForgotPassword';
 import { Dashboard } from '../pages/Dashboard';
 import { Gallery } from '../pages/Gallery';
 import { Videos } from '../pages/Videos';
@@ -82,6 +83,10 @@ export const AppRoutes: React.FC = () => {
       <Route
         path="/register"
         element={isAuthenticated ? <Navigate to="/" replace /> : <Register />}
+      />
+      <Route
+        path="/forgot-password"
+        element={isAuthenticated ? <Navigate to="/" replace /> : <ForgotPassword />}
       />
       <Route path="/share/:token" element={<SharePublicPage />} />
 

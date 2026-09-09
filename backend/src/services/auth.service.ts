@@ -1,11 +1,56 @@
 import { prisma } from '../database/prisma';
-import { hashPassword, comparePassword, generateSecureToken, hashToken } from '../utils/security';
+import {
+  hashPassword,
+  comparePassword,
+  generateSecureToken,
+  hashToken,
+  createSignedResetToken,
+  verifySignedResetToken,
+} from '../utils/security';
 import { config } from '../config';
 import { AuthUser } from '../types';
 import { ActivityService } from './activity.service';
 import { StorageFactory } from '../storage/StorageFactory';
 import { parseUserAgent, formatIpLocation } from '../utils/deviceParser';
 import path from 'path';
+
+/**
+ * Normalizes phone numbers to clean 10 digits (stripping non-digits, country code +91/91, and leading zeros)
+ */
+export function normalize10DigitPhone(phone: string | null | undefined): string {
+  if (!phone) return '';
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return digits.slice(2);
+  }
+  if (digits.length === 11 && digits.startsWith('0')) {
+    return digits.slice(1);
+  }
+  if (digits.length >= 10) {
+    return digits.slice(-10);
+  }
+  return digits;
+}
+
+/**
+ * Normalizes a date into YYYY-MM-DD string regardless of timezone offset
+ */
+export function normalizeDateOnly(date: Date | string | null | undefined): string {
+  if (!date) return '';
+  if (typeof date === 'string') {
+    const match = date.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if (match) {
+      const year = match[1];
+      const month = match[2].padStart(2, '0');
+      const day = match[3].padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+    const parsed = new Date(date);
+    if (isNaN(parsed.getTime())) return '';
+    return parsed.toISOString().split('T')[0];
+  }
+  return date.toISOString().split('T')[0];
+}
 
 export interface RegisterDto {
   name: string;
@@ -741,5 +786,213 @@ export class AuthService {
     });
 
     return { count: result.count };
+  }
+
+  /**
+   * Challenge endpoint: verifies if account exists and has necessary DOB/Mobile details configured
+   */
+  public static async forgotPasswordChallenge(identifier: string) {
+    const trimmed = identifier.toLowerCase().trim();
+    if (!trimmed) {
+      const err: any = new Error('Username or email is required.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: trimmed }, { username: trimmed }],
+      },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        dob: true,
+        mobileNumber: true,
+        isActive: true,
+      },
+    });
+
+    if (!user) {
+      const err: any = new Error('No user found matching this email or username.');
+      err.statusCode = 404;
+      err.code = 'USER_NOT_FOUND';
+      throw err;
+    }
+
+    if (!user.isActive) {
+      const err: any = new Error('This account has been disabled. Please contact your system administrator.');
+      err.statusCode = 403;
+      err.code = 'ACCOUNT_DISABLED';
+      throw err;
+    }
+
+    if (!user.dob && !user.mobileNumber) {
+      const err: any = new Error(
+        'This account does not have a date of birth or mobile number saved in profile. Please contact an administrator to reset your password.'
+      );
+      err.statusCode = 400;
+      err.code = 'VERIFICATION_NOT_POSSIBLE';
+      throw err;
+    }
+
+    return {
+      identifier: user.username,
+      name: user.name,
+      hasDob: !!user.dob,
+      hasMobile: !!user.mobileNumber,
+    };
+  }
+
+  /**
+   * Verify identity by comparing saved Date of Birth and 10-digit mobile number (excluding +91)
+   */
+  public static async verifyPasswordResetChallenge(data: {
+    identifier: string;
+    dob: string;
+    mobileNumber: string;
+  }) {
+    const trimmed = (data.identifier || '').toLowerCase().trim();
+    const inputDob = normalizeDateOnly(data.dob);
+    const inputPhone = normalize10DigitPhone(data.mobileNumber);
+
+    if (!trimmed) {
+      const err: any = new Error('Username or email is required.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (!inputDob) {
+      const err: any = new Error('Please provide your date of birth.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (!inputPhone || inputPhone.length !== 10) {
+      const err: any = new Error('Please enter a valid 10-digit mobile number.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ email: trimmed }, { username: trimmed }],
+      },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        dob: true,
+        mobileNumber: true,
+        isActive: true,
+      },
+    });
+
+    if (!user) {
+      const err: any = new Error('Account not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    if (!user.isActive) {
+      const err: any = new Error('This account is disabled.');
+      err.statusCode = 403;
+      throw err;
+    }
+
+    const savedDob = normalizeDateOnly(user.dob);
+    const savedPhone = normalize10DigitPhone(user.mobileNumber);
+
+    const isDobValid = !!savedDob && savedDob === inputDob;
+    const isPhoneValid = !!savedPhone && savedPhone === inputPhone;
+
+    if (!isDobValid || !isPhoneValid) {
+      let mismatch = 'Date of birth or mobile number is incorrect.';
+      if (!isDobValid && !isPhoneValid) {
+        mismatch = 'Both the date of birth and mobile number do not match our records.';
+      } else if (!isDobValid) {
+        mismatch = 'The date of birth entered does not match our saved records.';
+      } else if (!isPhoneValid) {
+        mismatch = 'The 10-digit mobile number entered does not match our saved records.';
+      }
+
+      const err: any = new Error(mismatch);
+      err.statusCode = 400;
+      err.code = 'VERIFICATION_FAILED';
+      throw err;
+    }
+
+    // Generate signed reset token valid for 15 minutes
+    const resetToken = createSignedResetToken(user.id, config.session.secret, 15);
+
+    return {
+      success: true,
+      resetToken,
+      username: user.username,
+      name: user.name,
+      message: 'Identity verified successfully. Please enter your new password.',
+    };
+  }
+
+  /**
+   * Reset password with the verified temporary reset token
+   */
+  public static async resetPasswordWithToken(data: {
+    resetToken: string;
+    newPassword: string;
+  }) {
+    if (!data.newPassword || data.newPassword.length < 6) {
+      const err: any = new Error('New password must be at least 6 characters long.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const verified = verifySignedResetToken(data.resetToken, config.session.secret);
+    if (!verified || !verified.userId) {
+      const err: any = new Error('Your reset session has expired or is invalid. Please verify your details again.');
+      err.statusCode = 400;
+      err.code = 'EXPIRED_RESET_TOKEN';
+      throw err;
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: verified.userId },
+      select: { id: true, username: true, email: true },
+    });
+
+    if (!user) {
+      const err: any = new Error('User not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const passwordHash = await hashPassword(data.newPassword);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
+
+    // Invalidate all existing active sessions for security
+    await prisma.session.deleteMany({
+      where: { userId: user.id },
+    }).catch(() => {});
+
+    await ActivityService.log({
+      userId: user.id,
+      action: 'PASSWORD_RESET',
+      resourceType: 'USER',
+      resourceId: user.id,
+      metadata: {
+        method: 'DOB_AND_MOBILE_VERIFICATION',
+        username: user.username,
+        resetTime: new Date().toISOString(),
+      },
+    });
+
+    return {
+      success: true,
+      message: 'Your password has been reset successfully. Please log in with your new password.',
+    };
   }
 }

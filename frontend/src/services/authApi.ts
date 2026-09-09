@@ -116,4 +116,49 @@ export const authApi = {
     );
     return res.data.data;
   },
+
+  async forgotPasswordChallenge(identifier: string) {
+    const res = await api.post<{
+      success: boolean;
+      data: {
+        identifier: string;
+        name: string;
+        hasDob: boolean;
+        hasMobile: boolean;
+      };
+    }>('/auth/reset/challenge', { identifier });
+    return res.data.data;
+  },
+
+  async forgotPasswordVerify(data: {
+    identifier: string;
+    dob: string;
+    mobileNumber: string;
+  }) {
+    const res = await api.post<{
+      success: boolean;
+      data: {
+        success: boolean;
+        resetToken: string;
+        username: string;
+        name: string;
+        message: string;
+      };
+    }>('/auth/reset/verify', data);
+    return res.data.data;
+  },
+
+  async forgotPasswordConfirm(data: {
+    resetToken: string;
+    newPassword: string;
+  }) {
+    const res = await api.post<{
+      success: boolean;
+      data: {
+        success: boolean;
+        message: string;
+      };
+    }>('/auth/reset/confirm', data);
+    return res.data.data;
+  },
 };

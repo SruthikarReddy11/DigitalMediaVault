@@ -274,4 +274,51 @@ export class AuthController {
       next(err);
     }
   }
+
+  public static async forgotPasswordChallenge(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { identifier } = req.body;
+      const result = await AuthService.forgotPasswordChallenge(identifier);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async forgotPasswordVerify(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { identifier, dob, mobileNumber } = req.body;
+      const result = await AuthService.verifyPasswordResetChallenge({
+        identifier,
+        dob,
+        mobileNumber,
+      });
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async forgotPasswordConfirm(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { resetToken, newPassword } = req.body;
+      const result = await AuthService.resetPasswordWithToken({
+        resetToken,
+        newPassword,
+      });
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }
+
