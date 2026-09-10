@@ -1,0 +1,163 @@
+import { spawn } from 'child_process';
+import path from 'path';
+
+export interface ExtractedStreamResult {
+  streamUrl: string;
+  title: string;
+  duration?: number;
+  thumbnail?: string;
+  quality: string;
+  extractor?: string;
+  webpageUrl: string;
+  formatNote?: string;
+}
+
+export class StreamExtractorService {
+  /**
+   * Extract direct stream URL and metadata using yt-dlp
+   */
+  public static async extractStream(rawUrl: string): Promise<ExtractedStreamResult> {
+    let targetUrl = rawUrl.trim();
+    if (!targetUrl) {
+      throw new Error('Video URL is required.');
+    }
+
+    // Auto-unwrap redirect query params (?url=..., ?redirect=..., ?target=...)
+    try {
+      const parsed = new URL(targetUrl);
+      const inner =
+        parsed.searchParams.get('url') ||
+        parsed.searchParams.get('redirect') ||
+        parsed.searchParams.get('target') ||
+        parsed.searchParams.get('dest') ||
+        parsed.searchParams.get('link');
+
+      if (inner) {
+        const decoded = decodeURIComponent(inner);
+        if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
+          targetUrl = decoded;
+        } else if (decoded.startsWith('/')) {
+          targetUrl = `${parsed.origin}${decoded}`;
+        }
+      }
+    } catch {}
+
+    // Check if it's already a direct media file
+    const cleanLower = targetUrl.split('?')[0].toLowerCase();
+    const isDirectMedia =
+      cleanLower.endsWith('.mp4') ||
+      cleanLower.endsWith('.webm') ||
+      cleanLower.endsWith('.m3u8') ||
+      cleanLower.endsWith('.mov') ||
+      cleanLower.endsWith('.mkv');
+
+    if (isDirectMedia) {
+      const filename = path.basename(targetUrl.split('?')[0]);
+      return {
+        streamUrl: targetUrl,
+        title: decodeURIComponent(filename) || 'Direct Video Stream',
+        quality: cleanLower.endsWith('.m3u8') ? 'Auto Adaptive (HLS)' : '1080p Full HD',
+        extractor: cleanLower.endsWith('.m3u8') ? 'HLS Stream' : 'Direct File',
+        webpageUrl: targetUrl,
+      };
+    }
+
+    // Execute python -m yt_dlp --dump-single-json
+    return new Promise((resolve, reject) => {
+      const args = [
+        '-m',
+        'yt_dlp',
+        '--dump-single-json',
+        '--no-warnings',
+        '--no-check-certificate',
+        '--prefer-free-formats',
+        targetUrl,
+      ];
+
+      const child = spawn('python', args, {
+        windowsHide: true,
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      const timeoutId = setTimeout(() => {
+        child.kill();
+        reject(new Error('Stream extraction timed out after 30 seconds.'));
+      }, 30000);
+
+      child.stdout.on('data', (chunk) => {
+        stdout += chunk.toString();
+      });
+
+      child.stderr.on('data', (chunk) => {
+        stderr += chunk.toString();
+      });
+
+      child.on('error', (err) => {
+        clearTimeout(timeoutId);
+        reject(new Error(`Failed to run yt-dlp extractor: ${err.message}`));
+      });
+
+      child.on('close', (code) => {
+        clearTimeout(timeoutId);
+
+        if (code !== 0 && !stdout) {
+          const errHint = stderr.split('\n').filter(Boolean).pop() || 'Extractor failed.';
+          return reject(new Error(`Stream extraction error: ${errHint}`));
+        }
+
+        try {
+          const data = JSON.parse(stdout);
+
+          // Find the best stream URL:
+          // 1. Prefer HLS .m3u8 format for robust cross-quality streaming
+          const formats = Array.isArray(data.formats) ? data.formats : [];
+          const hlsFormat = formats.find(
+            (f: any) =>
+              (f.protocol && (f.protocol.includes('m3u8') || f.protocol === 'm3u8_native')) ||
+              (f.url && f.url.includes('.m3u8')) ||
+              (f.format_id && f.format_id.includes('hls'))
+          );
+
+          // 2. Direct combined video + audio format
+          const directFormat = formats
+            .filter((f: any) => f.vcodec && f.vcodec !== 'none' && f.acodec && f.acodec !== 'none' && f.url)
+            .pop();
+
+          // 3. Fallback to top-level URL
+          const streamUrl = hlsFormat?.url || directFormat?.url || data.url || data.requested_formats?.[0]?.url;
+
+          if (!streamUrl) {
+            return reject(new Error('No compatible stream URL could be found for this video.'));
+          }
+
+          // Format quality label
+          let quality = '1080p Full HD';
+          if (data.height) {
+            if (data.height >= 2160) quality = '4K Ultra HD';
+            else if (data.height >= 1440) quality = '2K Quad HD';
+            else if (data.height >= 1080) quality = '1080p Full HD';
+            else if (data.height >= 720) quality = '720p HD';
+            else quality = `${data.height}p`;
+          } else if (hlsFormat) {
+            quality = 'Auto Adaptive (HLS)';
+          }
+
+          resolve({
+            streamUrl,
+            title: data.title || 'Extracted Video Stream',
+            duration: typeof data.duration === 'number' ? Math.round(data.duration) : undefined,
+            thumbnail: data.thumbnail || undefined,
+            quality,
+            extractor: data.extractor || 'Web Video',
+            webpageUrl: targetUrl,
+            formatNote: hlsFormat ? 'HLS Master Stream' : (directFormat?.format_note || 'Direct Video Stream'),
+          });
+        } catch (parseErr: any) {
+          reject(new Error(`Failed to parse extracted stream metadata: ${parseErr.message}`));
+        }
+      });
+    });
+  }
+}

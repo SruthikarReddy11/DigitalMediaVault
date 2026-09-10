@@ -62,6 +62,23 @@ export const filesApi = {
     return res.data.data;
   },
 
+  async extractStream(url: string) {
+    const res = await api.post<{
+      success: boolean;
+      data: {
+        streamUrl: string;
+        title: string;
+        duration?: number;
+        thumbnail?: string;
+        quality: string;
+        extractor?: string;
+        webpageUrl: string;
+        formatNote?: string;
+      };
+    }>('/files/extract-stream', { url });
+    return res.data.data;
+  },
+
   async renameFile(id: string, name: string) {
     const res = await api.patch<{ success: boolean; data: FileItem }>(`/files/${id}/rename`, { name });
     return res.data.data;

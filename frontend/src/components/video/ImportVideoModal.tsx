@@ -9,10 +9,12 @@ import {
   Tv,
   Globe,
   Loader2,
+  Zap,
 } from 'lucide-react';
 import { Modal } from '../common/Modal';
 import { filesApi } from '../../services/filesApi';
 import { useToast } from '../../contexts/ToastContext';
+import { formatDuration } from '../../utils/formatters';
 
 interface ImportVideoModalProps {
   isOpen: boolean;
@@ -32,6 +34,17 @@ export const ImportVideoModal: React.FC<ImportVideoModalProps> = ({
   const [title, setTitle] = useState('');
   const [quality, setQuality] = useState('1080p Full HD');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractedMeta, setExtractedMeta] = useState<{
+    streamUrl: string;
+    title: string;
+    duration?: number;
+    thumbnail?: string;
+    quality: string;
+    extractor?: string;
+    webpageUrl: string;
+    formatNote?: string;
+  } | null>(null);
 
   // Helper to extract true destination link if wrapped in redirect query params (e.g. ?url=...)
   const cleanAndResolveUrl = (raw: string) => {
@@ -121,6 +134,28 @@ export const ImportVideoModal: React.FC<ImportVideoModalProps> = ({
     return '';
   }, [resolvedUrl, youtubeInfo]);
 
+  const handleExtractStream = async () => {
+    const input = resolvedUrl || url.trim();
+    if (!input) {
+      error('Please enter a video or web link to extract.');
+      return;
+    }
+    setIsExtracting(true);
+    try {
+      const data = await filesApi.extractStream(input);
+      setExtractedMeta(data);
+      setUrl(data.streamUrl);
+      if (data.title && !title) setTitle(data.title);
+      if (data.quality) setQuality(data.quality);
+      success(`Resolved direct stream via yt-dlp (${data.extractor || 'Web Video'})!`);
+    } catch (err: any) {
+      console.error('Extract failed:', err);
+      error(err.response?.data?.message || err.message || 'yt-dlp could not extract a direct stream for this link.');
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const finalUrl = resolvedUrl || url.trim();
@@ -192,7 +227,7 @@ export const ImportVideoModal: React.FC<ImportVideoModalProps> = ({
         {/* URL Input */}
         <div className="space-y-1.5">
           <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center justify-between">
-            <span>Video Stream or YouTube Link</span>
+            <span>Video Stream or Web Video Link</span>
             {streamFormat && (
               <span className="text-[10px] normal-case font-semibold px-2 py-0.5 rounded-md bg-purple-900/60 text-purple-300 border border-purple-500/30 flex items-center gap-1">
                 {youtubeInfo ? <Youtube className="w-3 h-3 text-red-500" /> : <Globe className="w-3 h-3 text-brand-400" />}
@@ -200,20 +235,87 @@ export const ImportVideoModal: React.FC<ImportVideoModalProps> = ({
               </span>
             )}
           </label>
-          <div className="relative">
-            <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">
-              <Link2 className="w-4 h-4" />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500">
+                <Link2 className="w-4 h-4" />
+              </div>
+              <input
+                type="url"
+                required
+                value={url}
+                onChange={(e) => {
+                  setUrl(e.target.value);
+                  setExtractedMeta(null);
+                }}
+                placeholder="Paste YouTube, web video, or direct stream link..."
+                className="w-full bg-slate-950/90 border border-white/[0.08] focus:border-purple-500 rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500/30 transition shadow-inner font-mono"
+              />
             </div>
-            <input
-              type="url"
-              required
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://www.youtube.com/watch?v=... or https://example.com/video.mp4"
-              className="w-full bg-slate-950/90 border border-white/[0.08] focus:border-purple-500 rounded-xl pl-10 pr-4 py-2.5 text-xs sm:text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-purple-500/30 transition shadow-inner font-mono"
-            />
+            <button
+              type="button"
+              onClick={handleExtractStream}
+              disabled={isExtracting || !url.trim()}
+              className="px-3.5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold transition shadow-lg shadow-purple-600/20 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shrink-0 cursor-pointer"
+              title="Auto-Extract Direct Stream (Mode A: Direct Stream via yt-dlp)"
+            >
+              {isExtracting ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  <span className="hidden sm:inline">Extracting...</span>
+                </>
+              ) : (
+                <>
+                  <Zap className="w-3.5 h-3.5 text-amber-300" />
+                  <span>Extract Stream</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Extracted Stream Preview Card (Mode A) */}
+        {extractedMeta && (
+          <div className="p-3.5 bg-gradient-to-r from-purple-950/50 via-slate-900/90 to-slate-950 border border-purple-500/40 rounded-2xl flex items-center gap-3.5 shadow-xl animate-in fade-in zoom-in-95">
+            {extractedMeta.thumbnail ? (
+              <img
+                src={extractedMeta.thumbnail}
+                alt={extractedMeta.title}
+                className="w-24 h-16 object-cover rounded-xl shrink-0 border border-purple-500/20 shadow-md"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-xl bg-purple-600/20 text-purple-400 border border-purple-500/30 flex items-center justify-center shrink-0">
+                <Tv className="w-6 h-6" />
+              </div>
+            )}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[10px] font-mono font-bold border border-purple-500/30 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-purple-400" />
+                  yt-dlp Resolved ({extractedMeta.extractor})
+                </span>
+                <span className="px-2 py-0.5 rounded-md bg-emerald-500/15 text-emerald-300 text-[10px] font-bold border border-emerald-500/25 flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                  Mode A: Direct Stream
+                </span>
+              </div>
+              <h5 className="text-xs font-bold text-white truncate mt-1">
+                {extractedMeta.title}
+              </h5>
+              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-400 font-mono">
+                <span>{extractedMeta.quality}</span>
+                {extractedMeta.duration ? (
+                  <>
+                    <span>•</span>
+                    <span>{formatDuration(extractedMeta.duration)}</span>
+                  </>
+                ) : null}
+                <span>•</span>
+                <span className="text-purple-300">{extractedMeta.formatNote}</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Live Preview If YouTube */}
         {youtubeInfo && (

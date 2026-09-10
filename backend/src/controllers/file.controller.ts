@@ -5,6 +5,7 @@ import { FileService } from '../services/file.service';
 import { StorageFactory } from '../storage/StorageFactory';
 import { prisma } from '../database/prisma';
 import { isOwnerOrAdmin } from '../middleware/ownership';
+import { StreamExtractorService } from '../services/streamExtractor.service';
 
 export class FileController {
   public static async uploadFiles(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -362,6 +363,30 @@ export class FileController {
         data: stats,
       });
     } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async extractStream(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const url = req.body?.url;
+      if (!url || typeof url !== 'string') {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_URL',
+            message: 'Please provide a valid URL to extract.',
+          },
+        });
+        return;
+      }
+
+      const result = await StreamExtractorService.extractStream(url);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (err: any) {
       next(err);
     }
   }
