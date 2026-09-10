@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { PublicShareFile } from '../../types';
 import { formatDuration, formatBytes } from '../../utils/formatters';
+import Hls from 'hls.js';
 
 interface PublicCinemaVideoPlayerProps {
   file: PublicShareFile;
@@ -88,6 +89,40 @@ export const PublicCinemaVideoPlayer: React.FC<PublicCinemaVideoPlayerProps> = (
     }
     return appendPasswordToUrl(file.streamUrl);
   }, [embedUrl, rawUrl, file.streamUrl, appendPasswordToUrl]);
+
+  // Setup HLS / direct stream
+  useEffect(() => {
+    if (!videoRef.current || !streamSrc || embedUrl) return;
+
+    let hls: Hls | null = null;
+    const isHls = streamSrc.includes('.m3u8') || streamSrc.includes('application/x-mpegURL');
+
+    if (isHls && Hls.isSupported()) {
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+      });
+      hls.loadSource(streamSrc);
+      hls.attachMedia(videoRef.current);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          console.warn('Fatal HLS playback error:', data);
+          setPlaybackError('Could not stream this HLS media playlist. The remote host may restrict cross-origin access.');
+          hls?.destroy();
+        }
+      });
+    } else if (isHls && videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+      videoRef.current.src = streamSrc;
+    } else {
+      videoRef.current.src = streamSrc;
+    }
+
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [streamSrc, embedUrl]);
 
   const togglePlay = () => {
     if (!videoRef.current) return;
@@ -279,7 +314,6 @@ export const PublicCinemaVideoPlayer: React.FC<PublicCinemaVideoPlayerProps> = (
           /* HTML5 Cinema Video Player */
           <video
             ref={videoRef}
-            src={streamSrc}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onPlay={() => setIsPlaying(true)}

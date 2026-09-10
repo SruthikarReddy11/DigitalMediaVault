@@ -20,6 +20,7 @@ import {
 import { FileItem } from '../../types';
 import { formatDuration, formatBytes } from '../../utils/formatters';
 import { getMediaUrl } from '../../services/api';
+import Hls from 'hls.js';
 
 interface VideoPlayerModalProps {
   video: FileItem | null;
@@ -81,6 +82,38 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
       setSelectedQuality('4K Ultra HD');
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || !videoRef.current || !streamSrc || youtubeId) return;
+
+    let hls: Hls | null = null;
+    const isHls = streamSrc.includes('.m3u8') || streamSrc.includes('application/x-mpegURL');
+
+    if (isHls && Hls.isSupported()) {
+      hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+      });
+      hls.loadSource(streamSrc);
+      hls.attachMedia(videoRef.current);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data.fatal) {
+          console.warn('Fatal HLS error in modal:', data);
+          hls?.destroy();
+        }
+      });
+    } else if (isHls && videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
+      videoRef.current.src = streamSrc;
+    } else {
+      videoRef.current.src = streamSrc;
+    }
+
+    return () => {
+      if (hls) {
+        hls.destroy();
+      }
+    };
+  }, [isOpen, streamSrc, youtubeId]);
 
   if (!isOpen || !video) return null;
 
@@ -237,7 +270,6 @@ export const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             /* HTML5 Video Player for Vault & Direct Links */
             <video
               ref={videoRef}
-              src={streamSrc}
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={handleLoadedMetadata}
               onPlay={() => setIsPlaying(true)}
