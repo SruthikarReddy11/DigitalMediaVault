@@ -27,9 +27,11 @@ import {
   Sparkles,
   CheckCircle2,
   Share2,
+  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAudioPlayer } from '../../contexts/AudioPlayerContext';
 import { getMediaUrl } from '../../services/api';
 import { searchApi } from '../../services/searchApi';
 import { calculateAge } from '../../utils/formatters';
@@ -69,6 +71,16 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
   const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
+
+  let currentTrack: any = null;
+  let isPlaying = false;
+  try {
+    const audio = useAudioPlayer();
+    currentTrack = audio.currentTrack;
+    isPlaying = audio.isPlaying;
+  } catch {
+    // Graceful fallback if rendered outside AudioPlayerProvider
+  }
 
   const sectionInfo = getSectionInfo(location.pathname);
   const SectionIcon = sectionInfo.icon;
@@ -175,17 +187,17 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-slate-950/85 backdrop-blur-2xl border-b border-white/[0.08] px-3.5 sm:px-6 flex items-center justify-between gap-3 sm:gap-4 relative">
-      {/* Luminous Neon Cyber Bottom Edge */}
-      <div className="absolute bottom-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-cyan-500/45 to-transparent pointer-events-none" />
+    <header className="sticky top-0 z-30 h-16 bg-slate-950/90 backdrop-blur-3xl border-b border-white/[0.08] shadow-[inset_0_1px_1px_rgba(255,255,255,0.12)] px-3 sm:px-6 flex items-center justify-between gap-2.5 sm:gap-4 relative select-none">
+      {/* Luminous Neon Cyber Animated Bottom Laser Streak */}
+      <div className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400 via-indigo-500 to-transparent animate-laser-sweep pointer-events-none opacity-85" />
 
       {/* Left section: Hamburger & Mobile 3D Logo / Desktop Section Breadcrumb */}
-      <div className="flex items-center gap-2.5 sm:gap-3.5 flex-1 max-w-2xl min-w-0">
+      <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-2xl min-w-0">
         {/* Mobile View: Hamburger + 3D Logo */}
         <div className="flex items-center gap-2 lg:hidden shrink-0">
           <button
             onClick={onToggleSidebar}
-            className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-900/70 border border-white/10 hover:border-cyan-500/40 transition cursor-pointer"
+            className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-900/80 border border-white/10 hover:border-cyan-500/40 transition active:scale-95 cursor-pointer"
             aria-label="Toggle Navigation"
           >
             <Menu className="w-5 h-5" />
@@ -194,49 +206,83 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
         </div>
 
         {/* Desktop View: Live Section Status Badge */}
-        <div className="hidden lg:flex items-center gap-2.5 px-3 py-1.5 rounded-2xl bg-slate-900/80 border border-white/[0.08] backdrop-blur-md shadow-inner shadow-cyan-950/20 shrink-0">
-          <SectionIcon className={`w-4 h-4 ${sectionInfo.color}`} />
+        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/80 border border-white/[0.08] backdrop-blur-md shadow-inner shadow-cyan-950/30 shrink-0">
+          <div className="p-1 rounded-lg bg-slate-800/90 border border-white/5">
+            <SectionIcon className={`w-3.5 h-3.5 ${sectionInfo.color}`} />
+          </div>
           <span className="text-xs font-bold text-white tracking-wide">{sectionInfo.label}</span>
           <div className="flex items-center gap-1.5 pl-2 border-l border-white/10">
             <span className="relative flex h-2 w-2">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            <span className="text-[10px] font-mono font-bold text-emerald-400 tracking-wider uppercase">Online</span>
+            <span className="text-[10px] font-mono font-black text-emerald-400 tracking-wider uppercase">Online</span>
           </div>
         </div>
 
-        {/* Global Search Bar Container */}
+        {/* Quantum Military Encryption Badge */}
+        <div className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-slate-900/70 border border-white/[0.06] text-[11px] shadow-sm shrink-0" title="Quantum Military Grade AES-256 GCM Cloud Storage">
+          <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+          <span className="font-mono text-[10px] font-bold text-slate-300 tracking-wider">AES-256 GCM</span>
+        </div>
+
+        {/* Live Audio Equalizer Pill (Active Lossless Playback) */}
+        {isPlaying && currentTrack && (
+          <button
+            type="button"
+            onClick={() => navigate('/music')}
+            className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-cyan-950/40 border border-cyan-500/40 text-xs shadow-inner shadow-cyan-900/40 cursor-pointer group hover:border-cyan-300 transition-all shrink-0 active:scale-95"
+            title="Now Playing Lossless Audio - Click to open music studio"
+          >
+            <div className="flex items-end gap-0.5 h-3.5 w-3.5 pb-0.5">
+              <span className="w-0.5 bg-cyan-400 rounded-full animate-eq-1" />
+              <span className="w-0.5 bg-cyan-300 rounded-full animate-eq-2" />
+              <span className="w-0.5 bg-sky-400 rounded-full animate-eq-3" />
+              <span className="w-0.5 bg-indigo-400 rounded-full animate-eq-4" />
+            </div>
+            <span className="text-[11px] font-bold text-cyan-200 truncate max-w-[120px] group-hover:text-white transition">
+              {currentTrack.title}
+            </span>
+            <span className="text-[8px] font-mono font-black uppercase px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+              FLAC
+            </span>
+          </button>
+        )}
+
+        {/* Global Command Search Bar Container */}
         <div ref={searchContainerRef} className="relative w-full min-w-0">
           <form onSubmit={handleSearchSubmit} className="relative w-full group">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-cyan-400 transition-colors pointer-events-none" />
-            <input
-              ref={searchInputRef}
-              type="text"
-              value={searchTerm}
-              onFocus={() => setIsSearchOpen(true)}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search files, lossless music, 4K videos, documents..."
-              className="w-full bg-slate-900/75 border border-white/[0.08] hover:border-slate-700/80 focus:border-cyan-500/80 focus:bg-slate-900/95 rounded-xl pl-10 pr-16 py-2 text-xs sm:text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition-all shadow-inner backdrop-blur-md"
-            />
-            {searchTerm ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchTerm('');
-                  setSearchResults(null);
-                }}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-0.5 cursor-pointer"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            ) : (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 hidden sm:flex items-center gap-0.5 pointer-events-none">
-                <kbd className="px-1.5 py-0.5 text-[10px] font-mono font-semibold text-slate-400 bg-slate-800/80 border border-slate-700/60 rounded shadow-sm">
-                  Ctrl K
-                </kbd>
-              </div>
-            )}
+            <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-cyan-500/0 via-cyan-500/35 to-indigo-500/0 opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 blur-sm pointer-events-none" />
+            <div className="relative flex items-center">
+              <Search className="absolute left-3.5 w-4 h-4 text-slate-400 group-focus-within:text-cyan-400 transition-colors pointer-events-none" />
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchTerm}
+                onFocus={() => setIsSearchOpen(true)}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search files, lossless music, 4K videos, documents..."
+                className="w-full bg-slate-900/80 border border-white/[0.08] hover:border-slate-700/80 focus:border-cyan-400/80 focus:bg-slate-900/95 rounded-2xl pl-10 pr-20 py-2 text-xs sm:text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition-all shadow-inner backdrop-blur-md"
+              />
+              {searchTerm ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm('');
+                    setSearchResults(null);
+                  }}
+                  className="absolute right-3 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              ) : (
+                <div className="absolute right-2.5 hidden sm:flex items-center gap-1 pointer-events-none">
+                  <kbd className="px-1.5 py-0.5 text-[9px] font-mono font-bold text-cyan-300 bg-slate-800/90 border border-cyan-500/25 rounded-md shadow-sm">
+                    Ctrl K
+                  </kbd>
+                </div>
+              )}
+            </div>
           </form>
 
           {/* Floating Live Categorized Dropdown */}
@@ -254,13 +300,13 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
         </div>
       </div>
 
-      {/* Right section: Cloud Sync, Upload, Theme, Profile */}
+      {/* Right section: Cloud Sync, 3D Upload, Theme, Profile */}
       <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
         {/* Cloud Sync Capsule */}
-        <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/60 border border-white/[0.06] text-xs shadow-sm" title="Vault Cloud Storage Active & Synchronized">
+        <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/70 border border-white/[0.07] text-xs shadow-sm" title="Vault Cloud Storage Active & Synchronized">
           <div className="relative flex items-center justify-center">
             <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-slate-900"></span>
+            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-slate-900 animate-pulse"></span>
           </div>
           <span className="text-[11px] font-medium text-slate-300">Vault Synced</span>
         </div>
@@ -268,17 +314,19 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
         {/* 3D Tactile Upload Button */}
         <button
           onClick={onOpenUpload}
-          className="group relative flex items-center gap-2 px-3 sm:px-4 py-2 bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:via-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-semibold rounded-xl transition shadow-lg shadow-cyan-500/20 hover:shadow-cyan-500/30 border border-cyan-400/40 active:scale-95 shrink-0 cursor-pointer overflow-hidden"
+          className="group relative flex items-center gap-2 px-3.5 sm:px-4 py-2 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-extrabold rounded-2xl transition shadow-[0_4px_18px_rgba(6,182,212,0.3)] hover:shadow-[0_6px_25px_rgba(6,182,212,0.45)] border border-cyan-300/40 active:translate-y-0.5 active:scale-95 shrink-0 cursor-pointer overflow-hidden"
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
-          <UploadCloud className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
-          <span className="hidden sm:inline">Upload</span>
+          {/* Top Specular Edge Highlight Ribbon */}
+          <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
+          <UploadCloud className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
+          <span className="hidden sm:inline tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Upload</span>
         </button>
 
         {/* Theme Toggle Button */}
         <button
           onClick={toggleTheme}
-          className="p-2 text-slate-400 hover:text-white bg-slate-900/80 border border-white/[0.08] hover:border-cyan-500/40 rounded-xl transition cursor-pointer shadow-sm"
+          className="p-2 text-slate-400 hover:text-white bg-slate-900/80 border border-white/[0.08] hover:border-cyan-500/40 rounded-2xl transition cursor-pointer shadow-sm hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] active:scale-95"
           aria-label="Toggle Theme"
         >
           {theme === 'dark' ? (
@@ -291,13 +339,13 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
         {/* Calendar & Smart Reminders Bell */}
         <HeaderNotificationBell />
 
-        {/* Profile Dropdown */}
+        {/* Luxury User Profile Capsule */}
         <div className="relative" ref={profileRef}>
           <button
             onClick={() => setIsProfileOpen((prev) => !prev)}
-            className="flex items-center gap-2 p-1 rounded-xl hover:bg-slate-900/80 border border-transparent hover:border-slate-800 transition cursor-pointer"
+            className="flex items-center gap-2.5 p-1 sm:px-2 sm:py-1 rounded-2xl hover:bg-slate-900/90 border border-transparent hover:border-white/10 transition cursor-pointer group"
           >
-            <div className="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-600 via-blue-600 to-indigo-600 flex items-center justify-center text-white text-sm font-bold shadow-md shadow-cyan-500/20 overflow-hidden border border-cyan-300/40 ring-1 ring-cyan-500/20 shrink-0">
+            <div className="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center text-white text-sm font-black shadow-md shadow-cyan-500/25 overflow-hidden border border-cyan-300/40 ring-2 ring-cyan-500/20 group-hover:ring-cyan-400/40 transition shrink-0">
               {user?.avatarUrl && !imageError ? (
                 <img
                   src={getMediaUrl(user.avatarUrl)}
@@ -311,10 +359,15 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
             </div>
 
             <div className="hidden md:flex flex-col text-left">
-              <span className="text-xs font-semibold text-slate-200 leading-tight">
-                {user?.name || 'User'}
-              </span>
-              <span className="text-[10px] text-slate-500 leading-tight">
+              <div className="flex items-center gap-1.5 leading-tight">
+                <span className="text-xs font-bold text-white leading-tight">
+                  {user?.name || 'User'}
+                </span>
+                <span className="text-[9px] font-mono font-black uppercase px-1 py-0.2 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-400/30">
+                  {isAdmin ? 'ADMIN' : 'VIP'}
+                </span>
+              </div>
+              <span className="text-[10px] text-slate-400 leading-tight">
                 @{user?.username || 'user'}
               </span>
             </div>
