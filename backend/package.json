@@ -5,9 +5,9 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "nodemon --watch src -e ts --exec \"ts-node --transpile-only\" src/index.ts",
-    "build": "prisma generate && rimraf dist && tsc",
+    "build": "prisma generate && node scripts/install-ytdlp.js && rimraf dist && tsc",
     "start": "node dist/index.js",
-    "postinstall": "prisma generate && node scripts/install-ytdlp.js",
+    "postinstall": "prisma generate",
     "test": "jest --runInBand --detectOpenHandles --forceExit",
     "prisma:generate": "prisma generate",
     "prisma:push": "prisma db push",
