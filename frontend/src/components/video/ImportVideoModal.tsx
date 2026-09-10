@@ -33,10 +33,53 @@ export const ImportVideoModal: React.FC<ImportVideoModalProps> = ({
   const [quality, setQuality] = useState('1080p Full HD');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Helper to extract true destination link if wrapped in redirect query params (e.g. ?url=...)
+  const cleanAndResolveUrl = (raw: string) => {
+    let candidate = raw.trim();
+    if (!candidate) return '';
+    try {
+      const parsed = new URL(candidate);
+      const inner =
+        parsed.searchParams.get('url') ||
+        parsed.searchParams.get('redirect') ||
+        parsed.searchParams.get('target') ||
+        parsed.searchParams.get('dest') ||
+        parsed.searchParams.get('link');
+
+      if (inner) {
+        const decoded = decodeURIComponent(inner);
+        if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
+          candidate = decoded;
+        } else if (decoded.startsWith('/')) {
+          candidate = `${parsed.origin}${decoded}`;
+        }
+      }
+
+      // Clean tracking UTM and affiliate query params
+      const finalParsed = new URL(candidate);
+      const trackingParams = [
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_term',
+        'utm_content',
+        'statsUID',
+        'wtp',
+        'referringDomain',
+      ];
+      trackingParams.forEach((p) => finalParsed.searchParams.delete(p));
+      return finalParsed.toString();
+    } catch {
+      return candidate;
+    }
+  };
+
+  const resolvedUrl = useMemo(() => cleanAndResolveUrl(url), [url]);
+
   // Extract YouTube ID if valid
   const youtubeInfo = useMemo(() => {
-    if (!url) return null;
-    const match = url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+    if (!resolvedUrl) return null;
+    const match = resolvedUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
     if (match && match[1]) {
       return {
         id: match[1],
@@ -44,31 +87,50 @@ export const ImportVideoModal: React.FC<ImportVideoModalProps> = ({
       };
     }
     return null;
-  }, [url]);
+  }, [resolvedUrl]);
 
-  // Detect direct stream format
+  // Detect direct stream or provider format
   const streamFormat = useMemo(() => {
-    if (!url) return null;
+    if (!resolvedUrl) return null;
     if (youtubeInfo) return 'YouTube';
-    const clean = url.split('?')[0].toLowerCase();
+    if (/vimeo\.com/i.test(resolvedUrl)) return 'Vimeo';
+    if (/dailymotion\.com/i.test(resolvedUrl)) return 'Dailymotion';
+    const clean = resolvedUrl.split('?')[0].toLowerCase();
     if (clean.endsWith('.mp4')) return 'MP4 Video';
     if (clean.endsWith('.webm')) return 'WebM Video';
     if (clean.endsWith('.m3u8')) return 'HLS Live Stream';
     if (clean.endsWith('.mov')) return 'QuickTime Movie';
     if (clean.endsWith('.mkv')) return 'Matroska Video';
-    return 'Online Web Stream';
-  }, [url, youtubeInfo]);
+    return 'Online Web Video';
+  }, [resolvedUrl, youtubeInfo]);
+
+  // Auto-generate title from URL slug if empty
+  const autoSuggestedTitle = useMemo(() => {
+    if (!resolvedUrl || youtubeInfo) return '';
+    try {
+      const parsed = new URL(resolvedUrl);
+      const segments = parsed.pathname.split('/').filter(Boolean);
+      const last = segments[segments.length - 1] || '';
+      if (last && !last.endsWith('.mp4') && !last.endsWith('.webm') && !last.endsWith('.m3u8')) {
+        return decodeURIComponent(last)
+          .replace(/[_-]+/g, ' ')
+          .replace(/\b\w/g, (c) => c.toUpperCase())
+          .trim();
+      }
+    } catch {}
+    return '';
+  }, [resolvedUrl, youtubeInfo]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const cleanUrl = url.trim();
-    if (!cleanUrl) {
-      error('Please enter a valid video stream or YouTube URL.');
+    const finalUrl = resolvedUrl || url.trim();
+    if (!finalUrl) {
+      error('Please enter a valid video stream or web link.');
       return;
     }
 
     try {
-      new URL(cleanUrl);
+      new URL(finalUrl);
     } catch {
       error('Invalid URL format. Please enter a valid http:// or https:// link.');
       return;
@@ -76,9 +138,10 @@ export const ImportVideoModal: React.FC<ImportVideoModalProps> = ({
 
     setIsSubmitting(true);
     try {
+      const finalTitle = title.trim() || autoSuggestedTitle || undefined;
       await filesApi.importVideoLink({
-        url: cleanUrl,
-        title: title.trim() || undefined,
+        url: finalUrl,
+        title: finalTitle,
         quality,
         folderId,
       });

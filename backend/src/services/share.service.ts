@@ -601,6 +601,15 @@ export class ShareService {
             extension: share.file.extension,
             size: Number(share.file.size),
             createdAt: share.file.createdAt,
+            storageKey: share.file.storageKey,
+            isExternal: Boolean(
+              share.file.storageKey?.startsWith('ext:') ||
+              share.file.storageKey?.startsWith('http://') ||
+              share.file.storageKey?.startsWith('https://')
+            ),
+            externalUrl: share.file.storageKey?.startsWith('ext:')
+              ? share.file.storageKey.slice(4)
+              : (share.file.storageKey?.startsWith('http') ? share.file.storageKey : null),
             streamUrl: `/api/share/public/${share.token}/stream${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
             downloadUrl: `/api/share/public/${share.token}/download${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
             music: (share.file as any).music

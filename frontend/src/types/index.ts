@@ -313,6 +313,9 @@ export interface PublicShareFile {
   createdAt: string;
   streamUrl: string;
   downloadUrl: string;
+  storageKey?: string;
+  isExternal?: boolean;
+  externalUrl?: string | null;
   music?: {
     title: string;
     artist: string;

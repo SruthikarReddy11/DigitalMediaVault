@@ -36,6 +36,7 @@ import { ImageLightbox } from '../components/gallery/ImageLightbox';
 import { SlideshowModal } from '../components/gallery/SlideshowModal';
 import { Logo3D } from '../components/common/Logo3D';
 import { HolographicMusicShareView } from '../components/music/HolographicMusicShareView';
+import { PublicCinemaVideoPlayer } from '../components/video/PublicCinemaVideoPlayer';
 
 export const SharePublicPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
@@ -605,6 +606,12 @@ export const SharePublicPage: React.FC = () => {
                   handleDownloadFile={handleDownloadFile}
                   downloadingId={downloadingId}
                 />
+              ) : shareData.file.fileType === 'VIDEO' ? (
+                <PublicCinemaVideoPlayer
+                  file={shareData.file}
+                  allowDownload={shareData.allowDownload && !shareData.isDownloadLimitReached}
+                  appendPasswordToUrl={appendPasswordToUrl}
+                />
               ) : (
                 <div className="rounded-3xl bg-slate-900/60 border border-slate-800 overflow-hidden shadow-2xl p-4 sm:p-6">
                   {shareData.file.fileType === 'IMAGE' ? (
@@ -613,15 +620,6 @@ export const SharePublicPage: React.FC = () => {
                         src={appendPasswordToUrl(shareData.file.streamUrl)}
                         alt={shareData.file.originalName}
                         className="max-h-[600px] w-auto object-contain rounded-2xl"
-                      />
-                    </div>
-                  ) : shareData.file.fileType === 'VIDEO' ? (
-                    <div className="rounded-2xl overflow-hidden bg-black shadow-2xl">
-                      <video
-                        controls
-                        controlsList={shareData.allowDownload ? undefined : 'nodownload'}
-                        src={appendPasswordToUrl(shareData.file.streamUrl)}
-                        className="w-full max-h-[560px]"
                       />
                     </div>
                   ) : (

@@ -172,6 +172,11 @@ export class ShareController {
         userAgent,
       });
 
+      if (file.storageKey.startsWith('ext:') || file.storageKey.startsWith('http://') || file.storageKey.startsWith('https://')) {
+        const targetUrl = file.storageKey.startsWith('ext:') ? file.storageKey.slice(4) : file.storageKey;
+        return res.redirect(302, targetUrl);
+      }
+
       const storage = StorageFactory.getStorage();
       const { stream } = await storage.getReadStream(file.storageKey);
 
@@ -217,6 +222,11 @@ export class ShareController {
         ip,
         userAgent,
       });
+
+      if (file.storageKey.startsWith('ext:') || file.storageKey.startsWith('http://') || file.storageKey.startsWith('https://')) {
+        const targetUrl = file.storageKey.startsWith('ext:') ? file.storageKey.slice(4) : file.storageKey;
+        return res.redirect(302, targetUrl);
+      }
 
       const storage = StorageFactory.getStorage();
       const fileSize = Number(file.size);
