@@ -68,9 +68,12 @@ export class StreamExtractorService {
         '-m',
         'yt_dlp',
         '--dump-single-json',
+        '--no-playlist',
         '--no-warnings',
         '--no-check-certificate',
         '--prefer-free-formats',
+        '--socket-timeout',
+        '15',
         targetUrl,
       ];
 
@@ -83,7 +86,10 @@ export class StreamExtractorService {
 
       const timeoutId = setTimeout(() => {
         child.kill();
-        reject(new Error('Stream extraction timed out after 30 seconds.'));
+        const err: any = new Error('Stream extraction timed out after 30 seconds.');
+        err.statusCode = 408;
+        err.code = 'EXTRACT_TIMEOUT';
+        reject(err);
       }, 30000);
 
       child.stdout.on('data', (chunk) => {
@@ -96,19 +102,45 @@ export class StreamExtractorService {
 
       child.on('error', (err) => {
         clearTimeout(timeoutId);
-        reject(new Error(`Failed to run yt-dlp extractor: ${err.message}`));
+        const error: any = new Error(`Failed to run yt-dlp extractor: ${err.message}`);
+        error.statusCode = 500;
+        reject(error);
       });
 
       child.on('close', (code) => {
         clearTimeout(timeoutId);
 
-        if (code !== 0 && !stdout) {
-          const errHint = stderr.split('\n').filter(Boolean).pop() || 'Extractor failed.';
-          return reject(new Error(`Stream extraction error: ${errHint}`));
+        let errHint = '';
+        if (stderr) {
+          const errorLines = stderr
+            .split('\n')
+            .map((s) => s.trim())
+            .filter((s) => s.startsWith('ERROR:') || s.includes('HTTP Error') || s.includes('Unable to download'));
+          errHint = errorLines.pop() || stderr.split('\n').filter(Boolean).pop() || '';
+          errHint = errHint.replace(/^ERROR:\s*(\[[^\]]+\])?\s*/i, '');
+        }
+
+        if (code !== 0 || !stdout || stdout.trim() === 'null') {
+          const message = errHint
+            ? `Stream extractor: ${errHint}`
+            : 'Could not extract a stream from this link. The video may be deleted (404), private, or protected by anti-bot verification.';
+          const error: any = new Error(message);
+          error.statusCode = 400;
+          error.code = 'EXTRACT_FAILED';
+          return reject(error);
         }
 
         try {
           const data = JSON.parse(stdout);
+
+          if (!data || typeof data !== 'object') {
+            const error: any = new Error(
+              errHint || 'The video provider returned no media data. The video may be deleted, private, or region-restricted.'
+            );
+            error.statusCode = 400;
+            error.code = 'EXTRACT_FAILED';
+            return reject(error);
+          }
 
           // Find the best stream URL:
           // 1. Prefer HLS .m3u8 format for robust cross-quality streaming

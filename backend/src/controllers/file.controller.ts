@@ -387,7 +387,14 @@ export class FileController {
         data: result,
       });
     } catch (err: any) {
-      next(err);
+      const statusCode = err.statusCode || (err.code === 'EXTRACT_FAILED' ? 400 : 500);
+      res.status(statusCode).json({
+        success: false,
+        error: {
+          code: err.code || 'EXTRACT_FAILED',
+          message: err.message || 'Could not extract a stream from this link.',
+        },
+      });
     }
   }
 }

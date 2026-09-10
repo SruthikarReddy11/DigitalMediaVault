@@ -150,7 +150,12 @@ export const ImportVideoModal: React.FC<ImportVideoModalProps> = ({
       success(`Resolved direct stream via yt-dlp (${data.extractor || 'Web Video'})!`);
     } catch (err: any) {
       console.error('Extract failed:', err);
-      error(err.response?.data?.message || err.message || 'yt-dlp could not extract a direct stream for this link.');
+      const msg =
+        err.response?.data?.error?.message ||
+        err.response?.data?.message ||
+        err.message ||
+        'yt-dlp could not extract a direct stream for this link.';
+      error(msg);
     } finally {
       setIsExtracting(false);
     }
