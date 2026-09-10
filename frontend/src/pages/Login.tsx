@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Sparkles, Lock, Mail, ArrowRight } from 'lucide-react';
+import { Lock, Mail, ArrowRight } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
+import { Logo3D } from '../components/common/Logo3D';
 
 export const Login: React.FC = () => {
   const { login } = useAuth();
@@ -35,8 +36,8 @@ export const Login: React.FC = () => {
       <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[400px] bg-brand-500/15 blur-[120px] rounded-full pointer-events-none" />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 to-indigo-600 flex items-center justify-center text-white mx-auto shadow-2xl shadow-brand-500/30 mb-4">
-          <Sparkles className="w-7 h-7" />
+        <div className="flex justify-center mb-4">
+          <Logo3D size="lg" to="/" />
         </div>
         <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
           Personal Digital Library

@@ -34,6 +34,7 @@ import { FileTypeBadge } from '../components/common/Badge';
 import { QRCodeDisplayModal } from '../components/share/QRCodeDisplay';
 import { ImageLightbox } from '../components/gallery/ImageLightbox';
 import { SlideshowModal } from '../components/gallery/SlideshowModal';
+import { Logo3D } from '../components/common/Logo3D';
 
 export const SharePublicPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
@@ -255,19 +256,7 @@ export const SharePublicPage: React.FC = () => {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-brand-500/30 selection:text-white">
       {/* Top Navbar */}
       <header className="h-16 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-xl px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40">
-        <Link to="/" className="flex items-center gap-2.5 group">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-brand-500/25 group-hover:scale-105 transition">
-            <Shield className="w-5 h-5 text-white" />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-black text-white text-base tracking-tight leading-none">
-              VaultMedia
-            </span>
-            <span className="text-[10px] text-brand-400 font-bold uppercase tracking-wider mt-0.5">
-              Secure Share
-            </span>
-          </div>
-        </Link>
+        <Logo3D size="sm" withText subtext="Secure Share" badge="SHARE" to="/" />
 
         <div className="flex items-center gap-2">
           <button

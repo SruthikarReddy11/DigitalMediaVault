@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatBytes } from '../../utils/formatters';
+import { Logo3D } from '../common/Logo3D';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -71,22 +72,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         }`}
       >
         {/* Brand Logo */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/[0.08]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 to-indigo-500 flex items-center justify-center text-white shadow-lg shadow-brand-500/30 border border-white/20">
-              <Sparkles className="w-4.5 h-4.5" />
-            </div>
-            <div>
-              <h1 className="font-extrabold text-sm tracking-tight text-white leading-tight flex items-center gap-1.5">
-                VaultMedia <span className="text-[9px] font-mono px-1 py-0.2 rounded bg-brand-500/20 text-brand-300 font-bold border border-brand-500/30">PRO</span>
-              </h1>
-              <p className="text-[11px] text-slate-400 font-medium">Cloud Vault & Studio</p>
-            </div>
-          </div>
+        <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.08]">
+          <Logo3D size="md" withText badge="PRO" to="/" />
 
           <button
             onClick={onClose}
             className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-900 lg:hidden"
+            aria-label="Close sidebar"
           >
             <X className="w-5 h-5" />
           </button>

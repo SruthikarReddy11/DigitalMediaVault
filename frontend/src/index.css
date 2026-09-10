@@ -393,3 +393,25 @@
 .animate-slow-breathe {
   animation: slow-breathe 6s ease-in-out infinite;
 }
+
+/* 3D Logo Isometric & Float Utilities */
+@keyframes float-3d {
+  0%, 100% {
+    transform: translateY(0px) rotateX(3deg) rotateY(-3deg);
+  }
+  50% {
+    transform: translateY(-4px) rotateX(6deg) rotateY(3deg);
+  }
+}
+
+.animate-float-3d {
+  animation: float-3d 4.5s ease-in-out infinite;
+}
+
+.rotate-x-12 {
+  transform: rotateX(12deg);
+}
+
+.rotate-y-12 {
+  transform: rotateY(12deg);
+}

@@ -20,6 +20,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { calculateAge } from '../utils/formatters';
+import { Logo3D } from '../components/common/Logo3D';
 
 export const Register: React.FC = () => {
   const { register } = useAuth();
@@ -113,8 +114,8 @@ export const Register: React.FC = () => {
       <div className="absolute bottom-10 right-10 w-96 h-96 bg-cyan-500/10 blur-[130px] rounded-full pointer-events-none" />
 
       <div className="sm:mx-auto sm:w-full sm:max-w-2xl relative z-10 text-center mb-6">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 via-indigo-600 to-cyan-500 flex items-center justify-center text-white mx-auto shadow-2xl shadow-brand-500/30 mb-4 border border-white/20">
-          <Sparkles className="w-7 h-7" />
+        <div className="flex justify-center mb-4">
+          <Logo3D size="lg" to="/" />
         </div>
         <h2 className="text-2xl sm:text-3xl font-black text-white tracking-tight">
           Create Your Digital Vault Profile

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { authApi } from '../services/authApi';
 import { useToast } from '../contexts/ToastContext';
+import { Logo3D } from '../components/common/Logo3D';
 
 type ResetStep = 'account' | 'verification' | 'new_password' | 'success';
 
@@ -161,8 +162,8 @@ export const ForgotPassword: React.FC = () => {
 
       {/* Header / Logo */}
       <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10 text-center">
-        <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-brand-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white mx-auto shadow-2xl shadow-brand-500/30 mb-4">
-          <KeyRound className="w-7 h-7" />
+        <div className="flex justify-center mb-4">
+          <Logo3D size="lg" to="/" />
         </div>
         <h2 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
           Reset Your Password
