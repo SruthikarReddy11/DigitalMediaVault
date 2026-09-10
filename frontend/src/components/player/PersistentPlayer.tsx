@@ -26,9 +26,16 @@ import {
   ChevronUp,
   ChevronDown,
   Heart,
+  Wifi,
+  WifiOff,
+  Share2,
+  CheckCircle,
+  Download,
 } from 'lucide-react';
 import { useAudioPlayer, EqualizerPreset } from '../../contexts/AudioPlayerContext';
 import { formatDuration } from '../../utils/formatters';
+import { ShareModal } from '../share/ShareModal';
+import { FileItem } from '../../types';
 
 export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) => void }> = ({
   onAddToPlaylist,
@@ -67,16 +74,64 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
     removeQueueItem,
     clearQueue,
     playSongNow,
+    isOnline,
+    isOfflinePlayback,
+    isTrackCachedForOffline,
+    cacheTrackForOffline,
+    removeTrackFromOffline,
   } = useAudioPlayer();
 
   const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isSleepTimerOpen, setIsSleepTimerOpen] = useState(false);
   const [isEqOpen, setIsEqOpen] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isCaching, setIsCaching] = useState(false);
   const [hoverScrubTime, setHoverScrubTime] = useState<number | null>(null);
   const [hoverScrubPos, setHoverScrubPos] = useState<number | null>(null);
   const [isHoveringScrub, setIsHoveringScrub] = useState(false);
   const [isHoveringVolume, setIsHoveringVolume] = useState(false);
+
+  const isCurrentTrackCached = currentTrack
+    ? isTrackCachedForOffline(currentTrack.fileId || currentTrack.id)
+    : false;
+
+  const handleToggleOfflineCache = async () => {
+    if (!currentTrack || isCaching) return;
+    setIsCaching(true);
+    try {
+      const key = currentTrack.fileId || currentTrack.id;
+      if (isCurrentTrackCached) {
+        await removeTrackFromOffline(key);
+      } else {
+        await cacheTrackForOffline(currentTrack);
+      }
+    } finally {
+      setIsCaching(false);
+    }
+  };
+
+  const shareTargetFile: FileItem | null = currentTrack
+    ? {
+        id: currentTrack.fileId || currentTrack.id,
+        userId: '',
+        folderId: null,
+        originalName: `${currentTrack.title} - ${currentTrack.artist}.mp3`,
+        storageKey: currentTrack.streamUrl,
+        mimeType: 'audio/mpeg',
+        fileType: 'AUDIO',
+        extension: 'mp3',
+        size: currentTrack.file?.size || 1024 * 1024 * 6,
+        checksum: null,
+        createdAt: currentTrack.file?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        deletedAt: null,
+        isFavorite: currentTrack.file?.isFavorite || false,
+        streamUrl: currentTrack.streamUrl,
+        downloadUrl: currentTrack.downloadUrl,
+        music: currentTrack,
+      }
+    : null;
 
   // Slow-motion Fullscreen Transition States
   const [shouldRenderFullscreen, setShouldRenderFullscreen] = useState(isExpanded);
@@ -155,11 +210,59 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               animateFullscreen ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
             }`}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <span className="px-3 py-1 rounded-full bg-brand-500/20 text-brand-300 text-xs font-semibold border border-brand-500/30 flex items-center gap-1.5">
                 <Sparkles className="w-3.5 h-3.5" />
-                Now Playing • Lossless
+                Lossless FLAC
               </span>
+
+              {/* Online / Offline status badge */}
+              <span className={`px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 ${
+                !isOnline || isOfflinePlayback
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+              }`}>
+                {!isOnline || isOfflinePlayback ? (
+                  <WifiOff className="w-3.5 h-3.5 text-amber-400" />
+                ) : (
+                  <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                )}
+                <span>{!isOnline || isOfflinePlayback ? 'OFFLINE CACHE' : 'ONLINE STREAM'}</span>
+              </span>
+
+              {/* Cache for offline toggle */}
+              {currentTrack && (
+                <button
+                  type="button"
+                  onClick={handleToggleOfflineCache}
+                  disabled={isCaching}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold border transition flex items-center gap-1.5 ${
+                    isCurrentTrackCached
+                      ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm'
+                      : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:border-slate-700'
+                  }`}
+                  title={isCurrentTrackCached ? 'Cached for offline listening (Click to remove)' : 'Save track for offline listening'}
+                >
+                  {isCurrentTrackCached ? (
+                    <CheckCircle className="w-3.5 h-3.5 text-cyan-400" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5" />
+                  )}
+                  <span>{isCurrentTrackCached ? 'Offline Ready' : 'Cache Offline'}</span>
+                </button>
+              )}
+
+              {/* Share Music Button */}
+              <button
+                type="button"
+                onClick={() => setIsShareModalOpen(true)}
+                className="px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold transition flex items-center gap-1.5 hover:border-cyan-500/40 cursor-pointer"
+                title="Share Music with World-Class Holographic Player"
+              >
+                <Share2 className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Share Music</span>
+              </button>
+
               {equalizerPreset !== 'flat' && (
                 <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-medium border border-amber-500/30 uppercase">
                   EQ: {equalizerPreset}
@@ -763,6 +866,21 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                   <span className="hidden xl:inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[9px] font-mono font-bold tracking-wider shrink-0">
                     <Sparkles className="w-2.5 h-2.5" /> LOSSLESS
                   </span>
+
+                  {/* Online / Offline status in mini dock */}
+                  <span className={`hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold tracking-wider shrink-0 border ${
+                    !isOnline || isOfflinePlayback
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  }`}>
+                    {!isOnline || isOfflinePlayback ? 'OFFLINE' : 'ONLINE'}
+                  </span>
+
+                  {isCurrentTrackCached && (
+                    <span className="hidden sm:inline-flex text-cyan-400 shrink-0" title="Offline ready">
+                      <CheckCircle className="w-3 h-3" />
+                    </span>
+                  )}
                 </div>
                 <p className="text-[11px] sm:text-xs text-slate-400 truncate mt-0.5 font-medium">
                   {currentTrack.artist} {currentTrack.album ? `• ${currentTrack.album}` : ''}
@@ -1014,6 +1132,15 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                 )}
               </button>
 
+              {/* Share Music Button */}
+              <button
+                onClick={() => setIsShareModalOpen(true)}
+                className="p-2 rounded-xl bg-slate-900/80 text-slate-400 hover:text-cyan-300 border border-slate-800 hover:border-cyan-500/40 transition"
+                title="Share Music Track"
+              >
+                <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              </button>
+
               {/* Expand Fullscreen Button */}
               <button
                 onClick={() => setIsExpanded(true)}
@@ -1026,6 +1153,15 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
           </div>
         </div>
       </div>
+
+      {/* Share Music Modal */}
+      {shareTargetFile && (
+        <ShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          file={shareTargetFile}
+        />
+      )}
     </>
   );
 };

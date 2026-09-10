@@ -1,6 +1,12 @@
 import React, { createContext, useContext, useState, useRef, useEffect, useCallback } from 'react';
 import { MusicItem } from '../types';
 import { getMediaUrl } from '../services/api';
+import {
+  getOfflineTracksIndex,
+  cacheAudioTrack,
+  getCachedAudioBlobUrl,
+  removeCachedTrack,
+} from '../utils/offlineAudioCache';
 
 export type RepeatMode = 'off' | 'all' | 'one';
 export type EqualizerPreset = 'flat' | 'bass' | 'vocal' | 'treble' | 'electronic' | 'pop' | 'rock' | 'custom';
@@ -26,6 +32,12 @@ interface AudioPlayerContextType {
   eqGains: EqGains;
   sleepTimerMinutes: number | null;
   sleepTimerSeconds: number | null;
+  isOnline: boolean;
+  isOfflinePlayback: boolean;
+  offlineTracks: MusicItem[];
+  cacheTrackForOffline: (track: MusicItem) => Promise<boolean>;
+  removeTrackFromOffline: (trackIdOrFileId: string) => Promise<boolean>;
+  isTrackCachedForOffline: (trackIdOrFileId: string) => boolean;
   play: () => void;
   pause: () => void;
   togglePlay: () => void;
@@ -88,6 +100,13 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const [sleepTimerMinutes, setSleepTimerMinutes] = useState<number | null>(null);
   const [sleepTimerSeconds, setSleepTimerSeconds] = useState<number | null>(null);
 
+  // Network & Offline Cache State
+  const [isOnline, setIsOnline] = useState<boolean>(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+  const [isOfflinePlayback, setIsOfflinePlayback] = useState<boolean>(false);
+  const [offlineTracks, setOfflineTracks] = useState<MusicItem[]>(getOfflineTracksIndex());
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
   const filtersRef = useRef<BiquadFilterNode[]>([]);
@@ -96,6 +115,23 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   const handleNextRef = useRef<() => void>(() => {});
   const repeatModeRef = useRef<RepeatMode>('off');
   const currentTrackRef = useRef<MusicItem | null>(null);
+
+  // Listen to network status and offline cache updates
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    const handleOfflineIndexUpdate = () => setOfflineTracks(getOfflineTracksIndex());
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('vaultmedia_offline_updated', handleOfflineIndexUpdate);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('vaultmedia_offline_updated', handleOfflineIndexUpdate);
+    };
+  }, []);
 
   // Initialize HTML5 Audio element & Web Audio Equalizer Nodes
   useEffect(() => {
@@ -123,10 +159,24 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
     const handlePlay = () => setIsPlaying(true);
     const handlePause = () => setIsPlaying(false);
 
-    const handleError = () => {
+    const handleError = async () => {
       const err = audio.error;
       console.warn('Audio element error encountered:', err?.code, err?.message);
-      // Fallback: If crossOrigin caused a CORS failure, strip crossOrigin and retry
+
+      // Fallback 1: Attempt to load from offline CacheStorage blob
+      if (currentTrackRef.current) {
+        const cachedBlobUrl = await getCachedAudioBlobUrl(currentTrackRef.current);
+        if (cachedBlobUrl && audioRef.current) {
+          console.log('Falling back to local offline cached audio blob...');
+          audio.removeAttribute('crossorigin');
+          audio.src = cachedBlobUrl;
+          setIsOfflinePlayback(true);
+          audio.play().catch(() => {});
+          return;
+        }
+      }
+
+      // Fallback 2: If crossOrigin caused a CORS failure, strip crossOrigin and retry
       if (audio.crossOrigin) {
         console.warn('CORS restriction detected. Retrying without crossOrigin...');
         audio.removeAttribute('crossorigin');
@@ -256,32 +306,92 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
   // Update audio source when current track changes
   useEffect(() => {
     if (!audioRef.current || !currentTrack) return;
+    currentTrackRef.current = currentTrack;
+    let active = true;
 
-    const streamUrl = getMediaUrl(currentTrack.streamUrl);
+    const loadAndPlayTrack = async () => {
+      // 1. If currently offline, directly check CacheStorage
+      if (!navigator.onLine) {
+        const cachedBlobUrl = await getCachedAudioBlobUrl(currentTrack);
+        if (active && cachedBlobUrl && audioRef.current) {
+          audioRef.current.removeAttribute('crossorigin');
+          audioRef.current.src = cachedBlobUrl;
+          setIsOfflinePlayback(true);
+          startPlayback();
+          return;
+        }
+      }
 
-    const token = localStorage.getItem('pdl_auth_token');
-    if (token) {
-      audioRef.current.crossOrigin = 'anonymous';
-    } else {
-      audioRef.current.removeAttribute('crossorigin');
-    }
+      // 2. Online stream
+      if (!audioRef.current || !active) return;
+      const streamUrl = getMediaUrl(currentTrack.streamUrl);
+      const token = localStorage.getItem('pdl_auth_token');
+      if (token) {
+        audioRef.current.crossOrigin = 'anonymous';
+      } else {
+        audioRef.current.removeAttribute('crossorigin');
+      }
 
-    audioRef.current.src = streamUrl;
-    audioRef.current.playbackRate = playbackRate;
-    audioRef.current.volume = isMuted ? 0 : volume;
+      audioRef.current.src = streamUrl;
+      setIsOfflinePlayback(false);
+      startPlayback();
 
-    if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume().catch(() => {});
-    }
+      // 3. Auto cache in background when online for offline resilience
+      if (navigator.onLine) {
+        cacheAudioTrack(currentTrack).then((ok) => {
+          if (ok && active) {
+            setOfflineTracks(getOfflineTracksIndex());
+          }
+        }).catch(() => {});
+      }
+    };
 
-    const p = audioRef.current.play();
-    if (p !== undefined) {
-      p.then(() => setIsPlaying(true)).catch((err) => {
-        console.warn('Playback error or autoplay prevented:', err);
-        setIsPlaying(false);
-      });
-    }
+    const startPlayback = () => {
+      if (!audioRef.current) return;
+      audioRef.current.playbackRate = playbackRate;
+      audioRef.current.volume = isMuted ? 0 : volume;
+
+      if (audioCtxRef.current && audioCtxRef.current.state === 'suspended') {
+        audioCtxRef.current.resume().catch(() => {});
+      }
+
+      const p = audioRef.current.play();
+      if (p !== undefined) {
+        p.then(() => setIsPlaying(true)).catch((err) => {
+          console.warn('Playback error or autoplay prevented:', err);
+          setIsPlaying(false);
+        });
+      }
+    };
+
+    loadAndPlayTrack();
+
+    return () => {
+      active = false;
+    };
   }, [currentTrack]);
+
+  const cacheTrackForOffline = async (track: MusicItem) => {
+    const ok = await cacheAudioTrack(track);
+    if (ok) {
+      setOfflineTracks(getOfflineTracksIndex());
+    }
+    return ok;
+  };
+
+  const removeTrackFromOffline = async (trackIdOrFileId: string) => {
+    const ok = await removeCachedTrack(trackIdOrFileId);
+    if (ok) {
+      setOfflineTracks(getOfflineTracksIndex());
+    }
+    return ok;
+  };
+
+  const isTrackCachedForOffline = (trackIdOrFileId: string) => {
+    return offlineTracks.some(
+      (t) => t.id === trackIdOrFileId || t.fileId === trackIdOrFileId
+    );
+  };
 
   const play = () => {
     initWebAudio();
@@ -547,6 +657,12 @@ export const AudioPlayerProvider: React.FC<{ children: React.ReactNode }> = ({ c
         eqGains,
         sleepTimerMinutes,
         sleepTimerSeconds,
+        isOnline,
+        isOfflinePlayback,
+        offlineTracks,
+        cacheTrackForOffline,
+        removeTrackFromOffline,
+        isTrackCachedForOffline,
         play,
         pause,
         togglePlay,

@@ -28,6 +28,8 @@ import {
   CheckCircle2,
   Share2,
   ShieldCheck,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -74,10 +76,14 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
 
   let currentTrack: any = null;
   let isPlaying = false;
+  let isOnline = true;
+  let isOfflinePlayback = false;
   try {
     const audio = useAudioPlayer();
     currentTrack = audio.currentTrack;
     isPlaying = audio.isPlaying;
+    isOnline = audio.isOnline;
+    isOfflinePlayback = audio.isOfflinePlayback;
   } catch {
     // Graceful fallback if rendered outside AudioPlayerProvider
   }
@@ -226,26 +232,46 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
           <span className="font-mono text-[10px] font-bold text-slate-300 tracking-wider">AES-256 GCM</span>
         </div>
 
-        {/* Live Audio Equalizer Pill (Active Lossless Playback) */}
+        {/* Live Audio Equalizer & Online/Offline Telemetry Pill */}
         {isPlaying && currentTrack && (
           <button
             type="button"
             onClick={() => navigate('/music')}
-            className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-cyan-950/40 border border-cyan-500/40 text-xs shadow-inner shadow-cyan-900/40 cursor-pointer group hover:border-cyan-300 transition-all shrink-0 active:scale-95"
-            title="Now Playing Lossless Audio - Click to open music studio"
+            className={`hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-2xl border text-xs shadow-inner cursor-pointer group transition-all shrink-0 active:scale-95 ${
+              !isOnline || isOfflinePlayback
+                ? 'bg-amber-950/40 border-amber-500/40 text-amber-200 hover:border-amber-300'
+                : 'bg-cyan-950/40 border-cyan-500/40 text-cyan-200 hover:border-cyan-300'
+            }`}
+            title={`Now Playing: ${currentTrack.title} (${!isOnline || isOfflinePlayback ? 'OFFLINE LOCAL CACHE' : 'ONLINE LOSSLESS STREAM'})`}
           >
             <div className="flex items-end gap-0.5 h-3.5 w-3.5 pb-0.5">
-              <span className="w-0.5 bg-cyan-400 rounded-full animate-eq-1" />
-              <span className="w-0.5 bg-cyan-300 rounded-full animate-eq-2" />
-              <span className="w-0.5 bg-sky-400 rounded-full animate-eq-3" />
-              <span className="w-0.5 bg-indigo-400 rounded-full animate-eq-4" />
+              <span className={`w-0.5 rounded-full animate-eq-1 ${!isOnline || isOfflinePlayback ? 'bg-amber-400' : 'bg-cyan-400'}`} />
+              <span className={`w-0.5 rounded-full animate-eq-2 ${!isOnline || isOfflinePlayback ? 'bg-amber-300' : 'bg-cyan-300'}`} />
+              <span className={`w-0.5 rounded-full animate-eq-3 ${!isOnline || isOfflinePlayback ? 'bg-yellow-400' : 'bg-sky-400'}`} />
+              <span className={`w-0.5 rounded-full animate-eq-4 ${!isOnline || isOfflinePlayback ? 'bg-orange-400' : 'bg-indigo-400'}`} />
             </div>
-            <span className="text-[11px] font-bold text-cyan-200 truncate max-w-[120px] group-hover:text-white transition">
+            <span className="text-[11px] font-bold truncate max-w-[110px] group-hover:text-white transition">
               {currentTrack.title}
             </span>
-            <span className="text-[8px] font-mono font-black uppercase px-1 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
-              FLAC
-            </span>
+
+            {/* Online / Offline status indicator pill */}
+            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-mono font-black uppercase border ${
+              !isOnline || isOfflinePlayback
+                ? 'bg-amber-500/20 text-amber-300 border-amber-400/30'
+                : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+            }`}>
+              {!isOnline || isOfflinePlayback ? (
+                <>
+                  <WifiOff className="w-2.5 h-2.5 text-amber-400" />
+                  <span>OFFLINE</span>
+                </>
+              ) : (
+                <>
+                  <Wifi className="w-2.5 h-2.5 text-emerald-400" />
+                  <span>ONLINE</span>
+                </>
+              )}
+            </div>
           </button>
         )}
 

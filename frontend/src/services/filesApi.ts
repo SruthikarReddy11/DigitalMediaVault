@@ -57,6 +57,11 @@ export const filesApi = {
     return res.data.data.files;
   },
 
+  async importVideoLink(data: { url: string; title?: string; quality?: string; folderId?: string | null }) {
+    const res = await api.post<{ success: boolean; data: FileItem }>('/files/import-link', data);
+    return res.data.data;
+  },
+
   async renameFile(id: string, name: string) {
     const res = await api.patch<{ success: boolean; data: FileItem }>(`/files/${id}/rename`, { name });
     return res.data.data;

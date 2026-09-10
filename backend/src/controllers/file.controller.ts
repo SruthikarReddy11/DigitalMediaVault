@@ -59,6 +59,36 @@ export class FileController {
     }
   }
 
+  public static async importLink(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { url, title, quality, folderId } = req.body;
+      if (!url || typeof url !== 'string' || !url.trim()) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_URL',
+            message: 'A valid video streaming URL or YouTube link is required.',
+          },
+        });
+        return;
+      }
+
+      const result = await FileService.importLink(req.user!, {
+        url: url.trim(),
+        title: title ? String(title).trim() : undefined,
+        quality: quality ? String(quality).trim() : undefined,
+        folderId: folderId || null,
+      });
+
+      res.status(201).json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
   public static async listFiles(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const { folderId, fileType, search, favoriteOnly, page, limit, sortBy, sortOrder } = req.query as any;
@@ -136,6 +166,12 @@ export class FileController {
           });
           return;
         }
+      }
+
+      if (file.storageKey.startsWith('ext:') || file.storageKey.startsWith('http://') || file.storageKey.startsWith('https://')) {
+        const targetUrl = file.storageKey.startsWith('ext:') ? file.storageKey.slice(4) : file.storageKey;
+        res.redirect(302, targetUrl);
+        return;
       }
 
       const storage = StorageFactory.getStorage();
@@ -229,6 +265,12 @@ export class FileController {
           });
           return;
         }
+      }
+
+      if (file.storageKey.startsWith('ext:') || file.storageKey.startsWith('http://') || file.storageKey.startsWith('https://')) {
+        const targetUrl = file.storageKey.startsWith('ext:') ? file.storageKey.slice(4) : file.storageKey;
+        res.redirect(302, targetUrl);
+        return;
       }
 
       const storage = StorageFactory.getStorage();

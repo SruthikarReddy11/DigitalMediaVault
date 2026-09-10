@@ -24,21 +24,27 @@ import {
   RotateCcw,
   Volume2,
   CornerDownRight,
+  Share2,
+  Wifi,
+  WifiOff,
+  CheckCircle,
+  Download,
 } from 'lucide-react';
 import { musicApi } from '../services/musicApi';
 import { playlistsApi } from '../services/playlistsApi';
 import { favoritesApi } from '../services/favoritesApi';
 import { filesApi } from '../services/filesApi';
-import { MusicItem, PlaylistItem } from '../types';
+import { MusicItem, PlaylistItem, FileItem } from '../types';
 import { formatDuration } from '../utils/formatters';
 import { useAudioPlayer, EqualizerPreset } from '../contexts/AudioPlayerContext';
 import { MetadataEditModal } from '../components/music/MetadataEditModal';
 import { AddToPlaylistModal } from '../components/music/AddToPlaylistModal';
+import { ShareModal } from '../components/share/ShareModal';
 import { Modal } from '../components/common/Modal';
 import { EmptyState } from '../components/common/EmptyState';
 import { useToast } from '../contexts/ToastContext';
 
-type Tab = 'songs' | 'albums' | 'artists' | 'genres' | 'playlists' | 'equalizer';
+type Tab = 'songs' | 'albums' | 'artists' | 'genres' | 'playlists' | 'equalizer' | 'offline';
 
 export const Music: React.FC = () => {
   const { success, error } = useToast();
@@ -55,10 +61,17 @@ export const Music: React.FC = () => {
     setEqualizerPreset,
     eqGains,
     setEqBandGain,
+    isOnline,
+    isOfflinePlayback,
+    offlineTracks,
+    isTrackCachedForOffline,
+    cacheTrackForOffline,
+    removeTrackFromOffline,
   } = useAudioPlayer();
   const { openUpload } = useOutletContext<{ openUpload: () => void }>() || { openUpload: () => {} };
 
   const [activeTab, setActiveTab] = useState<Tab>('songs');
+  const [shareSongTarget, setShareSongTarget] = useState<MusicItem | null>(null);
   const [songs, setSongs] = useState<MusicItem[]>([]);
   const [albums, setAlbums] = useState<Array<{ album: string; artist: string; year?: number; songCount: number; coverUrl?: string | null }>>([]);
   const [artists, setArtists] = useState<Array<{ artist: string; songCount: number; albumCount: number; coverUrl?: string | null }>>([]);
@@ -275,6 +288,30 @@ export const Music: React.FC = () => {
         </div>
       </div>
 
+      {/* Offline Alert Banner */}
+      {!isOnline && (
+        <div className="flex items-center gap-3.5 p-4 bg-amber-500/15 border border-amber-500/30 rounded-2xl text-amber-200 shadow-xl backdrop-blur-md">
+          <div className="p-2.5 rounded-xl bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+            <WifiOff className="w-5 h-5 animate-pulse" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+              <span>Offline Mode Active</span>
+              <span className="text-[10px] px-2 py-0.2 rounded-md bg-amber-900/60 font-mono">Vault Local Engine</span>
+            </h4>
+            <p className="text-xs text-amber-200/90 mt-0.5 font-medium">
+              Internet connection is unreachable. Offline-cached music tracks continue playing seamlessly without interruption!
+            </p>
+          </div>
+          <button
+            onClick={() => setActiveTab('offline')}
+            className="px-3.5 py-1.5 rounded-xl bg-amber-500/25 hover:bg-amber-500/40 text-amber-100 text-xs font-bold border border-amber-500/40 transition shrink-0 cursor-pointer"
+          >
+            Offline Tracks ({offlineTracks.length})
+          </button>
+        </div>
+      )}
+
       {/* Tabs Bar */}
       <div className="flex items-center gap-2 border-b border-slate-800 pb-1 overflow-x-auto scrollbar-none">
         {[
@@ -283,6 +320,13 @@ export const Music: React.FC = () => {
           { id: 'artists', label: 'Artists', icon: Mic2, count: artists.length },
           { id: 'genres', label: 'Genres', icon: Radio, count: genres.length },
           { id: 'playlists', label: 'Playlists', icon: ListMusic, count: playlists.length },
+          {
+            id: 'offline',
+            label: 'Offline Ready',
+            icon: WifiOff,
+            count: offlineTracks.length,
+            badge: offlineTracks.length > 0 ? `${offlineTracks.length} Saved` : '0',
+          },
           {
             id: 'equalizer',
             label: 'Equalizer',
@@ -516,6 +560,45 @@ export const Music: React.FC = () => {
                           title="Add to playlist"
                         >
                           <Plus className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Cache for offline toggle */}
+                        <button
+                          onClick={async () => {
+                            const isCached = isTrackCachedForOffline(song.fileId || song.id);
+                            if (isCached) {
+                              await removeTrackFromOffline(song.fileId || song.id);
+                              success(`Removed "${song.title}" from offline cache`);
+                            } else {
+                              await cacheTrackForOffline(song);
+                              success(`Saved "${song.title}" for offline playback!`);
+                            }
+                          }}
+                          className={`p-1.5 rounded-lg transition ${
+                            isTrackCachedForOffline(song.fileId || song.id)
+                              ? 'text-cyan-400 hover:text-cyan-300'
+                              : 'text-slate-400 hover:text-white'
+                          }`}
+                          title={
+                            isTrackCachedForOffline(song.fileId || song.id)
+                              ? 'Cached for offline listening (Click to remove)'
+                              : 'Download for offline playback'
+                          }
+                        >
+                          {isTrackCachedForOffline(song.fileId || song.id) ? (
+                            <CheckCircle className="w-3.5 h-3.5 text-cyan-400" />
+                          ) : (
+                            <Download className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+
+                        {/* Share Music Button */}
+                        <button
+                          onClick={() => setShareSongTarget(song)}
+                          className="p-1.5 text-slate-400 hover:text-cyan-400 rounded-lg transition"
+                          title="Share Music Track"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
                         </button>
 
                         {/* Edit Metadata */}
@@ -872,6 +955,146 @@ export const Music: React.FC = () => {
         </div>
       )}
 
+      {/* TAB 7: OFFLINE READY MUSIC */}
+      {activeTab === 'offline' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 bg-slate-900/80 border border-slate-800 rounded-2xl">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">
+                <WifiOff className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span>Offline Music Vault</span>
+                  <span className="text-[10px] px-2 py-0.5 rounded-md bg-cyan-950 text-cyan-300 border border-cyan-500/30 font-mono">
+                    {offlineTracks.length} Tracks Ready
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Tracks cached in your browser's local CacheStorage. Playable anywhere with 100% fidelity without network.
+                </p>
+              </div>
+            </div>
+
+            {offlineTracks.length > 0 && (
+              <button
+                onClick={() => playPlaylistNow(offlineTracks, 0)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-brand-600 to-cyan-600 hover:from-brand-500 hover:to-cyan-500 text-white text-xs font-bold rounded-xl transition shadow-lg shadow-cyan-600/20 cursor-pointer"
+              >
+                <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                <span>Play All Offline</span>
+              </button>
+            )}
+          </div>
+
+          {offlineTracks.length === 0 ? (
+            <EmptyState
+              icon={WifiOff}
+              title="No offline songs cached yet"
+              description="Click the download icon on any song in your library to save it for offline listening."
+              actionLabel="Browse All Songs"
+              onAction={() => setActiveTab('songs')}
+            />
+          ) : (
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+              <div className="grid grid-cols-12 gap-4 px-4 py-3 border-b border-slate-800 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                <div className="col-span-1 text-center">#</div>
+                <div className="col-span-5 sm:col-span-5">Title & Artist</div>
+                <div className="hidden sm:block sm:col-span-3">Album</div>
+                <div className="col-span-3 sm:col-span-1 text-right">Duration</div>
+                <div className="col-span-3 sm:col-span-2 text-right">Actions</div>
+              </div>
+
+              <div className="divide-y divide-slate-800/60">
+                {offlineTracks.map((song, idx) => {
+                  const isCurrent = currentTrack?.id === song.id;
+                  const isTrackPlaying = isCurrent && isPlaying;
+
+                  return (
+                    <div
+                      key={song.id || idx}
+                      className={`grid grid-cols-12 gap-4 px-4 py-3 items-center text-xs transition group rounded-xl my-0.5 ${
+                        isCurrent
+                          ? 'bg-brand-600/20 text-brand-200 border-l-4 border-l-cyan-500 shadow-md'
+                          : 'hover:bg-slate-800/70 text-slate-300'
+                      }`}
+                    >
+                      <div className="col-span-1 text-center flex items-center justify-center">
+                        <button
+                          onClick={() => {
+                            if (isCurrent) togglePlay();
+                            else playSongNow(song, offlineTracks);
+                          }}
+                          className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-cyan-600 text-slate-300 hover:text-white flex items-center justify-center transition shadow-md active:scale-95 cursor-pointer"
+                        >
+                          {isTrackPlaying ? (
+                            <Pause className="w-3.5 h-3.5 fill-current" />
+                          ) : (
+                            <Play className="w-3.5 h-3.5 fill-current ml-0.5" />
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="col-span-5 sm:col-span-5 flex items-center gap-3 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-slate-800 shrink-0 overflow-hidden flex items-center justify-center border border-slate-800 shadow">
+                          {song.coverUrl ? (
+                            <img src={getMediaUrl(song.coverUrl)} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            <MusicIcon className="w-4 h-4 text-slate-500" />
+                          )}
+                        </div>
+                        <div className="min-w-0 truncate">
+                          <p className="font-semibold text-white truncate text-sm leading-tight flex items-center gap-1.5">
+                            <span>{song.title}</span>
+                            <span className="text-[9px] font-mono font-bold text-cyan-300 px-1.5 py-0.2 rounded bg-cyan-950/80 border border-cyan-500/30">
+                              OFFLINE
+                            </span>
+                          </p>
+                          <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                            {song.artist}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="hidden sm:block sm:col-span-3 truncate text-slate-300">
+                        {song.album || '—'}
+                      </div>
+
+                      <div className="col-span-3 sm:col-span-1 text-right font-mono text-slate-400">
+                        {formatDuration(song.duration)}
+                      </div>
+
+                      <div className="col-span-3 sm:col-span-2 flex items-center justify-end gap-1.5">
+                        {/* Share */}
+                        <button
+                          onClick={() => setShareSongTarget(song)}
+                          className="p-1.5 text-slate-400 hover:text-cyan-400 rounded-lg transition"
+                          title="Share Music Track"
+                        >
+                          <Share2 className="w-3.5 h-3.5" />
+                        </button>
+
+                        {/* Remove from Offline */}
+                        <button
+                          onClick={async () => {
+                            await removeTrackFromOffline(song.fileId || song.id);
+                            success(`Removed "${song.title}" from offline cache.`);
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg transition"
+                          title="Remove from offline cache"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Edit Metadata Modal */}
       {editTarget && (
         <MetadataEditModal
@@ -939,6 +1162,33 @@ export const Music: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Share Music Modal */}
+      {shareSongTarget && (
+        <ShareModal
+          isOpen={!!shareSongTarget}
+          onClose={() => setShareSongTarget(null)}
+          file={{
+            id: shareSongTarget.fileId || shareSongTarget.id,
+            userId: '',
+            folderId: null,
+            originalName: `${shareSongTarget.title} - ${shareSongTarget.artist}.mp3`,
+            storageKey: shareSongTarget.streamUrl,
+            mimeType: 'audio/mpeg',
+            fileType: 'AUDIO',
+            extension: 'mp3',
+            size: shareSongTarget.file?.size || 1024 * 1024 * 6,
+            checksum: null,
+            createdAt: shareSongTarget.file?.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            deletedAt: null,
+            isFavorite: shareSongTarget.file?.isFavorite || false,
+            streamUrl: shareSongTarget.streamUrl,
+            downloadUrl: shareSongTarget.downloadUrl,
+            music: shareSongTarget,
+          } as FileItem}
+        />
+      )}
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
+import path from 'path';
 import QRCode from 'qrcode';
 import { prisma } from '../database/prisma';
 import { AuthUser } from '../types';
@@ -426,6 +427,21 @@ export class ShareService {
             createdAt: true,
             storageKey: true,
             deletedAt: true,
+            music: {
+              select: {
+                id: true,
+                title: true,
+                artist: true,
+                album: true,
+                albumArtist: true,
+                genre: true,
+                year: true,
+                trackNumber: true,
+                discNumber: true,
+                duration: true,
+                coverArtFileId: true,
+              },
+            },
           },
         },
         folder: {
@@ -587,6 +603,22 @@ export class ShareService {
             createdAt: share.file.createdAt,
             streamUrl: `/api/share/public/${share.token}/stream${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
             downloadUrl: `/api/share/public/${share.token}/download${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
+            music: (share.file as any).music
+              ? {
+                  ...(share.file as any).music,
+                  coverUrl: (share.file as any).music.coverArtFileId
+                    ? `/api/files/${(share.file as any).music.coverArtFileId}/stream`
+                    : null,
+                }
+              : share.file.fileType === 'AUDIO'
+              ? {
+                  title: path.parse(share.file.originalName || 'Audio').name,
+                  artist: 'Unknown Artist',
+                  album: 'VaultMedia Audio',
+                  duration: 0,
+                  coverUrl: null,
+                }
+              : null,
           }
         : null,
       folder: share.folder

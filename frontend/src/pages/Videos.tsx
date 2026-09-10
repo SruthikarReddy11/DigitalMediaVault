@@ -12,6 +12,9 @@ import {
   Film,
   Sparkles,
   Share2,
+  Link2,
+  Youtube,
+  Globe,
 } from 'lucide-react';
 import { filesApi } from '../services/filesApi';
 import { favoritesApi } from '../services/favoritesApi';
@@ -19,6 +22,7 @@ import { FileItem } from '../types';
 import { formatBytes, formatDate } from '../utils/formatters';
 import { getMediaUrl } from '../services/api';
 import { VideoPlayerModal } from '../components/video/VideoPlayerModal';
+import { ImportVideoModal } from '../components/video/ImportVideoModal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { Modal } from '../components/common/Modal';
 import { EmptyState } from '../components/common/EmptyState';
@@ -33,6 +37,8 @@ export const Videos: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [search, setSearchTerm] = useState('');
   const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const [filterType, setFilterType] = useState<'all' | 'vault' | 'streams'>('all');
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [activeVideo, setActiveVideo] = useState<FileItem | null>(null);
   const [shareTarget, setShareTarget] = useState<FileItem | null>(null);
@@ -104,6 +110,19 @@ export const Videos: React.FC = () => {
     }
   };
 
+  const getYouTubeId = (video: FileItem) => {
+    const url = video.externalUrl || (video.storageKey?.startsWith('ext:') ? video.storageKey.slice(4) : '') || (video.streamUrl?.includes('http') ? video.streamUrl : '');
+    const match = url?.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+    return match ? match[1] : null;
+  };
+
+  const filteredVideos = videos.filter((video) => {
+    const isExt = video.isExternal || video.storageKey?.startsWith('ext:');
+    if (filterType === 'vault') return !isExt;
+    if (filterType === 'streams') return isExt;
+    return true;
+  });
+
   return (
     <div className="space-y-6">
       {/* Luxury Cinema Theater Header Banner */}
@@ -120,11 +139,20 @@ export const Videos: React.FC = () => {
               Video Theater
             </h1>
             <p className="text-xs sm:text-sm text-slate-300 max-w-xl leading-relaxed font-medium">
-              Stream personal videos, movie clips, and 4K recordings with instant playback and theater controls.
+              Stream personal videos, YouTube links, and 4K online recordings with zero-redirection in-app cinema playback.
             </p>
           </div>
 
-          <div className="flex items-center gap-3 shrink-0 self-start md:self-center">
+          <div className="flex items-center gap-3 shrink-0 self-start md:self-center flex-wrap">
+            <button
+              onClick={() => setIsImportModalOpen(true)}
+              className="group relative overflow-hidden flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-bold rounded-2xl transition-all duration-200 border border-purple-500/30 hover:border-purple-500/60 shadow-lg shadow-purple-900/20 active:scale-95 cursor-pointer"
+            >
+              <div className="p-1 rounded-lg bg-red-500/20 text-red-400 group-hover:scale-110 transition-transform">
+                <Youtube className="w-4 h-4" />
+              </div>
+              <span>Import Stream Link</span>
+            </button>
             <button
               onClick={openUpload}
               className="group relative overflow-hidden flex items-center gap-2.5 px-5 py-2.5 bg-gradient-to-r from-purple-600 via-indigo-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 text-white text-xs sm:text-sm font-black rounded-2xl transition-all duration-200 shadow-xl shadow-purple-600/25 hover:shadow-purple-600/40 border border-white/20 active:scale-95 whitespace-nowrap cursor-pointer"
@@ -151,17 +179,53 @@ export const Videos: React.FC = () => {
           />
         </div>
 
-        <button
-          onClick={() => setOnlyFavorites((prev) => !prev)}
-          className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition duration-150 ${
-            onlyFavorites
-              ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-500/20'
-              : 'bg-slate-950/80 text-slate-400 border-white/[0.08] hover:text-white hover:border-slate-700'
-          }`}
-        >
-          <Heart className={`w-3.5 h-3.5 ${onlyFavorites ? 'fill-current text-rose-500' : ''}`} />
-          <span>Favorites Only</span>
-        </button>
+        {/* Filter Tabs & Favorites */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center bg-slate-950/80 p-1 rounded-xl border border-white/[0.08] text-xs font-semibold">
+            <button
+              onClick={() => setFilterType('all')}
+              className={`px-3 py-1.5 rounded-lg transition ${
+                filterType === 'all'
+                  ? 'bg-purple-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              All ({videos.length})
+            </button>
+            <button
+              onClick={() => setFilterType('vault')}
+              className={`px-3 py-1.5 rounded-lg transition ${
+                filterType === 'vault'
+                  ? 'bg-purple-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Vault Files ({videos.filter((v) => !v.isExternal && !v.storageKey?.startsWith('ext:')).length})
+            </button>
+            <button
+              onClick={() => setFilterType('streams')}
+              className={`px-3 py-1.5 rounded-lg transition ${
+                filterType === 'streams'
+                  ? 'bg-purple-600 text-white shadow'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Streams & YouTube ({videos.filter((v) => v.isExternal || v.storageKey?.startsWith('ext:')).length})
+            </button>
+          </div>
+
+          <button
+            onClick={() => setOnlyFavorites((prev) => !prev)}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold border transition duration-150 ${
+              onlyFavorites
+                ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 shadow-sm shadow-rose-500/20'
+                : 'bg-slate-950/80 text-slate-400 border-white/[0.08] hover:text-white hover:border-slate-700'
+            }`}
+          >
+            <Heart className={`w-3.5 h-3.5 ${onlyFavorites ? 'fill-current text-rose-500' : ''}`} />
+            <span>Favorites</span>
+          </button>
+        </div>
       </div>
 
       {/* Videos Grid */}
@@ -171,34 +235,59 @@ export const Videos: React.FC = () => {
             <div key={i} className="aspect-video bg-slate-900 border border-slate-800 rounded-2xl animate-pulse" />
           ))}
         </div>
-      ) : videos.length === 0 ? (
+      ) : filteredVideos.length === 0 ? (
         <EmptyState
           icon={Film}
-          title="No videos found"
-          description="Upload MP4, WEBM, or MOV videos to build your private theater."
-          actionLabel="Upload Videos"
-          onAction={openUpload}
+          title={filterType === 'streams' ? "No stream links saved yet" : "No videos found"}
+          description={filterType === 'streams' ? "Click 'Import Stream Link' to paste YouTube or direct video streams." : "Upload MP4, WEBM, or MOV videos to build your private theater."}
+          actionLabel={filterType === 'streams' ? "Import Stream Link" : "Upload Videos"}
+          onAction={filterType === 'streams' ? () => setIsImportModalOpen(true) : openUpload}
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {videos.map((video) => (
-            <div
-              key={video.id}
-              onClick={() => setActiveVideo(video)}
-              className="group bg-slate-900/80 border border-white/[0.08] hover:border-purple-500/50 rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 flex flex-col"
-            >
-              {/* Thumbnail / Video Preview Canvas */}
-              <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden">
-                <video
-                  src={getMediaUrl(video.streamUrl)}
-                  className="w-full h-full object-cover group-hover:scale-108 transition duration-500"
-                  preload="metadata"
-                />
+          {filteredVideos.map((video) => {
+            const ytId = getYouTubeId(video);
+            const isExt = video.isExternal || video.storageKey?.startsWith('ext:');
+            return (
+              <div
+                key={video.id}
+                onClick={() => setActiveVideo(video)}
+                className="group bg-slate-900/80 border border-white/[0.08] hover:border-purple-500/50 rounded-2xl overflow-hidden cursor-pointer shadow-md hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 flex flex-col"
+              >
+                {/* Thumbnail / Video Preview Canvas */}
+                <div className="relative aspect-video bg-slate-950 flex items-center justify-center overflow-hidden">
+                  {ytId ? (
+                    <img
+                      src={`https://img.youtube.com/vi/${ytId}/hqdefault.jpg`}
+                      alt={video.originalName}
+                      className="w-full h-full object-cover group-hover:scale-108 transition duration-500"
+                    />
+                  ) : (
+                    <video
+                      src={getMediaUrl(video.streamUrl)}
+                      className="w-full h-full object-cover group-hover:scale-108 transition duration-500"
+                      preload="metadata"
+                    />
+                  )}
 
-                {/* 4K Video Quality Pill Badge */}
-                <span className="absolute top-3 left-3 px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md text-[9px] font-mono font-bold text-purple-300 border border-purple-400/30 shadow-md">
-                  4K STREAM
-                </span>
+                  {/* Video Quality / Provider Pill Badge */}
+                  <div className="absolute top-3 left-3 flex items-center gap-1.5">
+                    {ytId ? (
+                      <span className="px-2 py-0.5 rounded-lg bg-red-950/90 backdrop-blur-md text-[9px] font-mono font-bold text-red-300 border border-red-500/40 shadow flex items-center gap-1">
+                        <Youtube className="w-3 h-3 text-red-500" />
+                        YOUTUBE 4K
+                      </span>
+                    ) : isExt ? (
+                      <span className="px-2 py-0.5 rounded-lg bg-purple-950/90 backdrop-blur-md text-[9px] font-mono font-bold text-purple-300 border border-purple-500/40 shadow flex items-center gap-1">
+                        <Globe className="w-3 h-3 text-brand-400" />
+                        STREAM LINK
+                      </span>
+                    ) : (
+                      <span className="px-2 py-0.5 rounded-lg bg-black/60 backdrop-blur-md text-[9px] font-mono font-bold text-purple-300 border border-purple-400/30 shadow-md">
+                        4K VAULT
+                      </span>
+                    )}
+                  </div>
 
                 {/* Dark overlay & Play Button */}
                 <div className="absolute inset-0 bg-black/40 group-hover:bg-black/20 flex items-center justify-center transition">
@@ -281,7 +370,8 @@ export const Videos: React.FC = () => {
                 </div>
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       )}
 
@@ -346,6 +436,13 @@ export const Videos: React.FC = () => {
         isOpen={!!shareTarget}
         onClose={() => setShareTarget(null)}
         file={shareTarget}
+      />
+
+      {/* Import Video Stream Modal */}
+      <ImportVideoModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={fetchVideos}
       />
     </div>
   );

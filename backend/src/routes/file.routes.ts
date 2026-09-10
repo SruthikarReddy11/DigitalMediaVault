@@ -31,6 +31,7 @@ router.use(requireAuth);
 
 router.get('/dashboard', FileController.getDashboardStats);
 router.post('/upload', uploadRateLimiter, upload.array('files', 20), FileController.uploadFiles);
+router.post('/import-link', FileController.importLink);
 router.get('/', validateQuery(fileQuerySchema), FileController.listFiles);
 router.get('/:id', validateParams(uuidParamSchema), FileController.getFile);
 router.get('/:id/stream', validateParams(uuidParamSchema), FileController.streamFile);

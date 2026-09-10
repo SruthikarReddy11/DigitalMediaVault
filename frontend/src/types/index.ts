@@ -95,6 +95,8 @@ export interface FileItem {
   isFavorite: boolean;
   streamUrl: string;
   downloadUrl: string;
+  externalUrl?: string | null;
+  isExternal?: boolean;
   owner?: {
     id: string;
     name: string;
@@ -311,6 +313,17 @@ export interface PublicShareFile {
   createdAt: string;
   streamUrl: string;
   downloadUrl: string;
+  music?: {
+    title: string;
+    artist: string;
+    album?: string | null;
+    genre?: string | null;
+    year?: number | null;
+    trackNumber?: number | null;
+    duration: number;
+    coverArtFileId?: string | null;
+    coverUrl?: string | null;
+  } | null;
 }
 
 export interface PublicShareData {

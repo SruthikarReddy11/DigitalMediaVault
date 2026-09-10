@@ -169,6 +169,89 @@ export class FileService {
     return this.serializeFile(dbFile, user.id);
   }
 
+  public static async importLink(
+    user: AuthUser,
+    data: { url: string; title?: string; quality?: string; folderId?: string | null }
+  ) {
+    const rawUrl = data.url.trim();
+    const isYouTube = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i.test(rawUrl);
+
+    let originalName = data.title?.trim();
+    if (!originalName) {
+      if (isYouTube) {
+        const match = rawUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+        const videoId = match ? match[1] : '';
+        originalName = `YouTube Video - ${videoId}`;
+      } else {
+        try {
+          const parsed = new URL(rawUrl);
+          const base = path.basename(parsed.pathname) || parsed.hostname;
+          originalName = decodeURIComponent(base);
+        } catch {
+          originalName = 'Streaming Video';
+        }
+      }
+    }
+
+    const extension = isYouTube
+      ? 'youtube'
+      : (path.extname(rawUrl.split('?')[0]).slice(1).toLowerCase() || 'mp4');
+
+    const mimeType = isYouTube ? 'video/youtube' : (extension === 'm3u8' ? 'application/x-mpegURL' : (extension === 'webm' ? 'video/webm' : 'video/mp4'));
+    const storageKey = rawUrl.startsWith('http://') || rawUrl.startsWith('https://') ? `ext:${rawUrl}` : rawUrl;
+    const qualityTag = data.quality?.trim() || '1080p Full HD';
+
+    // Verify folder if specified
+    if (data.folderId) {
+      const folder = await prisma.folder.findUnique({ where: { id: data.folderId } });
+      if (!folder || !isOwnerOrAdmin(folder.userId, user)) {
+        const err: any = new Error('Destination folder not found or access denied.');
+        err.statusCode = 403;
+        err.code = 'FORBIDDEN';
+        throw err;
+      }
+    }
+
+    const created = await prisma.file.create({
+      data: {
+        userId: user.id,
+        folderId: data.folderId || null,
+        originalName,
+        storageKey,
+        mimeType,
+        fileType: FileType.VIDEO,
+        extension,
+        size: BigInt(0),
+        checksum: null,
+        tags: ['stream', isYouTube ? 'youtube' : 'direct', qualityTag],
+      },
+      include: {
+        folder: { select: { id: true, name: true } },
+        favorites: { where: { userId: user.id }, select: { id: true } },
+      },
+    });
+
+    try {
+      await ActivityService.log({
+        userId: user.id,
+        action: 'FILE_UPLOAD',
+        resourceType: 'FILE',
+        resourceId: created.id,
+        metadata: {
+          fileName: created.originalName,
+          originalName: created.originalName,
+          size: 0,
+          fileType: FileType.VIDEO,
+          mimeType,
+          isStream: true,
+          provider: isYouTube ? 'youtube' : 'direct',
+        },
+      });
+    } catch {}
+
+    return this.serializeFile(created, user.id);
+  }
+
   public static async getFile(fileId: string, user: AuthUser, pin?: string) {
     const file = await prisma.file.findUnique({
       where: { id: fileId },
@@ -580,6 +663,18 @@ export class FileService {
       };
     }
 
+    const isExternal = Boolean(
+      file.storageKey &&
+      (file.storageKey.startsWith('ext:') ||
+        file.storageKey.startsWith('http://') ||
+        file.storageKey.startsWith('https://'))
+    );
+    const externalUrl = isExternal
+      ? file.storageKey.startsWith('ext:')
+        ? file.storageKey.slice(4)
+        : file.storageKey
+      : null;
+
     return {
       id: file.id,
       userId: file.userId,
@@ -600,6 +695,8 @@ export class FileService {
       tags: file.tags || [],
       streamUrl,
       downloadUrl,
+      isExternal,
+      externalUrl,
     };
   }
 }

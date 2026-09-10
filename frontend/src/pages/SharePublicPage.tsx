@@ -35,6 +35,7 @@ import { QRCodeDisplayModal } from '../components/share/QRCodeDisplay';
 import { ImageLightbox } from '../components/gallery/ImageLightbox';
 import { SlideshowModal } from '../components/gallery/SlideshowModal';
 import { Logo3D } from '../components/common/Logo3D';
+import { HolographicMusicShareView } from '../components/music/HolographicMusicShareView';
 
 export const SharePublicPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
@@ -596,43 +597,34 @@ export const SharePublicPage: React.FC = () => {
 
             {/* SINGLE FILE PREVIEW */}
             {shareData.file && (
-              <div className="rounded-3xl bg-slate-900/60 border border-slate-800 overflow-hidden shadow-2xl p-4 sm:p-6">
-                {shareData.file.fileType === 'IMAGE' ? (
-                  <div className="flex items-center justify-center max-h-[600px] overflow-hidden rounded-2xl bg-slate-950">
-                    <img
-                      src={appendPasswordToUrl(shareData.file.streamUrl)}
-                      alt={shareData.file.originalName}
-                      className="max-h-[600px] w-auto object-contain rounded-2xl"
-                    />
-                  </div>
-                ) : shareData.file.fileType === 'VIDEO' ? (
-                  <div className="rounded-2xl overflow-hidden bg-black shadow-2xl">
-                    <video
-                      controls
-                      controlsList={shareData.allowDownload ? undefined : 'nodownload'}
-                      src={appendPasswordToUrl(shareData.file.streamUrl)}
-                      className="w-full max-h-[560px]"
-                    />
-                  </div>
-                ) : shareData.file.fileType === 'AUDIO' ? (
-                  <div className="p-8 flex flex-col items-center justify-center space-y-6 bg-slate-950/80 rounded-2xl">
-                    <div className="w-24 h-24 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center shadow-2xl">
-                      <MusicIcon className="w-12 h-12 animate-pulse" />
+              shareData.file.fileType === 'AUDIO' ? (
+                <HolographicMusicShareView
+                  file={shareData.file}
+                  shareData={shareData}
+                  appendPasswordToUrl={appendPasswordToUrl}
+                  handleDownloadFile={handleDownloadFile}
+                  downloadingId={downloadingId}
+                />
+              ) : (
+                <div className="rounded-3xl bg-slate-900/60 border border-slate-800 overflow-hidden shadow-2xl p-4 sm:p-6">
+                  {shareData.file.fileType === 'IMAGE' ? (
+                    <div className="flex items-center justify-center max-h-[600px] overflow-hidden rounded-2xl bg-slate-950">
+                      <img
+                        src={appendPasswordToUrl(shareData.file.streamUrl)}
+                        alt={shareData.file.originalName}
+                        className="max-h-[600px] w-auto object-contain rounded-2xl"
+                      />
                     </div>
-                    <div className="text-center">
-                      <h3 className="text-base font-bold text-white">
-                        {shareData.file.originalName}
-                      </h3>
-                      <p className="text-xs text-slate-400 mt-1">Audio Stream</p>
+                  ) : shareData.file.fileType === 'VIDEO' ? (
+                    <div className="rounded-2xl overflow-hidden bg-black shadow-2xl">
+                      <video
+                        controls
+                        controlsList={shareData.allowDownload ? undefined : 'nodownload'}
+                        src={appendPasswordToUrl(shareData.file.streamUrl)}
+                        className="w-full max-h-[560px]"
+                      />
                     </div>
-                    <audio
-                      controls
-                      controlsList={shareData.allowDownload ? undefined : 'nodownload'}
-                      src={appendPasswordToUrl(shareData.file.streamUrl)}
-                      className="w-full max-w-md"
-                    />
-                  </div>
-                ) : (
+                  ) : (
                   /* Documents / Other File Card */
                   <div className="py-16 text-center space-y-4 rounded-2xl bg-slate-950/60 border border-slate-800/60">
                     <div className="w-16 h-16 rounded-2xl bg-slate-800/80 text-brand-400 flex items-center justify-center mx-auto shadow-xl">
@@ -670,7 +662,8 @@ export const SharePublicPage: React.FC = () => {
                   </div>
                 )}
               </div>
-            )}
+            )
+          )}
 
             {/* FOLDER VIEW */}
             {shareData.folder && (
