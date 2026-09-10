@@ -1,5 +1,6 @@
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
 import path from 'path';
+import fs from 'fs';
 
 export interface ExtractedStreamResult {
   streamUrl: string;
@@ -13,6 +14,46 @@ export interface ExtractedStreamResult {
 }
 
 export class StreamExtractorService {
+  private static resolveCommand(): { command: string; prefixArgs: string[] } {
+    const isWindows = process.platform === 'win32';
+    const localBinName = isWindows ? 'yt-dlp.exe' : 'yt-dlp';
+    const possiblePaths = [
+      path.join(__dirname, '..', '..', 'bin', localBinName),
+      path.join(process.cwd(), 'bin', localBinName),
+      path.join(process.cwd(), 'backend', 'bin', localBinName),
+    ];
+
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        return { command: p, prefixArgs: [] };
+      }
+    }
+
+    // Check if yt-dlp is in system PATH
+    try {
+      const testCmd = isWindows ? 'where yt-dlp' : 'which yt-dlp';
+      execSync(testCmd, { stdio: 'ignore' });
+      return { command: 'yt-dlp', prefixArgs: [] };
+    } catch {}
+
+    // Check python3 (Linux standard on Render)
+    try {
+      execSync('python3 -m yt_dlp --version', { stdio: 'ignore' });
+      return { command: 'python3', prefixArgs: ['-m', 'yt_dlp'] };
+    } catch {}
+
+    // Check python (Windows standard)
+    try {
+      execSync('python -m yt_dlp --version', { stdio: 'ignore' });
+      return { command: 'python', prefixArgs: ['-m', 'yt_dlp'] };
+    } catch {}
+
+    return {
+      command: isWindows ? 'python' : 'python3',
+      prefixArgs: ['-m', 'yt_dlp'],
+    };
+  }
+
   /**
    * Extract direct stream URL and metadata using yt-dlp
    */
@@ -62,11 +103,11 @@ export class StreamExtractorService {
       };
     }
 
-    // Execute python -m yt_dlp --dump-single-json
+    // Execute resolved yt-dlp command
+    const { command, prefixArgs } = StreamExtractorService.resolveCommand();
     return new Promise((resolve, reject) => {
       const args = [
-        '-m',
-        'yt_dlp',
+        ...prefixArgs,
         '--dump-single-json',
         '--no-playlist',
         '--no-warnings',
@@ -77,7 +118,7 @@ export class StreamExtractorService {
         targetUrl,
       ];
 
-      const child = spawn('python', args, {
+      const child = spawn(command, args, {
         windowsHide: true,
       });
 
