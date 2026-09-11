@@ -28,6 +28,11 @@ const tokenParam = z.object({
   token: z.string().min(1),
 });
 
+const tokenWithFileParam = z.object({
+  token: z.string().min(1),
+  fileId: z.string().optional(),
+});
+
 // ==========================================
 // Public Unauthenticated Endpoints
 // ==========================================
@@ -44,10 +49,10 @@ router.post(
 );
 
 // Stream media for online playback
-router.get('/public/:token/stream/:fileId?', validateParams(tokenParam), ShareController.streamSharedFile);
+router.get('/public/:token/stream/:fileId?', validateParams(tokenWithFileParam), ShareController.streamSharedFile);
 
 // Download shared file
-router.get('/public/:token/download/:fileId?', validateParams(tokenParam), ShareController.downloadSharedFile);
+router.get('/public/:token/download/:fileId?', validateParams(tokenWithFileParam), ShareController.downloadSharedFile);
 
 // Download all files (album or folder) as ZIP
 router.get('/public/:token/download-all', validateParams(tokenParam), ShareController.downloadAllPublic);

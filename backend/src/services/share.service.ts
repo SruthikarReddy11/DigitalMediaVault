@@ -470,6 +470,7 @@ export class ShareService {
             name: true,
             description: true,
             items: {
+              where: { file: { deletedAt: null } },
               orderBy: { addedAt: 'desc' },
               include: {
                 file: {
@@ -733,6 +734,7 @@ export class ShareService {
         album: {
           include: {
             items: {
+              where: { file: { deletedAt: null } },
               include: { file: true },
             },
           },
@@ -798,7 +800,7 @@ export class ShareService {
         targetFile = share.folder.files[0];
       }
     } else if (share.albumId && share.album) {
-      const albumFiles = share.album.items.map((it) => it.file);
+      const albumFiles = share.album.items.map((it) => it.file).filter((f) => f && !f.deletedAt);
       if (fileId) {
         targetFile = albumFiles.find((f) => f.id === fileId);
       } else if (albumFiles.length > 0) {
@@ -869,6 +871,7 @@ export class ShareService {
         album: {
           include: {
             items: {
+              where: { file: { deletedAt: null } },
               include: { file: true },
             },
           },
@@ -920,7 +923,7 @@ export class ShareService {
         targetFile = share.folder.files[0];
       }
     } else if (share.albumId && share.album) {
-      const albumFiles = share.album.items.map((it) => it.file);
+      const albumFiles = share.album.items.map((it) => it.file).filter((f) => f && !f.deletedAt);
       if (fileId) {
         targetFile = albumFiles.find((f) => f.id === fileId);
       } else if (albumFiles.length > 0) {
@@ -1036,6 +1039,7 @@ export class ShareService {
         album: {
           include: {
             items: {
+              where: { file: { deletedAt: null } },
               include: { file: true },
             },
           },
@@ -1083,7 +1087,7 @@ export class ShareService {
 
     let filesToZip: any[] = [];
     if (share.albumId && share.album) {
-      filesToZip = share.album.items.map((it) => it.file);
+      filesToZip = share.album.items.map((it) => it.file).filter((f) => f && !f.deletedAt);
     } else if (share.folderId && share.folder) {
       filesToZip = share.folder.files;
     } else if (share.fileId && share.file) {
