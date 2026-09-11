@@ -385,7 +385,7 @@ export const Gallery: React.FC = () => {
 
       {/* View Mode Navigation Tabs */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-1.5 p-1.5 bg-slate-900/80 border border-white/[0.08] rounded-2xl backdrop-blur-md">
+        <div className="flex items-center gap-1.5 p-1.5 bg-slate-900/80 border border-white/[0.08] rounded-2xl backdrop-blur-md overflow-x-auto no-scrollbar max-w-full">
           <button
             onClick={() => {
               setViewMode('grid');
@@ -608,6 +608,13 @@ export const Gallery: React.FC = () => {
                     className="w-full h-full object-cover group-hover:scale-108 transition duration-500"
                     loading="lazy"
                   />
+
+                  {/* Mobile Favorite Indicator */}
+                  {image.isFavorite && (
+                    <div className="absolute top-2.5 right-2.5 sm:hidden p-1.5 rounded-xl bg-rose-500/90 text-white shadow-md z-10">
+                      <Heart className="w-3.5 h-3.5 fill-current" />
+                    </div>
+                  )}
 
                   {/* Multi-select checkbox */}
                   {isMultiSelectMode && (

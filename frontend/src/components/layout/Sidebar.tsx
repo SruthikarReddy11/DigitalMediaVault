@@ -143,6 +143,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 { to: '/contacts', label: 'Secure Contacts', icon: BookUser, badge: 'Vault', badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30' },
                 { to: '/favorites', label: 'Favorites', icon: Heart },
                 { to: '/playlists', label: 'Playlists', icon: ListMusic },
+                { to: '/shared-links', label: 'Shared Links', icon: Share2 },
                 { to: '/trash', label: 'Trash', icon: Trash2 },
                 { to: '/settings', label: 'Settings', icon: Settings },
               ].map((item) => {

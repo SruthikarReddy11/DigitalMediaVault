@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Menu,
   Search,
+  ArrowLeft,
   UploadCloud,
   Moon,
   Sun,
@@ -98,10 +99,12 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
 
   // Global Search state
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isMobileSearchExpanded, setIsMobileSearchExpanded] = useState(false);
   const [searchResults, setSearchResults] = useState<GlobalSearchResponse | null>(null);
   const [isSearching, setIsSearching] = useState(false);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
 
   // Modals for direct preview from header search
   const [selectedVideo, setSelectedVideo] = useState<FileItem | null>(null);
@@ -193,211 +196,300 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-slate-950/90 backdrop-blur-3xl border-b border-white/[0.08] shadow-[inset_0_1px_1px_rgba(255,255,255,0.12)] px-3 sm:px-6 flex items-center justify-between gap-2.5 sm:gap-4 relative select-none">
+    <header className="sticky top-0 z-30 h-16 bg-slate-950/90 backdrop-blur-3xl border-b border-white/[0.08] shadow-[inset_0_1px_1px_rgba(255,255,255,0.12)] px-2.5 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 relative select-none">
       {/* Luminous Neon Cyber Animated Bottom Laser Streak */}
       <div className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400 via-indigo-500 to-transparent animate-laser-sweep pointer-events-none opacity-85" />
 
-      {/* Left section: Hamburger & Mobile 3D Logo / Desktop Section Breadcrumb */}
-      <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-2xl min-w-0">
-        {/* Mobile View: Hamburger + 3D Logo */}
-        <div className="flex items-center gap-2 lg:hidden shrink-0">
-          <button
-            onClick={onToggleSidebar}
-            className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-900/80 border border-white/10 hover:border-cyan-500/40 transition active:scale-95 cursor-pointer"
-            aria-label="Toggle Navigation"
-          >
-            <Menu className="w-5 h-5" />
-          </button>
-          <Logo3D size="xs" withText badge="3D" to="/" />
-        </div>
-
-        {/* Desktop View: Live Section Status Badge */}
-        <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/80 border border-white/[0.08] backdrop-blur-md shadow-inner shadow-cyan-950/30 shrink-0">
-          <div className="p-1 rounded-lg bg-slate-800/90 border border-white/5">
-            <SectionIcon className={`w-3.5 h-3.5 ${sectionInfo.color}`} />
-          </div>
-          <span className="text-xs font-bold text-white tracking-wide">{sectionInfo.label}</span>
-          <div className="flex items-center gap-1.5 pl-2 border-l border-white/10">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span className="text-[10px] font-mono font-black text-emerald-400 tracking-wider uppercase">Online</span>
-          </div>
-        </div>
-
-        {/* Quantum Military Encryption Badge */}
-        <div className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-slate-900/70 border border-white/[0.06] text-[11px] shadow-sm shrink-0" title="Quantum Military Grade AES-256 GCM Cloud Storage">
-          <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
-          <span className="font-mono text-[10px] font-bold text-slate-300 tracking-wider">AES-256 GCM</span>
-        </div>
-
-        {/* Live Audio Equalizer & Online/Offline Telemetry Pill */}
-        {isPlaying && currentTrack && (
+      {/* MOBILE SEARCH OVERLAY MODE (when expanded on < sm) */}
+      {isMobileSearchExpanded ? (
+        <div className="flex items-center gap-2 w-full h-full py-2 animate-in fade-in duration-200">
           <button
             type="button"
-            onClick={() => navigate('/music')}
-            className={`hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-2xl border text-xs shadow-inner cursor-pointer group transition-all shrink-0 active:scale-95 ${
-              !isOnline || isOfflinePlayback
-                ? 'bg-amber-950/40 border-amber-500/40 text-amber-200 hover:border-amber-300'
-                : 'bg-cyan-950/40 border-cyan-500/40 text-cyan-200 hover:border-cyan-300'
-            }`}
-            title={`Now Playing: ${currentTrack.title} (${!isOnline || isOfflinePlayback ? 'OFFLINE LOCAL CACHE' : 'ONLINE LOSSLESS STREAM'})`}
+            onClick={() => {
+              setIsMobileSearchExpanded(false);
+              setIsSearchOpen(false);
+            }}
+            className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-900/80 border border-white/10 shrink-0 cursor-pointer active:scale-95"
+            aria-label="Close search"
           >
-            <div className="flex items-end gap-0.5 h-3.5 w-3.5 pb-0.5">
-              <span className={`w-0.5 rounded-full animate-eq-1 ${!isOnline || isOfflinePlayback ? 'bg-amber-400' : 'bg-cyan-400'}`} />
-              <span className={`w-0.5 rounded-full animate-eq-2 ${!isOnline || isOfflinePlayback ? 'bg-amber-300' : 'bg-cyan-300'}`} />
-              <span className={`w-0.5 rounded-full animate-eq-3 ${!isOnline || isOfflinePlayback ? 'bg-yellow-400' : 'bg-sky-400'}`} />
-              <span className={`w-0.5 rounded-full animate-eq-4 ${!isOnline || isOfflinePlayback ? 'bg-orange-400' : 'bg-indigo-400'}`} />
-            </div>
-            <span className="text-[11px] font-bold truncate max-w-[110px] group-hover:text-white transition">
-              {currentTrack.title}
-            </span>
-
-            {/* Online / Offline status indicator pill */}
-            <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-mono font-black uppercase border ${
-              !isOnline || isOfflinePlayback
-                ? 'bg-amber-500/20 text-amber-300 border-amber-400/30'
-                : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
-            }`}>
-              {!isOnline || isOfflinePlayback ? (
-                <>
-                  <WifiOff className="w-2.5 h-2.5 text-amber-400" />
-                  <span>OFFLINE</span>
-                </>
-              ) : (
-                <>
-                  <Wifi className="w-2.5 h-2.5 text-emerald-400" />
-                  <span>ONLINE</span>
-                </>
-              )}
-            </div>
+            <ArrowLeft className="w-5 h-5 text-cyan-400" />
           </button>
-        )}
 
-        {/* Global Command Search Bar Container */}
-        <div ref={searchContainerRef} className="relative w-full min-w-0">
-          <form onSubmit={handleSearchSubmit} className="relative w-full group">
-            <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-cyan-500/0 via-cyan-500/35 to-indigo-500/0 opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 blur-sm pointer-events-none" />
-            <div className="relative flex items-center">
-              <Search className="absolute left-3.5 w-4 h-4 text-slate-400 group-focus-within:text-cyan-400 transition-colors pointer-events-none" />
+          <div ref={searchContainerRef} className="relative flex-1 min-w-0">
+            <form onSubmit={handleSearchSubmit} className="relative w-full">
               <input
-                ref={searchInputRef}
+                ref={mobileSearchInputRef}
                 type="text"
                 value={searchTerm}
                 onFocus={() => setIsSearchOpen(true)}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search files, lossless music, 4K videos, documents..."
-                className="w-full bg-slate-900/80 border border-white/[0.08] hover:border-slate-700/80 focus:border-cyan-400/80 focus:bg-slate-900/95 rounded-2xl pl-10 pr-20 py-2 text-xs sm:text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition-all shadow-inner backdrop-blur-md"
+                placeholder="Search files, photos, 4K videos, music..."
+                className="w-full bg-slate-900 border border-cyan-500/60 rounded-2xl pl-10 pr-10 py-2 text-xs sm:text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/30"
+                autoFocus
               />
-              {searchTerm ? (
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-400 pointer-events-none" />
+              {searchTerm && (
                 <button
                   type="button"
                   onClick={() => {
                     setSearchTerm('');
                     setSearchResults(null);
                   }}
-                  className="absolute right-3 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1 cursor-pointer"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
-              ) : (
-                <div className="absolute right-2.5 hidden sm:flex items-center gap-1 pointer-events-none">
-                  <kbd className="px-1.5 py-0.5 text-[9px] font-mono font-bold text-cyan-300 bg-slate-800/90 border border-cyan-500/25 rounded-md shadow-sm">
-                    Ctrl K
-                  </kbd>
-                </div>
               )}
-            </div>
-          </form>
+            </form>
 
-          {/* Floating Live Categorized Dropdown */}
-          <GlobalSearchDropdown
-            isOpen={isSearchOpen}
-            onClose={() => setIsSearchOpen(false)}
-            query={searchTerm}
-            searchResults={searchResults}
-            isLoading={isSearching}
-            onSelectRecentQuery={handleSelectRecentQuery}
-            onPreviewFile={(f) => setSelectedFile(f)}
-            onPreviewVideo={(v) => setSelectedVideo(v)}
-            onPreviewPhoto={handlePreviewPhoto}
-          />
-        </div>
-      </div>
-
-      {/* Right section: Cloud Sync, 3D Upload, Theme, Profile */}
-      <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
-        {/* Cloud Sync Capsule */}
-        <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/70 border border-white/[0.07] text-xs shadow-sm" title="Vault Cloud Storage Active & Synchronized">
-          <div className="relative flex items-center justify-center">
-            <Cloud className="w-3.5 h-3.5 text-cyan-400" />
-            <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-slate-900 animate-pulse"></span>
+            {/* Mobile Search Dropdown */}
+            <GlobalSearchDropdown
+              isOpen={isSearchOpen}
+              onClose={() => {
+                setIsSearchOpen(false);
+                setIsMobileSearchExpanded(false);
+              }}
+              query={searchTerm}
+              searchResults={searchResults}
+              isLoading={isSearching}
+              onSelectRecentQuery={handleSelectRecentQuery}
+              onPreviewFile={(f) => {
+                setIsMobileSearchExpanded(false);
+                setSelectedFile(f);
+              }}
+              onPreviewVideo={(v) => {
+                setIsMobileSearchExpanded(false);
+                setSelectedVideo(v);
+              }}
+              onPreviewPhoto={(p) => {
+                setIsMobileSearchExpanded(false);
+                handlePreviewPhoto(p);
+              }}
+            />
           </div>
-          <span className="text-[11px] font-medium text-slate-300">Vault Synced</span>
         </div>
-
-        {/* 3D Tactile Upload Button */}
-        <button
-          onClick={onOpenUpload}
-          className="group relative flex items-center gap-2 px-3.5 sm:px-4 py-2 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-extrabold rounded-2xl transition shadow-[0_4px_18px_rgba(6,182,212,0.3)] hover:shadow-[0_6px_25px_rgba(6,182,212,0.45)] border border-cyan-300/40 active:translate-y-0.5 active:scale-95 shrink-0 cursor-pointer overflow-hidden"
-        >
-          {/* Top Specular Edge Highlight Ribbon */}
-          <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent pointer-events-none" />
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
-          <UploadCloud className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
-          <span className="hidden sm:inline tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Upload</span>
-        </button>
-
-        {/* Theme Toggle Button */}
-        <button
-          onClick={toggleTheme}
-          className="p-2 text-slate-400 hover:text-white bg-slate-900/80 border border-white/[0.08] hover:border-cyan-500/40 rounded-2xl transition cursor-pointer shadow-sm hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] active:scale-95"
-          aria-label="Toggle Theme"
-        >
-          {theme === 'dark' ? (
-            <Sun className="w-4 h-4 text-amber-400" />
-          ) : (
-            <Moon className="w-4 h-4 text-indigo-400" />
-          )}
-        </button>
-
-        {/* Calendar & Smart Reminders Bell */}
-        <HeaderNotificationBell />
-
-        {/* Luxury User Profile Capsule */}
-        <div className="relative" ref={profileRef}>
-          <button
-            onClick={() => setIsProfileOpen((prev) => !prev)}
-            className="flex items-center gap-2.5 p-1 sm:px-2 sm:py-1 rounded-2xl hover:bg-slate-900/90 border border-transparent hover:border-white/10 transition cursor-pointer group"
-          >
-            <div className="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center text-white text-sm font-black shadow-md shadow-cyan-500/25 overflow-hidden border border-cyan-300/40 ring-2 ring-cyan-500/20 group-hover:ring-cyan-400/40 transition shrink-0">
-              {user?.avatarUrl && !imageError ? (
-                <img
-                  src={getMediaUrl(user.avatarUrl)}
-                  alt={user.name}
-                  onError={() => setImageError(true)}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <span>{user?.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
-              )}
-            </div>
-
-            <div className="hidden md:flex flex-col text-left">
-              <div className="flex items-center gap-1.5 leading-tight">
-                <span className="text-xs font-bold text-white leading-tight">
-                  {user?.name || 'User'}
-                </span>
-                <span className="text-[9px] font-mono font-black uppercase px-1 py-0.2 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-400/30">
-                  {isAdmin ? 'ADMIN' : 'VIP'}
-                </span>
+      ) : (
+        <>
+          {/* Left section: Hamburger & Mobile 3D Logo / Desktop Section Breadcrumb */}
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 max-w-2xl min-w-0">
+            {/* Mobile View: Hamburger + 3D Logo */}
+            <div className="flex items-center gap-1.5 sm:gap-2 lg:hidden shrink-0">
+              <button
+                onClick={onToggleSidebar}
+                className="p-2 text-slate-400 hover:text-white rounded-xl bg-slate-900/80 border border-white/10 hover:border-cyan-500/40 transition active:scale-95 cursor-pointer"
+                aria-label="Toggle Navigation"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              <div className="hidden sm:block">
+                <Logo3D size="xs" withText badge="3D" to="/" />
               </div>
-              <span className="text-[10px] text-slate-400 leading-tight">
-                @{user?.username || 'user'}
-              </span>
+              <div className="sm:hidden">
+                <Logo3D size="xs" withText={false} to="/" />
+              </div>
             </div>
-          </button>
+
+            {/* Desktop View: Live Section Status Badge */}
+            <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/80 border border-white/[0.08] backdrop-blur-md shadow-inner shadow-cyan-950/30 shrink-0">
+              <div className="p-1 rounded-lg bg-slate-800/90 border border-white/5">
+                <SectionIcon className={`w-3.5 h-3.5 ${sectionInfo.color}`} />
+              </div>
+              <span className="text-xs font-bold text-white tracking-wide">{sectionInfo.label}</span>
+              <div className="flex items-center gap-1.5 pl-2 border-l border-white/10">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <span className="text-[10px] font-mono font-black text-emerald-400 tracking-wider uppercase">Online</span>
+              </div>
+            </div>
+
+            {/* Quantum Military Encryption Badge */}
+            <div className="hidden 2xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-slate-900/70 border border-white/[0.06] text-[11px] shadow-sm shrink-0" title="Quantum Military Grade AES-256 GCM Cloud Storage">
+              <ShieldCheck className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="font-mono text-[10px] font-bold text-slate-300 tracking-wider">AES-256 GCM</span>
+            </div>
+
+            {/* Live Audio Equalizer & Online/Offline Telemetry Pill */}
+            {isPlaying && currentTrack && (
+              <button
+                type="button"
+                onClick={() => navigate('/music')}
+                className={`hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-2xl border text-xs shadow-inner cursor-pointer group transition-all shrink-0 active:scale-95 ${
+                  !isOnline || isOfflinePlayback
+                    ? 'bg-amber-950/40 border-amber-500/40 text-amber-200 hover:border-amber-300'
+                    : 'bg-cyan-950/40 border-cyan-500/40 text-cyan-200 hover:border-cyan-300'
+                }`}
+                title={`Now Playing: ${currentTrack.title} (${!isOnline || isOfflinePlayback ? 'OFFLINE LOCAL CACHE' : 'ONLINE LOSSLESS STREAM'})`}
+              >
+                <div className="flex items-end gap-0.5 h-3.5 w-3.5 pb-0.5">
+                  <span className={`w-0.5 rounded-full animate-eq-1 ${!isOnline || isOfflinePlayback ? 'bg-amber-400' : 'bg-cyan-400'}`} />
+                  <span className={`w-0.5 rounded-full animate-eq-2 ${!isOnline || isOfflinePlayback ? 'bg-amber-300' : 'bg-cyan-300'}`} />
+                  <span className={`w-0.5 rounded-full animate-eq-3 ${!isOnline || isOfflinePlayback ? 'bg-yellow-400' : 'bg-sky-400'}`} />
+                  <span className={`w-0.5 rounded-full animate-eq-4 ${!isOnline || isOfflinePlayback ? 'bg-orange-400' : 'bg-indigo-400'}`} />
+                </div>
+                <span className="text-[11px] font-bold truncate max-w-[110px] group-hover:text-white transition">
+                  {currentTrack.title}
+                </span>
+
+                {/* Online / Offline status indicator pill */}
+                <div className={`flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[9px] font-mono font-black uppercase border ${
+                  !isOnline || isOfflinePlayback
+                    ? 'bg-amber-500/20 text-amber-300 border-amber-400/30'
+                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                }`}>
+                  {!isOnline || isOfflinePlayback ? (
+                    <>
+                      <WifiOff className="w-2.5 h-2.5 text-amber-400" />
+                      <span>OFFLINE</span>
+                    </>
+                  ) : (
+                    <>
+                      <Wifi className="w-2.5 h-2.5 text-emerald-400" />
+                      <span>ONLINE</span>
+                    </>
+                  )}
+                </div>
+              </button>
+            )}
+
+            {/* Desktop Command Search Bar Container */}
+            <div ref={searchContainerRef} className="relative w-full min-w-0 hidden sm:block">
+              <form onSubmit={handleSearchSubmit} className="relative w-full group">
+                <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-r from-cyan-500/0 via-cyan-500/35 to-indigo-500/0 opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 blur-sm pointer-events-none" />
+                <div className="relative flex items-center">
+                  <Search className="absolute left-3.5 w-4 h-4 text-slate-400 group-focus-within:text-cyan-400 transition-colors pointer-events-none" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={searchTerm}
+                    onFocus={() => setIsSearchOpen(true)}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search files, lossless music, 4K videos, documents..."
+                    className="w-full bg-slate-900/80 border border-white/[0.08] hover:border-slate-700/80 focus:border-cyan-400/80 focus:bg-slate-900/95 rounded-2xl pl-10 pr-20 py-2 text-xs sm:text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 transition-all shadow-inner backdrop-blur-md"
+                  />
+                  {searchTerm ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchTerm('');
+                        setSearchResults(null);
+                      }}
+                      className="absolute right-3 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  ) : (
+                    <div className="absolute right-2.5 hidden sm:flex items-center gap-1 pointer-events-none">
+                      <kbd className="px-1.5 py-0.5 text-[9px] font-mono font-bold text-cyan-300 bg-slate-800/90 border border-cyan-500/25 rounded-md shadow-sm">
+                        Ctrl K
+                      </kbd>
+                    </div>
+                  )}
+                </div>
+              </form>
+
+              {/* Floating Live Categorized Dropdown */}
+              <GlobalSearchDropdown
+                isOpen={isSearchOpen}
+                onClose={() => setIsSearchOpen(false)}
+                query={searchTerm}
+                searchResults={searchResults}
+                isLoading={isSearching}
+                onSelectRecentQuery={handleSelectRecentQuery}
+                onPreviewFile={(f) => setSelectedFile(f)}
+                onPreviewVideo={(v) => setSelectedVideo(v)}
+                onPreviewPhoto={handlePreviewPhoto}
+              />
+            </div>
+          </div>
+
+          {/* Right section: Mobile Search Trigger, Cloud Sync, 3D Upload, Theme, Profile */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
+            {/* Mobile Search Open Trigger Button */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsMobileSearchExpanded(true);
+                setIsSearchOpen(true);
+                setTimeout(() => mobileSearchInputRef.current?.focus(), 50);
+              }}
+              className="sm:hidden p-2 text-slate-300 hover:text-white bg-slate-900/80 border border-white/[0.08] hover:border-cyan-500/40 rounded-2xl transition cursor-pointer active:scale-95 shadow-sm"
+              aria-label="Open Search"
+            >
+              <Search className="w-4 h-4 text-cyan-400" />
+            </button>
+
+            {/* Cloud Sync Capsule */}
+            <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-slate-900/70 border border-white/[0.07] text-xs shadow-sm" title="Vault Cloud Storage Active & Synchronized">
+              <div className="relative flex items-center justify-center">
+                <Cloud className="w-3.5 h-3.5 text-cyan-400" />
+                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-2 ring-slate-900 animate-pulse"></span>
+              </div>
+              <span className="text-[11px] font-medium text-slate-300">Vault Synced</span>
+            </div>
+
+            {/* 3D Tactile Upload Button */}
+            <button
+              onClick={onOpenUpload}
+              className="group relative flex items-center gap-2 px-2.5 sm:px-4 py-2 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 hover:from-cyan-400 hover:via-blue-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-extrabold rounded-2xl transition shadow-[0_4px_18px_rgba(6,182,212,0.3)] hover:shadow-[0_6px_25px_rgba(6,182,212,0.45)] border border-cyan-300/40 active:translate-y-0.5 active:scale-95 shrink-0 cursor-pointer overflow-hidden"
+            >
+              {/* Top Specular Edge Highlight Ribbon */}
+              <div className="absolute top-0 left-0 right-0 h-[1px] bg-gradient-to-r from-transparent via-white/60 to-transparent pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
+              <UploadCloud className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
+              <span className="hidden sm:inline tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Upload</span>
+            </button>
+
+            {/* Theme Toggle Button */}
+            <button
+              onClick={toggleTheme}
+              className="p-2 text-slate-400 hover:text-white bg-slate-900/80 border border-white/[0.08] hover:border-cyan-500/40 rounded-2xl transition cursor-pointer shadow-sm hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] active:scale-95"
+              aria-label="Toggle Theme"
+            >
+              {theme === 'dark' ? (
+                <Sun className="w-4 h-4 text-amber-400" />
+              ) : (
+                <Moon className="w-4 h-4 text-indigo-400" />
+              )}
+            </button>
+
+            {/* Calendar & Smart Reminders Bell */}
+            <HeaderNotificationBell />
+
+            {/* Luxury User Profile Capsule */}
+            <div className="relative" ref={profileRef}>
+              <button
+                onClick={() => setIsProfileOpen((prev) => !prev)}
+                className="flex items-center gap-2.5 p-1 sm:px-2 sm:py-1 rounded-2xl hover:bg-slate-900/90 border border-transparent hover:border-white/10 transition cursor-pointer group"
+              >
+                <div className="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center text-white text-sm font-black shadow-md shadow-cyan-500/25 overflow-hidden border border-cyan-300/40 ring-2 ring-cyan-500/20 group-hover:ring-cyan-400/40 transition shrink-0">
+                  {user?.avatarUrl && !imageError ? (
+                    <img
+                      src={getMediaUrl(user.avatarUrl)}
+                      alt={user.name}
+                      onError={() => setImageError(true)}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{user?.name ? user.name.charAt(0).toUpperCase() : 'U'}</span>
+                  )}
+                </div>
+
+                <div className="hidden md:flex flex-col text-left">
+                  <div className="flex items-center gap-1.5 leading-tight">
+                    <span className="text-xs font-bold text-white leading-tight">
+                      {user?.name || 'User'}
+                    </span>
+                    <span className="text-[9px] font-mono font-black uppercase px-1 py-0.2 rounded bg-cyan-500/15 text-cyan-300 border border-cyan-400/30">
+                      {isAdmin ? 'ADMIN' : 'VIP'}
+                    </span>
+                  </div>
+                  <span className="text-[10px] text-slate-400 leading-tight">
+                    @{user?.username || 'user'}
+                  </span>
+                </div>
+              </button>
 
           {/* Profile Menu Popup */}
           {isProfileOpen && (
@@ -472,6 +564,8 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
           )}
         </div>
       </div>
+        </>
+      )}
 
       {/* Video Player Modal */}
       {selectedVideo && (

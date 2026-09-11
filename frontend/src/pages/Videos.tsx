@@ -180,11 +180,11 @@ export const Videos: React.FC = () => {
         </div>
 
         {/* Filter Tabs & Favorites */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center bg-slate-950/80 p-1 rounded-xl border border-white/[0.08] text-xs font-semibold">
+        <div className="flex items-center gap-2 flex-wrap max-w-full">
+          <div className="flex items-center bg-slate-950/80 p-1 rounded-xl border border-white/[0.08] text-xs font-semibold overflow-x-auto no-scrollbar max-w-full">
             <button
               onClick={() => setFilterType('all')}
-              className={`px-3 py-1.5 rounded-lg transition ${
+              className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
                 filterType === 'all'
                   ? 'bg-purple-600 text-white shadow'
                   : 'text-slate-400 hover:text-white'
@@ -194,7 +194,7 @@ export const Videos: React.FC = () => {
             </button>
             <button
               onClick={() => setFilterType('vault')}
-              className={`px-3 py-1.5 rounded-lg transition ${
+              className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
                 filterType === 'vault'
                   ? 'bg-purple-600 text-white shadow'
                   : 'text-slate-400 hover:text-white'
@@ -204,7 +204,7 @@ export const Videos: React.FC = () => {
             </button>
             <button
               onClick={() => setFilterType('streams')}
-              className={`px-3 py-1.5 rounded-lg transition ${
+              className={`px-3 py-1.5 rounded-lg transition whitespace-nowrap ${
                 filterType === 'streams'
                   ? 'bg-purple-600 text-white shadow'
                   : 'text-slate-400 hover:text-white'

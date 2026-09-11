@@ -736,7 +736,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
 
       {/* 5. Persistent Bottom Bar (World-Class Floating Glass Island Deck) */}
       <div
-        className={`fixed bottom-2 sm:bottom-3.5 left-2 sm:left-4 right-2 sm:right-4 max-w-7xl mx-auto z-40 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+        className={`fixed bottom-[72px] lg:bottom-3.5 left-2 sm:left-4 right-2 sm:right-4 max-w-7xl mx-auto z-40 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] ${
           isExpanded
             ? 'opacity-0 pointer-events-none translate-y-8 scale-95'
             : 'opacity-100 pointer-events-auto translate-y-0 scale-100'
@@ -946,11 +946,11 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
             </div>
 
             {/* Center: Hero Playback Deck */}
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-1.5 sm:gap-4 shrink-0">
               {/* Shuffle */}
               <button
                 onClick={toggleShuffle}
-                className={`p-2 rounded-xl transition relative ${
+                className={`hidden sm:flex p-2 rounded-xl transition relative ${
                   isShuffle
                     ? 'text-brand-400 bg-brand-500/15 shadow-sm shadow-brand-500/20'
                     : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
@@ -966,7 +966,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               {/* Prev */}
               <button
                 onClick={prevTrack}
-                className="p-2 text-slate-300 hover:text-white transition active:scale-90 hover:bg-slate-900/60 rounded-xl"
+                className="p-1.5 sm:p-2 text-slate-300 hover:text-white transition active:scale-90 hover:bg-slate-900/60 rounded-xl"
                 title="Previous track (P)"
               >
                 <SkipBack className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
@@ -975,7 +975,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               {/* Center Hero Play / Pause Button */}
               <button
                 onClick={togglePlay}
-                className="w-10 h-10 sm:w-11 sm:h-11 bg-white hover:bg-slate-100 text-slate-950 rounded-full shadow-[0_0_20px_rgba(255,255,255,0.25)] hover:scale-105 active:scale-95 transition-all duration-150 flex items-center justify-center shrink-0"
+                className="w-9 h-9 sm:w-11 sm:h-11 bg-white hover:bg-slate-100 text-slate-950 rounded-full shadow-[0_0_20px_rgba(255,255,255,0.25)] hover:scale-105 active:scale-95 transition-all duration-150 flex items-center justify-center shrink-0"
                 title={isPlaying ? 'Pause (Space)' : 'Play (Space)'}
               >
                 {isPlaying ? (
@@ -988,7 +988,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               {/* Next */}
               <button
                 onClick={nextTrack}
-                className="p-2 text-slate-300 hover:text-white transition active:scale-90 hover:bg-slate-900/60 rounded-xl"
+                className="p-1.5 sm:p-2 text-slate-300 hover:text-white transition active:scale-90 hover:bg-slate-900/60 rounded-xl"
                 title="Next track (N)"
               >
                 <SkipForward className="w-4 h-4 sm:w-5 sm:h-5 fill-current" />
@@ -997,7 +997,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               {/* Repeat Mode */}
               <button
                 onClick={cycleRepeatMode}
-                className={`p-2 rounded-xl transition relative ${
+                className={`hidden sm:flex p-2 rounded-xl transition relative ${
                   repeatMode !== 'off'
                     ? 'text-brand-400 bg-brand-500/15 shadow-sm shadow-brand-500/20'
                     : 'text-slate-400 hover:text-white hover:bg-slate-900/60'
@@ -1016,14 +1016,14 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
             </div>
 
             {/* Right: Audiophile Utilities & Tools */}
-            <div className="flex items-center gap-1.5 sm:gap-2.5">
+            <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
               {/* Equalizer Preset Pill */}
               <button
                 onClick={() => {
                   setIsEqOpen((prev) => !prev);
                   setIsSleepTimerOpen(false);
                 }}
-                className={`p-2 rounded-xl border transition flex items-center gap-1.5 ${
+                className={`hidden md:flex p-2 rounded-xl border transition items-center gap-1.5 ${
                   isEqOpen || equalizerPreset !== 'flat'
                     ? 'bg-brand-500/20 text-brand-300 border-brand-500/40 shadow-sm shadow-brand-500/20'
                     : 'bg-slate-900/80 text-slate-400 hover:text-white border-slate-800'
@@ -1044,7 +1044,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                   setIsSleepTimerOpen((prev) => !prev);
                   setIsEqOpen(false);
                 }}
-                className={`p-2 rounded-xl border transition flex items-center gap-1.5 ${
+                className={`hidden md:flex p-2 rounded-xl border transition items-center gap-1.5 ${
                   sleepTimerSeconds !== null
                     ? 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm shadow-amber-500/20'
                     : 'bg-slate-900/80 text-slate-400 hover:text-white border-slate-800'
@@ -1117,7 +1117,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
                   setIsSleepTimerOpen(false);
                   setIsEqOpen(false);
                 }}
-                className={`p-2 rounded-xl border transition relative ${
+                className={`hidden sm:flex p-2 rounded-xl border transition relative ${
                   isQueueOpen
                     ? 'bg-brand-600 text-white border-brand-500 shadow-md shadow-brand-500/25'
                     : 'bg-slate-900/80 text-slate-400 hover:text-white border-slate-800'
@@ -1135,7 +1135,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               {/* Share Music Button */}
               <button
                 onClick={() => setIsShareModalOpen(true)}
-                className="p-2 rounded-xl bg-slate-900/80 text-slate-400 hover:text-cyan-300 border border-slate-800 hover:border-cyan-500/40 transition"
+                className="hidden sm:inline-flex p-2 rounded-xl bg-slate-900/80 text-slate-400 hover:text-cyan-300 border border-slate-800 hover:border-cyan-500/40 transition"
                 title="Share Music Track"
               >
                 <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
@@ -1144,7 +1144,7 @@ export const PersistentPlayer: React.FC<{ onAddToPlaylist?: (musicId: string) =>
               {/* Expand Fullscreen Button */}
               <button
                 onClick={() => setIsExpanded(true)}
-                className="p-2 rounded-xl bg-slate-900/80 text-slate-400 hover:text-white border border-slate-800 hover:border-slate-700 transition"
+                className="p-2 rounded-xl bg-slate-900/80 text-cyan-400 hover:text-white border border-slate-800 hover:border-slate-700 transition cursor-pointer"
                 title="Fullscreen Visualizer"
               >
                 <Maximize2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />

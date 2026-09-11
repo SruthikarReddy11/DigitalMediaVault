@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { MobileBottomNav } from './MobileBottomNav';
 import { PersistentPlayer } from '../player/PersistentPlayer';
 import { UploadModal } from '../upload/UploadModal';
 import { AddToPlaylistModal } from '../music/AddToPlaylistModal';
@@ -10,6 +11,12 @@ export const AppLayout: React.FC = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [playlistSongId, setPlaylistSongId] = useState<string | null>(null);
+  const location = useLocation();
+
+  // Automatically dismiss mobile sidebar drawer on route navigation
+  useEffect(() => {
+    setIsSidebarOpen(false);
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-brand-500 selection:text-white relative overflow-x-hidden">
@@ -31,14 +38,17 @@ export const AppLayout: React.FC = () => {
           onOpenUpload={() => setIsUploadOpen(true)}
         />
 
-        {/* Page View with bottom padding for persistent music player */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-36 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
+        {/* Page View with bottom padding for mobile bottom bar & persistent player */}
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 pb-48 sm:pb-44 lg:pb-36 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
           <Outlet context={{ openUpload: () => setIsUploadOpen(true) }} />
         </main>
       </div>
 
       {/* Global Persistent Music Player */}
       <PersistentPlayer onAddToPlaylist={(musicId) => setPlaylistSongId(musicId)} />
+
+      {/* Mobile Bottom Navigation Bar (Visible on mobile/tablet < lg) */}
+      <MobileBottomNav onOpenSidebar={() => setIsSidebarOpen(true)} />
 
       {/* Global Upload Modal */}
       <UploadModal

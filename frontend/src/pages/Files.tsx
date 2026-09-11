@@ -414,12 +414,12 @@ export const Files: React.FC = () => {
 
                 {/* Folder options */}
                 <div
-                  className="opacity-0 group-hover:opacity-100 flex items-center gap-1 transition bg-slate-950/80 rounded-lg p-0.5 border border-white/[0.08]"
+                  className="opacity-100 sm:opacity-0 sm:group-hover:opacity-100 flex items-center gap-1 transition bg-slate-950/80 rounded-lg p-0.5 border border-white/[0.08]"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <button
                     onClick={() => setShareFolderTarget(f)}
-                    className="p-1 text-slate-400 hover:text-brand-400 transition rounded hover:bg-white/[0.08]"
+                    className="p-1.5 text-slate-400 hover:text-brand-400 transition rounded hover:bg-white/[0.08]"
                     title="Share Folder"
                   >
                     <Share2 className="w-3.5 h-3.5" />
@@ -429,14 +429,14 @@ export const Files: React.FC = () => {
                       setRenameFolderTarget(f);
                       setNewFolderRename(f.name);
                     }}
-                    className="p-1 text-slate-400 hover:text-white transition rounded hover:bg-white/[0.08]"
+                    className="p-1.5 text-slate-400 hover:text-white transition rounded hover:bg-white/[0.08]"
                     title="Rename Folder"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => setDeleteFolderTarget(f)}
-                    className="p-1 text-slate-400 hover:text-rose-400 transition rounded hover:bg-white/[0.08]"
+                    className="p-1.5 text-slate-400 hover:text-rose-400 transition rounded hover:bg-white/[0.08]"
                     title="Delete Folder"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -511,7 +511,7 @@ export const Files: React.FC = () => {
                     className={`absolute top-2 right-2 p-1.5 rounded-xl backdrop-blur-md transition shadow-md ${
                       file.isFavorite
                         ? 'bg-rose-500/90 text-white'
-                        : 'opacity-0 group-hover:opacity-100 bg-slate-950/70 text-slate-300 hover:text-white border border-white/[0.1]'
+                        : 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 bg-slate-950/70 text-slate-300 hover:text-white border border-white/[0.1]'
                     }`}
                   >
                     <Heart className={`w-3.5 h-3.5 ${file.isFavorite ? 'fill-current' : ''}`} />
@@ -529,9 +529,9 @@ export const Files: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Hover Action Strip */}
+                {/* Mobile-friendly Action Strip */}
                 <div
-                  className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between opacity-0 group-hover:opacity-100 transition"
+                  className="mt-3 pt-2.5 border-t border-white/[0.06] flex items-center justify-between opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div className="flex items-center gap-1">
