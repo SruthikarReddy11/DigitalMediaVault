@@ -143,6 +143,44 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
     setIsDragging(false);
   };
 
+  // Touch handlers for mobile swipe navigation & touch panning
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setTouchStart({ x: e.touches[0].clientX, y: e.touches[0].clientY });
+      if (zoom > 1) {
+        setIsDragging(true);
+        setDragStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
+      }
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (zoom > 1 && isDragging && e.touches.length === 1) {
+      setPan({
+        x: e.touches[0].clientX - dragStart.x,
+        y: e.touches[0].clientY - dragStart.y,
+      });
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (zoom === 1 && touchStart && e.changedTouches.length === 1) {
+      const diffX = e.changedTouches[0].clientX - touchStart.x;
+      const diffY = e.changedTouches[0].clientY - touchStart.y;
+      if (Math.abs(diffX) > 40 && Math.abs(diffY) < 60) {
+        if (diffX < 0) {
+          handleNext();
+        } else {
+          handlePrev();
+        }
+      }
+    }
+    setIsDragging(false);
+    setTouchStart(null);
+  };
+
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -168,33 +206,34 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
     <div
       className="fixed inset-0 z-[9999] bg-black/95 backdrop-blur-xl flex flex-col justify-between select-none overflow-hidden"
       onMouseUp={handleMouseUp}
+      onTouchEnd={handleTouchEnd}
     >
       {/* Top Controls Bar */}
-      <div className="flex items-center justify-between px-6 py-4 bg-gradient-to-b from-black/80 to-transparent z-20">
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-semibold px-2.5 py-1 rounded-md bg-white/10 text-white">
+      <div className="flex items-center justify-between px-3 sm:px-6 py-2.5 sm:py-4 bg-gradient-to-b from-black/95 via-black/80 to-transparent z-30 gap-2 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <span className="text-[11px] sm:text-xs font-mono font-bold px-2 py-0.5 rounded-lg bg-white/15 text-white shrink-0">
             {currentIndex + 1} / {images.length}
           </span>
-          <p className="text-sm font-medium text-slate-200 truncate max-w-xs sm:max-w-md">
+          <p className="text-xs sm:text-sm font-medium text-slate-200 truncate max-w-[140px] xs:max-w-xs sm:max-w-md" title={currentImage.originalName}>
             {currentImage.originalName}
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Slideshow button */}
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Slideshow button (Desktop) */}
           {onStartSlideshow && (
             <button
               onClick={onStartSlideshow}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/20 hover:bg-brand-500/30 text-brand-400 border border-brand-500/30 rounded-xl text-xs font-medium transition"
+              className="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-brand-500/20 hover:bg-brand-500/30 text-brand-400 border border-brand-500/30 rounded-xl text-xs font-medium transition cursor-pointer"
               title="Start Slideshow"
             >
               <Play className="w-3.5 h-3.5 fill-current" />
-              <span className="hidden sm:inline">Slideshow</span>
+              <span>Slideshow</span>
             </button>
           )}
 
-          {/* Zoom controls */}
-          <div className="flex items-center gap-1 bg-white/10 rounded-xl p-0.5 border border-white/10">
+          {/* Zoom controls (Desktop) */}
+          <div className="hidden sm:flex items-center gap-0.5 bg-white/10 rounded-xl p-0.5 border border-white/10">
             <button
               onClick={handleZoomOut}
               className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition"
@@ -225,15 +264,15 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
             </button>
           </div>
 
-          <div className="h-4 w-px bg-white/20 mx-1" />
+          <div className="hidden sm:block h-4 w-px bg-white/20 mx-0.5" />
 
           {/* Favorite */}
           {onToggleFavorite && (
             <button
               onClick={() => onToggleFavorite(currentImage.id)}
-              className={`p-2 rounded-xl transition ${
+              className={`p-2 rounded-xl transition cursor-pointer active:scale-90 ${
                 currentImage.isFavorite
-                  ? 'text-rose-500 bg-rose-500/20'
+                  ? 'text-rose-500 bg-rose-500/20 border border-rose-500/30'
                   : 'text-slate-300 hover:text-white bg-white/10 hover:bg-white/20'
               }`}
               title="Favorite"
@@ -246,7 +285,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
           <a
             href={getMediaUrl(currentImage.downloadUrl)}
             download={currentImage.originalName}
-            className="p-2 text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl transition"
+            className="p-2 text-slate-300 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl transition cursor-pointer active:scale-90"
             title="Download original"
           >
             <Download className="w-4 h-4" />
@@ -255,7 +294,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
           {/* EXIF Info */}
           <button
             onClick={() => setShowInfo((prev) => !prev)}
-            className={`p-2 rounded-xl transition ${
+            className={`p-2 rounded-xl transition cursor-pointer active:scale-90 ${
               showInfo
                 ? 'text-brand-400 bg-brand-500/20 border border-brand-500/30'
                 : 'text-slate-300 hover:text-white bg-white/10 hover:bg-white/20'
@@ -265,22 +304,23 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
             <Info className="w-4 h-4" />
           </button>
 
-          {/* Delete */}
+          {/* Delete (Desktop) */}
           {onDelete && (
             <button
               onClick={() => onDelete(currentImage.id)}
-              className="p-2 text-slate-300 hover:text-rose-400 bg-white/10 hover:bg-white/20 rounded-xl transition"
+              className="hidden sm:flex p-2 text-slate-300 hover:text-rose-400 bg-white/10 hover:bg-white/20 rounded-xl transition cursor-pointer active:scale-90"
               title="Delete image"
             >
               <Trash2 className="w-4 h-4" />
             </button>
           )}
 
-          {/* Close */}
+          {/* Close Button - ALWAYS PROMINENT AND VISIBLE ON ALL SCREENS */}
           <button
             onClick={onClose}
-            className="p-2 text-slate-300 hover:text-white bg-white/10 hover:bg-rose-600 rounded-xl transition ml-2"
+            className="p-2 text-white bg-rose-600 hover:bg-rose-500 sm:bg-white/15 sm:hover:bg-rose-600 rounded-xl transition ml-1 shrink-0 border border-white/20 cursor-pointer shadow-lg active:scale-90"
             title="Close viewer (Esc)"
+            aria-label="Close image viewer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -293,7 +333,9 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
-        className={`relative flex-1 flex items-center justify-center p-4 overflow-hidden ${
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        className={`relative flex-1 flex items-center justify-center p-2 sm:p-4 overflow-hidden ${
           zoom > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-default'
         }`}
       >
@@ -301,10 +343,10 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
         {currentIndex > 0 && (
           <button
             onClick={handlePrev}
-            className="absolute left-6 z-20 p-3 bg-black/60 hover:bg-black/80 text-white rounded-full transition shadow-xl"
+            className="absolute left-2 sm:left-6 z-20 p-2 sm:p-3 bg-black/70 hover:bg-black/90 text-white rounded-full transition shadow-xl active:scale-90 border border-white/10"
             aria-label="Previous image"
           >
-            <ChevronLeft className="w-6 h-6" />
+            <ChevronLeft className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         )}
 
@@ -319,7 +361,7 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
             src={getMediaUrl(currentImage.streamUrl)}
             alt={currentImage.originalName}
             draggable={false}
-            className="max-h-[80vh] max-w-[90vw] object-contain rounded-lg shadow-2xl select-none"
+            className="max-h-[75vh] sm:max-h-[80vh] max-w-[95vw] sm:max-w-[90vw] object-contain rounded-lg shadow-2xl select-none"
           />
         </div>
 
@@ -327,22 +369,80 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
         {currentIndex < images.length - 1 && (
           <button
             onClick={handleNext}
-            className="absolute right-6 z-20 p-3 bg-black/60 hover:bg-black/80 text-white rounded-full transition shadow-xl"
+            className="absolute right-2 sm:right-6 z-20 p-2 sm:p-3 bg-black/70 hover:bg-black/90 text-white rounded-full transition shadow-xl active:scale-90 border border-white/10"
             aria-label="Next image"
           >
-            <ChevronRight className="w-6 h-6" />
+            <ChevronRight className="w-5 h-5 sm:w-6 sm:h-6" />
           </button>
         )}
 
-        {/* Info Drawer (Overlay on right) */}
+        {/* Mobile Floating Zoom & Action Pill (Centered at bottom of image stage) */}
+        <div className="sm:hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-1 px-2.5 py-1.5 bg-slate-950/90 backdrop-blur-2xl border border-white/20 rounded-full shadow-[0_10px_30px_rgba(0,0,0,0.85)] select-none">
+          <button
+            onClick={handleZoomOut}
+            className="p-1 text-slate-300 hover:text-white rounded-lg active:scale-90"
+            title="Zoom Out"
+          >
+            <ZoomOut className="w-4 h-4" />
+          </button>
+          <button
+            onClick={handleToggle100}
+            className="px-1.5 py-0.5 text-xs font-mono text-cyan-300 font-bold"
+            title="Reset Zoom"
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            onClick={handleZoomIn}
+            className="p-1 text-slate-300 hover:text-white rounded-lg active:scale-90"
+            title="Zoom In"
+          >
+            <ZoomIn className="w-4 h-4" />
+          </button>
+          <button
+            onClick={resetTransform}
+            className="p-1 text-slate-300 hover:text-white rounded-lg active:scale-90"
+            title="Reset Zoom"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+          </button>
+
+          {onStartSlideshow && (
+            <>
+              <div className="w-px h-3.5 bg-white/20 mx-0.5" />
+              <button
+                onClick={onStartSlideshow}
+                className="p-1 text-brand-400 hover:text-brand-300 rounded-lg active:scale-90"
+                title="Start Slideshow"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+              </button>
+            </>
+          )}
+
+          {onDelete && (
+            <>
+              <div className="w-px h-3.5 bg-white/20 mx-0.5" />
+              <button
+                onClick={() => onDelete(currentImage.id)}
+                className="p-1 text-rose-400 hover:text-rose-300 rounded-lg active:scale-90"
+                title="Delete Image"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </>
+          )}
+        </div>
+
+        {/* Info Drawer (Bottom Sheet on mobile, side panel on desktop) */}
         {showInfo && (
-          <div className="absolute right-6 top-6 bottom-6 w-84 sm:w-96 bg-slate-900/95 border border-slate-800 backdrop-blur-xl rounded-2xl p-5 text-xs text-slate-300 shadow-2xl z-30 overflow-y-auto animate-in slide-in-from-right-4 duration-200">
+          <div className="fixed inset-x-0 bottom-0 max-h-[80vh] sm:max-h-[85vh] sm:inset-x-auto sm:right-6 sm:top-6 sm:bottom-6 w-full sm:w-96 bg-slate-900/98 border-t sm:border border-slate-800 backdrop-blur-2xl rounded-t-3xl sm:rounded-2xl p-4 sm:p-5 text-xs text-slate-300 shadow-2xl z-40 overflow-y-auto animate-in slide-in-from-bottom-6 sm:slide-in-from-right-4 duration-200">
             <div className="flex items-center justify-between pb-3 border-b border-slate-800 mb-4">
               <div className="flex items-center gap-2 text-white font-semibold text-sm">
                 <Camera className="w-4 h-4 text-brand-400" />
                 <span>EXIF & Photo Details</span>
               </div>
-              <button onClick={() => setShowInfo(false)} className="text-slate-400 hover:text-white">
+              <button onClick={() => setShowInfo(false)} className="p-1 text-slate-400 hover:text-white rounded-lg">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -470,8 +570,8 @@ export const ImageLightbox: React.FC<ImageLightboxProps> = ({
         )}
       </div>
 
-      {/* Bottom Thumbnail Strip */}
-      <div className="px-6 py-3 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-center gap-2 overflow-x-auto z-20">
+      {/* Bottom Thumbnail Strip (Desktop only) */}
+      <div className="hidden sm:flex px-6 py-3 bg-gradient-to-t from-black/80 to-transparent items-center justify-center gap-2 overflow-x-auto z-20 shrink-0">
         {images.slice(Math.max(0, currentIndex - 4), currentIndex + 5).map((img) => {
           const actualIdx = images.indexOf(img);
           const isSelected = actualIdx === currentIndex;
