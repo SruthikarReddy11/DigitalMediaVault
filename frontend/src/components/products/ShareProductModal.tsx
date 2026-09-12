@@ -141,10 +141,11 @@ export const ShareProductModal: React.FC<ShareProductModalProps> = ({
 
     try {
       setIsSubmitting(true);
+      const payloadTitle = (title.trim() || product.title).slice(0, 300);
       const newShare = await shareApi.createShare({
         productId: product.id,
-        title: title.trim() || product.title,
-        password: hasPassword ? password.trim() : undefined,
+        title: payloadTitle,
+        password: hasPassword && password.trim() ? password.trim() : undefined,
         expiresAtOption: expiresOption,
         allowDownload: true,
       });
@@ -153,7 +154,12 @@ export const ShareProductModal: React.FC<ShareProductModalProps> = ({
       success('Vault share link created successfully!');
       loadExistingLinks();
     } catch (err: any) {
-      error(err.message || 'Failed to generate share link');
+      const msg =
+        err.response?.data?.error?.details?.[0]?.message ||
+        err.response?.data?.error?.message ||
+        err.message ||
+        'Failed to generate share link';
+      error(msg);
     } finally {
       setIsSubmitting(false);
     }

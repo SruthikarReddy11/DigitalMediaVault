@@ -8,16 +8,18 @@ const router = Router();
 
 // Zod validation schemas
 const createShareSchema = z.object({
-  fileId: z.string().uuid().optional(),
-  folderId: z.string().uuid().optional(),
-  title: z.string().max(120).optional(),
-  password: z.string().max(100).optional(),
-  expiresAtOption: z.enum(['1h', '1d', '7d', '30d', 'never']).or(z.string()).optional(),
-  customExpiresAt: z.string().datetime().optional(),
-  allowDownload: z.boolean().optional(),
+  fileId: z.string().optional().nullable(),
+  folderId: z.string().optional().nullable(),
+  albumId: z.string().optional().nullable(),
+  productId: z.string().optional().nullable(),
+  title: z.string().max(500).optional().nullable(),
+  password: z.string().max(100).optional().nullable(),
+  expiresAtOption: z.enum(['1h', '1d', '7d', '30d', 'never']).or(z.string()).optional().nullable(),
+  customExpiresAt: z.string().optional().nullable(),
+  allowDownload: z.boolean().optional().nullable(),
   maxDownloads: z.number().int().min(1).nullable().optional(),
-}).refine((data) => data.fileId || data.folderId, {
-  message: 'Either fileId or folderId must be provided.',
+}).refine((data) => Boolean(data.fileId || data.folderId || data.albumId || data.productId), {
+  message: 'Either fileId, folderId, albumId, or productId must be provided.',
 });
 
 const uuidParam = z.object({
