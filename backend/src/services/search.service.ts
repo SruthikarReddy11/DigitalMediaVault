@@ -230,6 +230,7 @@ export class SearchService {
     const matchedDbFiles = await prisma.file.findMany({
       where: {
         userId: user.id,
+        isSecret: false,
         deletedAt: null,
         coverForMusic: { none: {} },
         NOT: {

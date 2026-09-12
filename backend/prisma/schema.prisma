@@ -122,6 +122,8 @@ model File {
   extension    String
   size         BigInt
   checksum     String?
+  isSecret     Boolean   @default(false)
+  vaultFolderId String?
   tags         String[]  @default([])
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -129,6 +131,7 @@ model File {
 
   user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   folder       Folder?    @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  vaultFolder  VaultFolder? @relation(fields: [vaultFolderId], references: [id], onDelete: Cascade)
   music        Music?     @relation("MusicFile")
   coverForMusic Music[]   @relation("MusicCoverArt")
   favorites    Favorite[]
@@ -142,6 +145,8 @@ model File {
   @@index([createdAt])
   @@index([deletedAt])
   @@index([folderId])
+  @@index([vaultFolderId])
+  @@index([userId, isSecret])
   @@index([userId, deletedAt])
   @@index([userId, fileType])
   @@map("files")
@@ -266,6 +271,7 @@ model VaultFolder {
 
   user         User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   cells        VaultCell[]
+  files        File[]
 
   @@index([userId])
   @@map("vault_folders")

@@ -3,6 +3,8 @@ import crypto from 'crypto';
 import { prisma } from '../database/prisma';
 import { generateSecret, verifyTOTP, getOtpAuthUrl, generateQrCodeDataUrl } from '../lib/totp';
 import { ActivityService } from './activity.service';
+import { FileService, UploadFileItem } from './file.service';
+import { AuthUser } from '../types';
 
 const VAULT_SECRET_KEY = process.env.JWT_SECRET || 'vault_super_secret_fallback_key';
 
@@ -183,7 +185,10 @@ export class VaultService {
         createdAt: true,
         updatedAt: true,
         _count: {
-          select: { cells: true },
+          select: {
+            cells: true,
+            files: { where: { deletedAt: null } },
+          },
         },
       },
     });
@@ -197,6 +202,7 @@ export class VaultService {
       createdAt: f.createdAt,
       updatedAt: f.updatedAt,
       cellCount: f._count.cells,
+      fileCount: f._count.files,
       isLocked: true,
     }));
   }
@@ -254,6 +260,7 @@ export class VaultService {
     return {
       ...folder,
       cellCount: 0,
+      fileCount: 0,
       isLocked: true,
     };
   }
@@ -264,6 +271,13 @@ export class VaultService {
       include: {
         cells: {
           orderBy: { createdAt: 'desc' },
+        },
+        files: {
+          where: { deletedAt: null },
+          orderBy: { createdAt: 'desc' },
+          include: {
+            favorites: { where: { userId }, select: { id: true } },
+          },
         },
       },
     });
@@ -301,6 +315,7 @@ export class VaultService {
       metadata: {
         folderName: folder.name,
         cellCount: folder.cells.length,
+        fileCount: folder.files.length,
         unlockedAt: new Date().toISOString(),
       },
     });
@@ -325,6 +340,7 @@ export class VaultService {
         createdAt: c.createdAt,
         updatedAt: c.updatedAt,
       })),
+      files: folder.files.map((f) => FileService.serializeFile(f, userId)),
     };
   }
 
@@ -749,5 +765,92 @@ export class VaultService {
     } catch {
       return { hasVideo: false };
     }
+  }
+
+  /**
+   * Upload private files into a specific vault folder
+   */
+  public static async uploadFolderFiles(
+    user: AuthUser,
+    folderId: string,
+    files: UploadFileItem[]
+  ) {
+    const folder = await prisma.vaultFolder.findFirst({
+      where: { id: folderId, userId: user.id },
+    });
+    if (!folder) {
+      const err: any = new Error('Vault folder not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const uploaded = [];
+    for (const file of files) {
+      const saved = await FileService.uploadFile(
+        user,
+        file,
+        null,
+        { isSecret: true, vaultFolderId: folderId }
+      );
+      uploaded.push(saved);
+    }
+
+    await ActivityService.log({
+      userId: user.id,
+      action: 'VAULT_FILES_UPLOAD',
+      resourceType: 'VAULT_FOLDER',
+      resourceId: folderId,
+      metadata: {
+        folderName: folder.name,
+        uploadedCount: files.length,
+      },
+    });
+
+    return uploaded;
+  }
+
+  /**
+   * Get all secret files in a vault folder
+   */
+  public static async getFolderFiles(userId: string, folderId: string) {
+    const folder = await prisma.vaultFolder.findFirst({
+      where: { id: folderId, userId },
+    });
+    if (!folder) {
+      const err: any = new Error('Vault folder not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const files = await prisma.file.findMany({
+      where: {
+        userId,
+        vaultFolderId: folderId,
+        isSecret: true,
+        deletedAt: null,
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        favorites: { where: { userId }, select: { id: true } },
+      },
+    });
+
+    return files.map((f) => FileService.serializeFile(f, userId));
+  }
+
+  /**
+   * Delete a secret file from vault folder
+   */
+  public static async deleteSecretFile(user: AuthUser, fileId: string) {
+    const file = await prisma.file.findFirst({
+      where: { id: fileId, userId: user.id, isSecret: true },
+    });
+    if (!file) {
+      const err: any = new Error('Secret file not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    return FileService.permanentDelete(fileId, user);
   }
 }

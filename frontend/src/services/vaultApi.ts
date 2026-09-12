@@ -1,5 +1,5 @@
 import { api } from './api';
-import { VaultFolder, VaultCell, TwoFactorStatus, TwoFactorSetup } from '../types';
+import { VaultFolder, VaultCell, TwoFactorStatus, TwoFactorSetup, FileItem } from '../types';
 
 export const vaultApi = {
   async get2FAStatus() {
@@ -53,6 +53,7 @@ export const vaultApi = {
         unlocked: boolean;
         folder: VaultFolder;
         cells: VaultCell[];
+        files?: FileItem[];
       };
     }>(`/vault/folders/${id}/unlock`, { password });
     return res.data.data;
@@ -104,6 +105,36 @@ export const vaultApi = {
         videoId?: string;
       };
     }>('/vault/preview', { params: { url } });
+    return res.data.data;
+  },
+
+  async uploadFiles(folderId: string, files: File[]) {
+    const formData = new FormData();
+    for (const file of files) {
+      formData.append('files', file);
+    }
+    const res = await api.post<{
+      success: boolean;
+      data: {
+        files: FileItem[];
+      };
+    }>(`/vault/folders/${folderId}/files`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return res.data.data.files;
+  },
+
+  async getFolderFiles(folderId: string) {
+    const res = await api.get<{ success: boolean; data: FileItem[] }>(`/vault/folders/${folderId}/files`);
+    return res.data.data;
+  },
+
+  async deleteFile(fileId: string) {
+    const res = await api.delete<{ success: boolean; data: { success: boolean; message?: string } }>(
+      `/vault/files/${fileId}`
+    );
     return res.data.data;
   },
 };

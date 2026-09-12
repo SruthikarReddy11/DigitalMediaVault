@@ -20,6 +20,8 @@ export interface UploadFileItem {
 
 export interface ListFilesOptions {
   folderId?: string | null;
+  vaultFolderId?: string | null;
+  isSecret?: boolean;
   fileType?: FileType;
   search?: string;
   favoriteOnly?: boolean;
@@ -34,18 +36,34 @@ export class FileService {
   public static async uploadFile(
     user: AuthUser,
     file: UploadFileItem,
-    folderId?: string | null
+    folderId?: string | null,
+    options?: { isSecret?: boolean; vaultFolderId?: string | null }
   ) {
+    const isSecret = Boolean(options?.isSecret);
+    const vaultFolderId = options?.vaultFolderId || null;
     const storage = StorageFactory.getStorage();
     const { fileType, extension, mimeType } = classifyFile(file.originalname, file.mimetype);
 
     // Verify folder ownership if folderId provided
-    if (folderId) {
+    if (folderId && !isSecret) {
       const folder = await prisma.folder.findUnique({ where: { id: folderId } });
       if (!folder || !isOwnerOrAdmin(folder.userId, user)) {
         const err: any = new Error('Destination folder not found or access denied.');
         err.statusCode = 403;
         err.code = 'FORBIDDEN';
+        throw err;
+      }
+    }
+
+    // Verify vault folder ownership if vaultFolderId provided
+    if (vaultFolderId) {
+      const vFolder = await prisma.vaultFolder.findFirst({
+        where: { id: vaultFolderId, userId: user.id },
+      });
+      if (!vFolder) {
+        const err: any = new Error('Destination vault folder not found or access denied.');
+        err.statusCode = 404;
+        err.code = 'NOT_FOUND';
         throw err;
       }
     }
@@ -65,7 +83,7 @@ export class FileService {
     // Save actual file into storage abstraction
     const { storageKey, size, checksum } = await storage.save(dataToSave, {
       userId: user.id,
-      category: fileType.toLowerCase(),
+      category: isSecret ? 'secret' : fileType.toLowerCase(),
       originalName: file.originalname,
       mimeType,
     });
@@ -74,7 +92,9 @@ export class FileService {
     const dbFile = await prisma.file.create({
       data: {
         userId: user.id,
-        folderId: folderId || null,
+        folderId: isSecret ? null : (folderId || null),
+        vaultFolderId: isSecret ? vaultFolderId : null,
+        isSecret,
         originalName: file.originalname,
         storageKey,
         mimeType,
@@ -89,8 +109,8 @@ export class FileService {
       },
     });
 
-    // If AUDIO, extract metadata and create Music record
-    if (fileType === FileType.AUDIO) {
+    // If AUDIO and NOT secret, extract metadata and create Music record for public library
+    if (fileType === FileType.AUDIO && !isSecret) {
       try {
         const audioBuf =
           file.filePath && fs.existsSync(file.filePath)
@@ -294,14 +314,20 @@ export class FileService {
   }
 
   public static async listFiles(user: AuthUser, options: ListFilesOptions) {
+    const isSecret = Boolean(options.isSecret);
     const where: Prisma.FileWhereInput = {
       userId: user.id,
+      isSecret,
       deletedAt: options.includeTrash ? { not: null } : null,
       coverForMusic: { none: {} },
       NOT: {
         storageKey: { contains: 'covers/' },
       },
     };
+
+    if (options.vaultFolderId !== undefined) {
+      where.vaultFolderId = options.vaultFolderId;
+    }
 
     if (options.folderId !== undefined) {
       where.folderId = options.folderId;
@@ -579,18 +605,18 @@ export class FileService {
 
     const [totalFiles, images, videos, music, pdfs, documents, spreadsheets, archives, others, favorites, recentFiles, recentActivity] =
       await Promise.all([
-        prisma.file.count({ where: { userId: user.id, deletedAt: null, ...notCoverFilter } }),
-        prisma.file.count({ where: { userId: user.id, fileType: 'IMAGE', deletedAt: null, ...notCoverFilter } }),
-        prisma.file.count({ where: { userId: user.id, fileType: 'VIDEO', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, fileType: 'AUDIO', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, fileType: 'PDF', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, fileType: 'DOCUMENT', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, fileType: 'SPREADSHEET', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, fileType: 'ARCHIVE', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, fileType: 'OTHER', deletedAt: null } }),
+        prisma.file.count({ where: { userId: user.id, isSecret: false, deletedAt: null, ...notCoverFilter } }),
+        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'IMAGE', deletedAt: null, ...notCoverFilter } }),
+        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'VIDEO', deletedAt: null } }),
+        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'AUDIO', deletedAt: null } }),
+        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'PDF', deletedAt: null } }),
+        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'DOCUMENT', deletedAt: null } }),
+        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'SPREADSHEET', deletedAt: null } }),
+        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'ARCHIVE', deletedAt: null } }),
+        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'OTHER', deletedAt: null } }),
         prisma.favorite.count({ where: { userId: user.id } }),
         prisma.file.findMany({
-          where: { userId: user.id, deletedAt: null, ...notCoverFilter },
+          where: { userId: user.id, isSecret: false, deletedAt: null, ...notCoverFilter },
           take: 8,
           orderBy: { createdAt: 'desc' },
           include: {
@@ -605,9 +631,9 @@ export class FileService {
         }),
       ]);
 
-    // Aggregate total storage used
+    // Aggregate total storage used (excluding secret files)
     const filesForSize = await prisma.file.findMany({
-      where: { userId: user.id },
+      where: { userId: user.id, isSecret: false },
       select: { size: true },
     });
 
@@ -693,6 +719,8 @@ export class FileService {
       music: serializedMusic,
       isFavorite: file.favorites ? file.favorites.length > 0 : false,
       tags: file.tags || [],
+      isSecret: Boolean(file.isSecret),
+      vaultFolderId: file.vaultFolderId || null,
       streamUrl,
       downloadUrl,
       isExternal,

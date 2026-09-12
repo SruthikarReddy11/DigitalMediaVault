@@ -15,6 +15,7 @@ export class MusicService {
     const where: any = {
       file: {
         userId: user.id,
+        isSecret: false,
         deletedAt: null,
       },
     };
@@ -104,7 +105,7 @@ export class MusicService {
   public static async getAlbums(user: AuthUser) {
     const songs = await prisma.music.findMany({
       where: {
-        file: { userId: user.id, deletedAt: null },
+        file: { userId: user.id, isSecret: false, deletedAt: null },
         album: { not: null },
       },
       select: {
@@ -148,7 +149,7 @@ export class MusicService {
   public static async getGenres(user: AuthUser) {
     const songs = await prisma.music.findMany({
       where: {
-        file: { userId: user.id, deletedAt: null },
+        file: { userId: user.id, isSecret: false, deletedAt: null },
         genre: { not: null },
       },
       select: { genre: true },

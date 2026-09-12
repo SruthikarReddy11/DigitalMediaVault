@@ -97,6 +97,8 @@ export interface FileItem {
   downloadUrl: string;
   externalUrl?: string | null;
   isExternal?: boolean;
+  isSecret?: boolean;
+  vaultFolderId?: string | null;
   owner?: {
     id: string;
     name: string;
@@ -199,7 +201,10 @@ export interface VaultFolder {
   createdAt: string;
   updatedAt: string;
   cellCount: number;
+  fileCount?: number;
   isLocked: boolean;
+  cells?: VaultCell[];
+  files?: FileItem[];
 }
 
 export interface VaultCell {

@@ -127,12 +127,18 @@ export class ShareService {
     if (fileId) {
       const file = await prisma.file.findUnique({
         where: { id: fileId },
-        select: { id: true, userId: true, originalName: true, deletedAt: true },
+        select: { id: true, userId: true, originalName: true, deletedAt: true, isSecret: true },
       });
 
       if (!file || file.deletedAt) {
         const err: any = new Error('File not found or has been deleted.');
         err.statusCode = 404;
+        throw err;
+      }
+
+      if (file.isSecret) {
+        const err: any = new Error('Private vault files cannot be shared via public links.');
+        err.statusCode = 400;
         throw err;
       }
 

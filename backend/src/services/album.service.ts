@@ -226,6 +226,7 @@ export class AlbumService {
       where: {
         id: { in: fileIds },
         userId: user.id,
+        isSecret: false,
         deletedAt: null,
       },
       select: { id: true },

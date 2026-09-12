@@ -71,6 +71,7 @@ export class GalleryService {
   ): Promise<TimelineMonthGroup[]> {
     const where: any = {
       userId: user.id,
+      isSecret: false,
       fileType: FileType.IMAGE,
       deletedAt: null,
       coverForMusic: { none: {} },
@@ -138,7 +139,7 @@ export class GalleryService {
       where: { id: fileId },
     });
 
-    if (!file || file.deletedAt) {
+    if (!file || file.deletedAt || file.isSecret) {
       const err: any = new Error('File not found or deleted.');
       err.statusCode = 404;
       throw err;

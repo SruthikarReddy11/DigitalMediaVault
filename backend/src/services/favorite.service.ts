@@ -74,7 +74,7 @@ export class FavoriteService {
     const favorites = await prisma.favorite.findMany({
       where: {
         userId: user.id,
-        file: { deletedAt: null },
+        file: { isSecret: false, deletedAt: null },
       },
       orderBy: { createdAt: 'desc' },
       include: {

@@ -1,4 +1,5 @@
 import { Response, NextFunction } from 'express';
+import fs from 'fs';
 import { AuthenticatedRequest } from '../types';
 import { VaultService } from '../services/vault.service';
 
@@ -175,6 +176,68 @@ export class VaultController {
       }
       const data = await VaultService.detectVideo(url);
       res.json({ success: true, data });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  // Private Files Endpoints in Vault
+  public static async uploadFolderFiles(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const folderId = String(req.params.id);
+      const files = req.files as Express.Multer.File[];
+      if (!files || files.length === 0) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'Please select one or more private files to save in Secret Vault.' },
+        });
+      }
+
+      const items = files.map((file) => ({
+        buffer: file.buffer,
+        filePath: file.path,
+        originalname: Buffer.from(file.originalname, 'latin1').toString('utf8'),
+        mimetype: file.mimetype,
+        size: file.size,
+      }));
+
+      const results = await VaultService.uploadFolderFiles(req.user!, folderId, items);
+
+      // Clean up temporary multer files if any
+      for (const file of files) {
+        if (file.path && fs.existsSync(file.path)) {
+          try {
+            fs.unlinkSync(file.path);
+          } catch {}
+        }
+      }
+
+      res.status(201).json({
+        success: true,
+        data: {
+          files: results,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async getFolderFiles(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const folderId = String(req.params.id);
+      const files = await VaultService.getFolderFiles(req.user!.id, folderId);
+      res.json({ success: true, data: files });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async deleteFile(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const fileId = String(req.params.fileId);
+      const result = await VaultService.deleteSecretFile(req.user!, fileId);
+      res.json({ success: true, data: result });
     } catch (err) {
       next(err);
     }
