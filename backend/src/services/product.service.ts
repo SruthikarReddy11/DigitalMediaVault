@@ -52,6 +52,7 @@ export interface ProductListFilters {
   search?: string;
   store?: string;
   category?: string;
+  sectionId?: string;
   isFavorite?: boolean;
   isPurchased?: boolean;
   sortBy?: 'createdAt' | 'price' | 'discountPercent' | 'title';
@@ -144,6 +145,14 @@ export class ProductService {
 
     if (filters.isPurchased !== undefined) {
       where.isPurchased = filters.isPurchased;
+    }
+
+    if (filters.sectionId) {
+      where.sectionItems = {
+        some: {
+          sectionId: filters.sectionId,
+        },
+      };
     }
 
     if (filters.search && filters.search.trim()) {

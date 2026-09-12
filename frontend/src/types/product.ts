@@ -97,6 +97,7 @@ export interface ProductFilterOptions {
   search?: string;
   store?: string;
   category?: string;
+  sectionId?: string;
   favoriteOnly?: boolean;
   purchasedOnly?: boolean;
   isPurchased?: boolean;
@@ -112,4 +113,37 @@ export interface ProductListResponse {
   totalValue: number;
   totalDiscountedCount: number;
   storeCounts: { store: string; count: number }[];
+}
+
+export interface ProductSection {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string | null;
+  color: string;
+  icon: string;
+  position: number;
+  isLocked: boolean;
+  totalItems: number;
+  totalValue?: number;
+  previewImages?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateSectionInput {
+  name: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  password?: string;
+}
+
+export interface UpdateSectionInput {
+  name?: string;
+  description?: string;
+  color?: string;
+  icon?: string;
+  password?: string;
+  removePassword?: boolean;
 }

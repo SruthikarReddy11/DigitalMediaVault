@@ -32,6 +32,7 @@ import { SavedProduct } from '../types/product';
 import { useToast } from '../contexts/ToastContext';
 import { formatDate } from '../utils/formatters';
 import { ShareProductModal } from '../components/products/ShareProductModal';
+import { AddToSectionDialog } from '../components/products/AddToSectionDialog';
 
 export const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -46,6 +47,7 @@ export const ProductDetailPage: React.FC = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isAddToSectionOpen, setIsAddToSectionOpen] = useState(false);
   const [imgError, setImgError] = useState(false);
 
   // Notes & Target Price editing state
@@ -364,11 +366,22 @@ export const ProductDetailPage: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsShareModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold shadow-md transition"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold shadow-md transition cursor-pointer"
             title="Create Vault Share Link"
           >
             <Share2 className="w-4 h-4 text-emerald-400" />
             <span className="hidden sm:inline">Share</span>
+          </button>
+
+          {/* Add to Section */}
+          <button
+            type="button"
+            onClick={() => setIsAddToSectionOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-semibold shadow-md transition cursor-pointer"
+            title="Organize into Sections"
+          >
+            <Layers className="w-4 h-4 text-indigo-400" />
+            <span className="hidden sm:inline">Section</span>
           </button>
 
           {/* Refresh Price */}
@@ -954,6 +967,15 @@ export const ProductDetailPage: React.FC = () => {
         <ShareProductModal
           isOpen={isShareModalOpen}
           onClose={() => setIsShareModalOpen(false)}
+          product={product}
+        />
+      )}
+
+      {/* Add To Section Dialog */}
+      {isAddToSectionOpen && product && (
+        <AddToSectionDialog
+          isOpen={isAddToSectionOpen}
+          onClose={() => setIsAddToSectionOpen(false)}
           product={product}
         />
       )}

@@ -4,7 +4,12 @@ import { ProductsHeader } from '../components/products/ProductsHeader';
 import { ProductCard } from '../components/products/ProductCard';
 import { SaveProductModal } from '../components/products/SaveProductModal';
 import { ShareProductModal } from '../components/products/ShareProductModal';
-import { SavedProduct, ProductFilterOptions } from '../types/product';
+import { ProductSectionsBar } from '../components/products/ProductSectionsBar';
+import { CreateSectionModal } from '../components/products/CreateSectionModal';
+import { UnlockSectionModal } from '../components/products/UnlockSectionModal';
+import { AddProductsToSectionModal } from '../components/products/AddProductsToSectionModal';
+import { AddToSectionDialog } from '../components/products/AddToSectionDialog';
+import { SavedProduct, ProductFilterOptions, ProductSection } from '../types/product';
 import { productsApi } from '../services/productsApi';
 import { useToast } from '../contexts/ToastContext';
 import {
@@ -40,10 +45,33 @@ export const ProductsPage: React.FC = () => {
   const [sortBy, setSortBy] = useState('createdAt');
   const [favoriteOnly, setFavoriteOnly] = useState(false);
 
+  // Custom Product Sections state
+  const [sections, setSections] = useState<ProductSection[]>([]);
+  const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const [unlockedSectionIds, setUnlockedSectionIds] = useState<string[]>([]);
+  const [isCreateSectionOpen, setIsCreateSectionOpen] = useState(false);
+  const [sectionToEdit, setSectionToEdit] = useState<ProductSection | null>(null);
+  const [sectionToUnlock, setSectionToUnlock] = useState<ProductSection | null>(null);
+  const [sectionToAddProducts, setSectionToAddProducts] = useState<ProductSection | null>(null);
+  const [productToAddToSection, setProductToAddToSection] = useState<SavedProduct | null>(null);
+
   // Modals
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [productToShare, setProductToShare] = useState<SavedProduct | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
+  const fetchSections = useCallback(async () => {
+    try {
+      const data = await productsApi.getSections();
+      setSections(data);
+    } catch (err: any) {
+      console.error('Failed to load sections:', err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSections();
+  }, [fetchSections]);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -53,6 +81,7 @@ export const ProductsPage: React.FC = () => {
         search: searchTerm.trim() || undefined,
         store: selectedStore !== 'ALL' ? selectedStore : undefined,
         category: selectedCategory !== 'ALL' ? selectedCategory : undefined,
+        sectionId: selectedSectionId || undefined,
         favoriteOnly: favoriteOnly || undefined,
         isPurchased:
           viewMode === 'wishlist' ? false : viewMode === 'purchased' ? true : undefined,
@@ -86,7 +115,7 @@ export const ProductsPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [searchTerm, selectedStore, selectedCategory, sortBy, favoriteOnly, viewMode, error]);
+  }, [searchTerm, selectedStore, selectedCategory, selectedSectionId, sortBy, favoriteOnly, viewMode, error]);
 
   useEffect(() => {
     fetchProducts();
@@ -156,8 +185,74 @@ export const ProductsPage: React.FC = () => {
       setProducts((prev) => prev.filter((p) => p.id !== id));
       success('Product removed from vault');
       fetchProducts();
+      fetchSections();
     } catch (err: any) {
       error(err.message || 'Failed to delete product');
+    }
+  };
+
+  const handleSelectSection = (sectionId: string | null) => {
+    if (sectionId === null) {
+      setSelectedSectionId(null);
+      return;
+    }
+
+    const section = sections.find((s) => s.id === sectionId);
+    if (!section) return;
+
+    if (section.isLocked && !unlockedSectionIds.includes(section.id)) {
+      setSectionToUnlock(section);
+    } else {
+      setSelectedSectionId(section.id);
+    }
+  };
+
+  const handleSectionUnlocked = (sectionId: string) => {
+    if (!unlockedSectionIds.includes(sectionId)) {
+      setUnlockedSectionIds((prev) => [...prev, sectionId]);
+    }
+    setSelectedSectionId(sectionId);
+  };
+
+  const handleRelockSection = (sectionId: string) => {
+    setUnlockedSectionIds((prev) => prev.filter((id) => id !== sectionId));
+    if (selectedSectionId === sectionId) {
+      setSelectedSectionId(null);
+    }
+    success('Section relocked');
+  };
+
+  const handleDeleteSection = async (sectionId: string) => {
+    if (
+      !window.confirm(
+        'Delete this section? Products in this section will NOT be deleted from your vault.'
+      )
+    ) {
+      return;
+    }
+
+    try {
+      await productsApi.deleteSection(sectionId);
+      if (selectedSectionId === sectionId) {
+        setSelectedSectionId(null);
+      }
+      fetchSections();
+      fetchProducts();
+      success('Section deleted');
+    } catch (err: any) {
+      error(err.message || 'Failed to delete section');
+    }
+  };
+
+  const handleRemoveFromSection = async (productId: string) => {
+    if (!selectedSectionId) return;
+    try {
+      await productsApi.removeProductFromSection(selectedSectionId, productId);
+      setProducts((prev) => prev.filter((p) => p.id !== productId));
+      fetchSections();
+      success('Product removed from section');
+    } catch (err: any) {
+      error(err.message || 'Failed to remove product from section');
     }
   };
 
@@ -184,6 +279,26 @@ export const ProductsPage: React.FC = () => {
         totalCount={totalCount}
         totalValue={totalValue}
         totalDiscountedCount={totalDiscountedCount}
+      />
+
+      {/* Custom Product Sections Bar */}
+      <ProductSectionsBar
+        sections={sections}
+        selectedSectionId={selectedSectionId}
+        onSelectSection={handleSelectSection}
+        onNewSection={() => {
+          setSectionToEdit(null);
+          setIsCreateSectionOpen(true);
+        }}
+        onEditSection={(section) => {
+          setSectionToEdit(section);
+          setIsCreateSectionOpen(true);
+        }}
+        onDeleteSection={handleDeleteSection}
+        onOpenAddProducts={(section) => setSectionToAddProducts(section)}
+        unlockedSectionIds={unlockedSectionIds}
+        onRelockSection={handleRelockSection}
+        totalProductsCount={totalCount}
       />
 
       {/* Grid Canvas */}
@@ -213,12 +328,16 @@ export const ProductsPage: React.FC = () => {
           </div>
           <div className="max-w-md space-y-1">
             <h3 className="text-base font-bold text-white">
-              {viewMode === 'purchased'
+              {selectedSectionId
+                ? 'No products in this section'
+                : viewMode === 'purchased'
                 ? 'No purchased products yet'
                 : 'No products in wishlist'}
             </h3>
             <p className="text-xs text-slate-400">
-              {searchTerm || selectedStore !== 'ALL' || selectedCategory !== 'ALL' || favoriteOnly
+              {selectedSectionId
+                ? 'This section is currently empty. Click "Add Products" above to populate it with items from your vault!'
+                : searchTerm || selectedStore !== 'ALL' || selectedCategory !== 'ALL' || favoriteOnly
                 ? 'No products match your current filters. Try resetting the search or filters.'
                 : viewMode === 'purchased'
                 ? 'Items you mark as bought in your wishlist will be moved and saved here in your Purchased vault.'
@@ -226,7 +345,19 @@ export const ProductsPage: React.FC = () => {
             </p>
           </div>
 
-          {viewMode === 'purchased' ? (
+          {selectedSectionId ? (
+            <button
+              type="button"
+              onClick={() => {
+                const sec = sections.find((s) => s.id === selectedSectionId);
+                if (sec) setSectionToAddProducts(sec);
+              }}
+              className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-500 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-brand-500/20 active:scale-95 transition cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Products to this Section</span>
+            </button>
+          ) : viewMode === 'purchased' ? (
             <button
               type="button"
               onClick={() => setViewMode('wishlist')}
@@ -258,6 +389,9 @@ export const ProductsPage: React.FC = () => {
               onRefreshPrice={handleRefreshPrice}
               onDelete={handleDeleteProduct}
               onShare={setProductToShare}
+              onAddToSection={setProductToAddToSection}
+              onRemoveFromSection={selectedSectionId ? handleRemoveFromSection : undefined}
+              currentSectionId={selectedSectionId}
               isRefreshing={refreshingId === product.id}
             />
           ))}
@@ -271,6 +405,7 @@ export const ProductsPage: React.FC = () => {
           onClose={() => setIsSaveModalOpen(false)}
           onSaved={() => {
             fetchProducts();
+            fetchSections();
             success('Product saved to your vault!');
           }}
         />
@@ -282,6 +417,64 @@ export const ProductsPage: React.FC = () => {
           isOpen={!!productToShare}
           onClose={() => setProductToShare(null)}
           product={productToShare}
+        />
+      )}
+
+      {/* Create / Edit Section Modal */}
+      {isCreateSectionOpen && (
+        <CreateSectionModal
+          isOpen={isCreateSectionOpen}
+          onClose={() => {
+            setIsCreateSectionOpen(false);
+            setSectionToEdit(null);
+          }}
+          sectionToEdit={sectionToEdit}
+          onSaved={(saved) => {
+            fetchSections();
+            fetchProducts();
+            setSelectedSectionId(saved.id);
+          }}
+        />
+      )}
+
+      {/* Unlock Section Modal */}
+      {sectionToUnlock && (
+        <UnlockSectionModal
+          isOpen={!!sectionToUnlock}
+          onClose={() => setSectionToUnlock(null)}
+          section={sectionToUnlock}
+          onUnlocked={handleSectionUnlocked}
+        />
+      )}
+
+      {/* Add Products To Section Modal */}
+      {sectionToAddProducts && (
+        <AddProductsToSectionModal
+          isOpen={!!sectionToAddProducts}
+          onClose={() => setSectionToAddProducts(null)}
+          section={sectionToAddProducts}
+          allProducts={products}
+          currentSectionProductIds={products.map((p) => p.id)}
+          onProductsAdded={() => {
+            fetchSections();
+            fetchProducts();
+          }}
+        />
+      )}
+
+      {/* Add Single Product to Section Dialog */}
+      {productToAddToSection && (
+        <AddToSectionDialog
+          isOpen={!!productToAddToSection}
+          onClose={() => {
+            setProductToAddToSection(null);
+            fetchSections();
+          }}
+          product={productToAddToSection}
+          onOpenCreateSection={() => {
+            setSectionToEdit(null);
+            setIsCreateSectionOpen(true);
+          }}
         />
       )}
     </div>

@@ -15,6 +15,9 @@ import {
   Share2,
   Sparkles,
   TrendingDown,
+  Layers,
+  FolderPlus,
+  X,
 } from 'lucide-react';
 import { SavedProduct } from '../../types/product';
 import { formatDate } from '../../utils/formatters';
@@ -27,6 +30,9 @@ interface ProductCardProps {
   onRefreshPrice: (id: string) => void;
   onDelete: (id: string) => void;
   onShare?: (product: SavedProduct) => void;
+  onAddToSection?: (product: SavedProduct) => void;
+  onRemoveFromSection?: (productId: string) => void;
+  currentSectionId?: string | null;
   isRefreshing?: boolean;
 }
 
@@ -38,6 +44,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onRefreshPrice,
   onDelete,
   onShare,
+  onAddToSection,
+  onRemoveFromSection,
+  currentSectionId,
   isRefreshing = false,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -306,6 +315,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   <Check className="w-3.5 h-3.5 text-emerald-400" />
                   <span>{product.isPurchased ? 'Move to Wishlist' : 'Mark as Purchased'}</span>
                 </button>
+
+                {onAddToSection && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onAddToSection(product);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800 transition text-left cursor-pointer"
+                  >
+                    <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>Organize Sections</span>
+                  </button>
+                )}
+
+                {currentSectionId && onRemoveFromSection && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onRemoveFromSection(product.id);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-amber-400 hover:text-amber-300 hover:bg-amber-500/10 transition text-left cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Remove from Section</span>
+                  </button>
+                )}
 
                 <div className="h-px bg-slate-800 my-1" />
 
