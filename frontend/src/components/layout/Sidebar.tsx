@@ -20,6 +20,7 @@ import {
   Share2,
   Calendar,
   BookUser,
+  ShoppingBag,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -99,6 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 { to: '/music', label: 'Lossless Music', icon: Music, badge: 'Hi-Fi' },
                 { to: '/files', label: 'Files Drive', icon: FolderClosed },
                 { to: '/calendar', label: 'Calendar', icon: Calendar },
+                { to: '/products', label: 'Product Wishlist', icon: ShoppingBag, badge: 'NEW', badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
               ].map((item) => {
                 const Icon = item.icon;
                 return (

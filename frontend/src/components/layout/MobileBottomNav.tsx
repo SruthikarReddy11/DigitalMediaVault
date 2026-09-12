@@ -29,6 +29,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenSidebar 
   const isAuxiliaryActive = [
     '/vault',
     '/contacts',
+    '/products',
     '/playlists',
     '/favorites',
     '/shared-links',

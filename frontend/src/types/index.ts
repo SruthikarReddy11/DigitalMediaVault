@@ -518,6 +518,7 @@ export interface UpdateAlbumInput {
 }
 
 export * from './calendar';
+export * from './product';
 
 
 

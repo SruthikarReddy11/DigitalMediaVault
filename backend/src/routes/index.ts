@@ -14,6 +14,7 @@ import albumRoutes from './album.routes';
 import galleryRoutes from './gallery.routes';
 import calendarRoutes from './calendar.routes';
 import contactRoutes from './contact.routes';
+import productRoutes from './product.routes';
 
 const router = Router();
 
@@ -32,6 +33,7 @@ router.use('/albums', albumRoutes);
 router.use('/gallery', galleryRoutes);
 router.use('/calendar', calendarRoutes);
 router.use('/contacts', contactRoutes);
+router.use('/products', productRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {

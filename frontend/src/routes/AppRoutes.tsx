@@ -22,6 +22,7 @@ import { SharedLinks } from '../pages/SharedLinks';
 import { SearchPage } from '../pages/SearchPage';
 import { CalendarPage } from '../pages/CalendarPage';
 import { ContactsPage } from '../pages/ContactsPage';
+import { ProductsPage } from '../pages/ProductsPage';
 
 // Admin Pages
 import { AdminDashboard } from '../pages/admin/AdminDashboard';
@@ -108,6 +109,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="/files" element={<Files />} />
         <Route path="/vault" element={<SecretVault />} />
         <Route path="/contacts" element={<ContactsPage />} />
+        <Route path="/products" element={<ProductsPage />} />
         <Route path="/favorites" element={<Favorites />} />
         <Route path="/shared-links" element={<SharedLinks />} />
         <Route path="/trash" element={<Trash />} />

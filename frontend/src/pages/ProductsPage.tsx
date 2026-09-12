@@ -1,0 +1,238 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { ProductsHeader } from '../components/products/ProductsHeader';
+import { ProductCard } from '../components/products/ProductCard';
+import { SaveProductModal } from '../components/products/SaveProductModal';
+import { ProductDetailsModal } from '../components/products/ProductDetailsModal';
+import { SavedProduct, ProductFilterOptions } from '../types/product';
+import { productsApi } from '../services/productsApi';
+import { useToast } from '../contexts/ToastContext';
+import {
+  ShoppingBag,
+  Plus,
+  Loader2,
+  Sparkles,
+  Search,
+  ExternalLink,
+} from 'lucide-react';
+
+export const ProductsPage: React.FC = () => {
+  const { success, error } = useToast();
+
+  const [products, setProducts] = useState<SavedProduct[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalValue, setTotalValue] = useState(0);
+  const [totalDiscountedCount, setTotalDiscountedCount] = useState(0);
+  const [storeCounts, setStoreCounts] = useState<{ store: string; count: number }[]>([]);
+
+  // Filter & Search states
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedStore, setSelectedStore] = useState('ALL');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [favoriteOnly, setFavoriteOnly] = useState(false);
+
+  // Modals
+  const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<SavedProduct | null>(null);
+  const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      setIsLoading(true);
+
+      const filters: ProductFilterOptions = {
+        search: searchTerm.trim() || undefined,
+        store: selectedStore !== 'ALL' ? selectedStore : undefined,
+        category: selectedCategory !== 'ALL' ? selectedCategory : undefined,
+        favoriteOnly: favoriteOnly || undefined,
+      };
+
+      if (sortBy === 'price_asc') {
+        filters.sortBy = 'price';
+        filters.sortOrder = 'asc';
+      } else if (sortBy === 'price_desc') {
+        filters.sortBy = 'price';
+        filters.sortOrder = 'desc';
+      } else if (sortBy === 'discount') {
+        filters.sortBy = 'discountPercent';
+        filters.sortOrder = 'desc';
+      } else {
+        filters.sortBy = 'createdAt';
+        filters.sortOrder = 'desc';
+      }
+
+      const res = await productsApi.getProducts(filters);
+      setProducts(res.products);
+      setTotalCount(res.totalCount);
+      setTotalValue(res.totalValue);
+      setTotalDiscountedCount(res.totalDiscountedCount);
+      setStoreCounts(res.storeCounts);
+    } catch (err: any) {
+      console.error('Failed to load products:', err);
+      error(err.message || 'Failed to load products');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [searchTerm, selectedStore, selectedCategory, sortBy, favoriteOnly, error]);
+
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  const handleToggleFavorite = async (id: string) => {
+    try {
+      const updated = await productsApi.toggleFavorite(id);
+      setProducts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, isFavorite: updated.isFavorite } : p))
+      );
+      if (selectedProduct && selectedProduct.id === id) {
+        setSelectedProduct({ ...selectedProduct, isFavorite: updated.isFavorite });
+      }
+      success(updated.isFavorite ? 'Added to favorites' : 'Removed from favorites');
+    } catch (err: any) {
+      error(err.message || 'Failed to update favorite');
+    }
+  };
+
+  const handleTogglePurchased = async (id: string) => {
+    try {
+      const updated = await productsApi.togglePurchased(id);
+      setProducts((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, isPurchased: updated.isPurchased } : p))
+      );
+      if (selectedProduct && selectedProduct.id === id) {
+        setSelectedProduct({ ...selectedProduct, isPurchased: updated.isPurchased });
+      }
+      success(updated.isPurchased ? 'Marked as purchased' : 'Marked as unpurchased');
+    } catch (err: any) {
+      error(err.message || 'Failed to update purchased status');
+    }
+  };
+
+  const handleRefreshPrice = async (id: string) => {
+    try {
+      setRefreshingId(id);
+      const fresh = await productsApi.refreshPrice(id);
+      setProducts((prev) => prev.map((p) => (p.id === id ? fresh : p)));
+      if (selectedProduct && selectedProduct.id === id) {
+        setSelectedProduct(fresh);
+      }
+      success('Price & details refreshed from store');
+    } catch (err: any) {
+      error(err.message || 'Failed to refresh product price');
+    } finally {
+      setRefreshingId(null);
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this product from your vault?')) return;
+    try {
+      await productsApi.deleteProduct(id);
+      setProducts((prev) => prev.filter((p) => p.id !== id));
+      if (selectedProduct && selectedProduct.id === id) {
+        setSelectedProduct(null);
+      }
+      success('Product removed from vault');
+      fetchProducts();
+    } catch (err: any) {
+      error(err.message || 'Failed to delete product');
+    }
+  };
+
+  return (
+    <div className="space-y-6 pb-16 animate-fade-in">
+      {/* Header with Search, Filter Pills & Summary Metrics */}
+      <ProductsHeader
+        onNewProduct={() => setIsSaveModalOpen(true)}
+        searchTerm={searchTerm}
+        onSearchChange={setSearchTerm}
+        selectedStore={selectedStore}
+        onStoreChange={setSelectedStore}
+        selectedCategory={selectedCategory}
+        onCategoryChange={setSelectedCategory}
+        sortBy={sortBy}
+        onSortChange={setSortBy}
+        favoriteOnly={favoriteOnly}
+        onToggleFavoriteOnly={() => setFavoriteOnly(!favoriteOnly)}
+        storeCounts={storeCounts}
+        totalCount={totalCount}
+        totalValue={totalValue}
+        totalDiscountedCount={totalDiscountedCount}
+      />
+
+      {/* Grid Canvas */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center h-80 bg-slate-900/40 border border-slate-800 rounded-2xl">
+          <Loader2 className="w-8 h-8 text-brand-500 animate-spin mb-2" />
+          <p className="text-xs text-slate-400">Loading your product wishlist...</p>
+        </div>
+      ) : products.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 px-4 bg-slate-900/50 border border-slate-800 rounded-2xl text-center space-y-4">
+          <div className="p-4 rounded-2xl bg-slate-950/80 border border-slate-800 text-brand-400 shadow-inner">
+            <ShoppingBag className="w-10 h-10" />
+          </div>
+          <div className="max-w-md space-y-1">
+            <h3 className="text-base font-bold text-white">No products found</h3>
+            <p className="text-xs text-slate-400">
+              {searchTerm || selectedStore !== 'ALL' || selectedCategory !== 'ALL' || favoriteOnly
+                ? 'No products match your current filters. Try resetting the search or store filters.'
+                : 'Your wishlist is empty! Save links from Flipkart, Amazon, Myntra, Ajio, or any store and automatically extract photos, prices, and discounts.'}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsSaveModalOpen(true)}
+            className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-500 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-brand-500/20 active:scale-95 transition"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Save Your First Product</span>
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
+          {products.map((product) => (
+            <ProductCard
+              key={product.id}
+              product={product}
+              onSelect={setSelectedProduct}
+              onToggleFavorite={handleToggleFavorite}
+              onTogglePurchased={handleTogglePurchased}
+              onRefreshPrice={handleRefreshPrice}
+              onDelete={handleDeleteProduct}
+              isRefreshing={refreshingId === product.id}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Save Product Modal */}
+      {isSaveModalOpen && (
+        <SaveProductModal
+          isOpen={isSaveModalOpen}
+          onClose={() => setIsSaveModalOpen(false)}
+          onSaved={() => {
+            fetchProducts();
+            success('Product saved to your vault!');
+          }}
+        />
+      )}
+
+      {/* Product Details Modal */}
+      {selectedProduct && (
+        <ProductDetailsModal
+          isOpen={!!selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          product={selectedProduct}
+          onToggleFavorite={handleToggleFavorite}
+          onTogglePurchased={handleTogglePurchased}
+          onRefreshPrice={handleRefreshPrice}
+          onDelete={handleDeleteProduct}
+          isRefreshing={refreshingId === selectedProduct.id}
+        />
+      )}
+    </div>
+  );
+};
