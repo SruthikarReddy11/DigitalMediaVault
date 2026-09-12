@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ProductsHeader } from '../components/products/ProductsHeader';
 import { ProductCard } from '../components/products/ProductCard';
 import { SaveProductModal } from '../components/products/SaveProductModal';
-import { ProductDetailsModal } from '../components/products/ProductDetailsModal';
 import { ShareProductModal } from '../components/products/ShareProductModal';
 import { SavedProduct, ProductFilterOptions } from '../types/product';
 import { productsApi } from '../services/productsApi';
@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 
 export const ProductsPage: React.FC = () => {
+  const navigate = useNavigate();
   const { success, error } = useToast();
 
   const [products, setProducts] = useState<SavedProduct[]>([]);
@@ -41,7 +42,6 @@ export const ProductsPage: React.FC = () => {
 
   // Modals
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState<SavedProduct | null>(null);
   const [productToShare, setProductToShare] = useState<SavedProduct | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
@@ -98,9 +98,6 @@ export const ProductsPage: React.FC = () => {
       setProducts((prev) =>
         prev.map((p) => (p.id === id ? { ...p, isFavorite: updated.isFavorite } : p))
       );
-      if (selectedProduct && selectedProduct.id === id) {
-        setSelectedProduct({ ...selectedProduct, isFavorite: updated.isFavorite });
-      }
       success(updated.isFavorite ? 'Added to favorites' : 'Removed from favorites');
     } catch (err: any) {
       error(err.message || 'Failed to update favorite');
@@ -134,10 +131,6 @@ export const ProductsPage: React.FC = () => {
         );
         success(updated.isPurchased ? 'Moved to Purchased section!' : 'Moved back to Wishlist!');
       }
-
-      if (selectedProduct && selectedProduct.id === id) {
-        setSelectedProduct({ ...selectedProduct, isPurchased: updated.isPurchased });
-      }
     } catch (err: any) {
       error(err.message || 'Failed to update purchased status');
     }
@@ -148,9 +141,6 @@ export const ProductsPage: React.FC = () => {
       setRefreshingId(id);
       const fresh = await productsApi.refreshPrice(id);
       setProducts((prev) => prev.map((p) => (p.id === id ? fresh : p)));
-      if (selectedProduct && selectedProduct.id === id) {
-        setSelectedProduct(fresh);
-      }
       success('Price & details refreshed from store');
     } catch (err: any) {
       error(err.message || 'Failed to refresh product price');
@@ -164,9 +154,6 @@ export const ProductsPage: React.FC = () => {
     try {
       await productsApi.deleteProduct(id);
       setProducts((prev) => prev.filter((p) => p.id !== id));
-      if (selectedProduct && selectedProduct.id === id) {
-        setSelectedProduct(null);
-      }
       success('Product removed from vault');
       fetchProducts();
     } catch (err: any) {
@@ -265,7 +252,7 @@ export const ProductsPage: React.FC = () => {
             <ProductCard
               key={product.id}
               product={product}
-              onSelect={setSelectedProduct}
+              onSelect={(p) => navigate(`/products/${p.id}`, { state: { product: p } })}
               onToggleFavorite={handleToggleFavorite}
               onTogglePurchased={handleTogglePurchased}
               onRefreshPrice={handleRefreshPrice}
@@ -286,21 +273,6 @@ export const ProductsPage: React.FC = () => {
             fetchProducts();
             success('Product saved to your vault!');
           }}
-        />
-      )}
-
-      {/* Product Details Modal */}
-      {selectedProduct && (
-        <ProductDetailsModal
-          isOpen={!!selectedProduct}
-          onClose={() => setSelectedProduct(null)}
-          product={selectedProduct}
-          onToggleFavorite={handleToggleFavorite}
-          onTogglePurchased={handleTogglePurchased}
-          onRefreshPrice={handleRefreshPrice}
-          onDelete={handleDeleteProduct}
-          onShare={setProductToShare}
-          isRefreshing={refreshingId === selectedProduct.id}
         />
       )}
 
