@@ -27,6 +27,7 @@ interface ProductDetailsModalProps {
   onTogglePurchased: (id: string) => void;
   onRefreshPrice: (id: string) => void;
   onDelete: (id: string) => void;
+  onShare?: (product: SavedProduct) => void;
   isRefreshing?: boolean;
 }
 
@@ -38,6 +39,7 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
   onTogglePurchased,
   onRefreshPrice,
   onDelete,
+  onShare,
   isRefreshing = false,
 }) => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -91,9 +93,15 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
 
             <button
               type="button"
-              onClick={handleCopyLink}
+              onClick={() => {
+                if (onShare) {
+                  onShare(product);
+                } else {
+                  handleCopyLink();
+                }
+              }}
               className="p-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-400 hover:text-white transition"
-              title="Copy Product Link"
+              title="Share Product"
             >
               <Share2 className="w-4 h-4" />
             </button>

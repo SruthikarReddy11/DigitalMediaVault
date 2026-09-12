@@ -200,4 +200,22 @@ export class ProductController {
       next(err);
     }
   }
+
+  /**
+   * Get share data with QR code and formatted share text
+   */
+  public static async getShareData(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const productId = String(req.params.id);
+
+      const shareData = await ProductService.getProductShareData(userId, productId);
+      res.json({
+        success: true,
+        data: shareData,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

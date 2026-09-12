@@ -3,6 +3,7 @@ import { ProductsHeader } from '../components/products/ProductsHeader';
 import { ProductCard } from '../components/products/ProductCard';
 import { SaveProductModal } from '../components/products/SaveProductModal';
 import { ProductDetailsModal } from '../components/products/ProductDetailsModal';
+import { ShareProductModal } from '../components/products/ShareProductModal';
 import { SavedProduct, ProductFilterOptions } from '../types/product';
 import { productsApi } from '../services/productsApi';
 import { useToast } from '../contexts/ToastContext';
@@ -35,6 +36,7 @@ export const ProductsPage: React.FC = () => {
   // Modals
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<SavedProduct | null>(null);
+  const [productToShare, setProductToShare] = useState<SavedProduct | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
 
   const fetchProducts = useCallback(async () => {
@@ -202,6 +204,7 @@ export const ProductsPage: React.FC = () => {
               onTogglePurchased={handleTogglePurchased}
               onRefreshPrice={handleRefreshPrice}
               onDelete={handleDeleteProduct}
+              onShare={setProductToShare}
               isRefreshing={refreshingId === product.id}
             />
           ))}
@@ -230,7 +233,17 @@ export const ProductsPage: React.FC = () => {
           onTogglePurchased={handleTogglePurchased}
           onRefreshPrice={handleRefreshPrice}
           onDelete={handleDeleteProduct}
+          onShare={setProductToShare}
           isRefreshing={refreshingId === selectedProduct.id}
+        />
+      )}
+
+      {/* Share Product Modal */}
+      {productToShare && (
+        <ShareProductModal
+          isOpen={!!productToShare}
+          onClose={() => setProductToShare(null)}
+          product={productToShare}
         />
       )}
     </div>

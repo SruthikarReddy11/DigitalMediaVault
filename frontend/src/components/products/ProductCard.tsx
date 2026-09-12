@@ -12,6 +12,7 @@ import {
   Tag,
   AlertCircle,
   Clock,
+  Share2,
 } from 'lucide-react';
 import { SavedProduct } from '../../types/product';
 
@@ -22,6 +23,7 @@ interface ProductCardProps {
   onTogglePurchased: (id: string) => void;
   onRefreshPrice: (id: string) => void;
   onDelete: (id: string) => void;
+  onShare?: (product: SavedProduct) => void;
   isRefreshing?: boolean;
 }
 
@@ -32,6 +34,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onTogglePurchased,
   onRefreshPrice,
   onDelete,
+  onShare,
   isRefreshing = false,
 }) => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -161,6 +164,21 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             />
           </button>
 
+          {/* Share button */}
+          {onShare && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onShare(product);
+              }}
+              className="p-2 rounded-xl backdrop-blur-md border bg-slate-900/70 border-slate-700/60 text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              title="Share product"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+            </button>
+          )}
+
           {/* More options dropdown menu */}
           <div className="relative">
             <button
@@ -180,6 +198,20 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                 onClick={(e) => e.stopPropagation()}
                 className="absolute right-0 top-10 w-44 bg-slate-900 border border-slate-800 rounded-xl shadow-2xl py-1.5 z-30 text-xs animate-fade-in"
               >
+                {onShare && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onShare(product);
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800 transition"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Share Product</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   onClick={() => {

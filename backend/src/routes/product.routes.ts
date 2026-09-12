@@ -18,6 +18,7 @@ router.put('/:id', ProductController.update);
 router.delete('/:id', ProductController.delete);
 
 // Quick actions
+router.get('/:id/share', ProductController.getShareData);
 router.post('/:id/favorite', ProductController.toggleFavorite);
 router.post('/:id/purchased', ProductController.togglePurchased);
 router.post('/:id/refresh', ProductController.refreshPrice);

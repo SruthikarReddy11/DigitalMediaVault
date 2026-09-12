@@ -100,4 +100,25 @@ export const productsApi = {
     );
     return res.data.data;
   },
+
+  /**
+   * Get share payload with QR code and formatted share text
+   */
+  async getShareData(id: string): Promise<{
+    product: SavedProduct;
+    shareUrl: string;
+    qrDataUrl: string;
+    formattedText: string;
+  }> {
+    const res = await api.get<{
+      success: boolean;
+      data: {
+        product: SavedProduct;
+        shareUrl: string;
+        qrDataUrl: string;
+        formattedText: string;
+      };
+    }>(`/products/${id}/share`);
+    return res.data.data;
+  },
 };

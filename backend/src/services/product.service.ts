@@ -1,4 +1,5 @@
 import { prisma } from '../database/prisma';
+import QRCode from 'qrcode';
 import { ProductExtractorService, ProductExtractedData } from './productExtractor.service';
 
 export interface SaveProductInput {
@@ -312,4 +313,48 @@ export class ProductService {
       },
     });
   }
+
+  /**
+   * Get share payload for a product with QR code data URL and formatted text
+   */
+  public static async getProductShareData(userId: string, productId: string) {
+    const product = await prisma.savedProduct.findFirst({
+      where: { id: productId, userId },
+    });
+
+    if (!product) {
+      throw new Error('Product not found or unauthorized');
+    }
+
+    let qrDataUrl = '';
+    try {
+      qrDataUrl = await QRCode.toDataURL(product.url, {
+        width: 300,
+        margin: 2,
+        color: { dark: '#000000', light: '#ffffff' },
+      });
+    } catch (err) {
+      console.warn('[ProductService] QR Code generation notice:', err);
+    }
+
+    const priceText =
+      product.price !== null && product.price !== undefined
+        ? `${product.currencySymbol || '₹'}${product.price.toLocaleString('en-IN')}`
+        : 'Check price on store';
+
+    const discountText =
+      product.discountPercent && product.discountPercent > 0
+        ? ` (${product.discountPercent}% OFF)`
+        : '';
+
+    const formattedText = `🛍️ Check out this product on ${product.store}!\n\n*${product.title}*\n💰 Price: ${priceText}${discountText}\n🔗 Link: ${product.url}`;
+
+    return {
+      product,
+      shareUrl: product.url,
+      qrDataUrl,
+      formattedText,
+    };
+  }
 }
+
