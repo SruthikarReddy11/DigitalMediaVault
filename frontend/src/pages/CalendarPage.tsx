@@ -1,12 +1,14 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   CalendarHeader,
   CalendarViewMode,
 } from '../components/calendar/CalendarHeader';
+import { CalendarSidebar } from '../components/calendar/CalendarSidebar';
 import { CalendarMonthView } from '../components/calendar/CalendarMonthView';
 import { CalendarWeekView } from '../components/calendar/CalendarWeekView';
 import { CalendarDayView } from '../components/calendar/CalendarDayView';
 import { EventModal } from '../components/calendar/EventModal';
+import { ExpiryDateModal } from '../components/calendar/ExpiryDateModal';
 import { EventDetailsModal } from '../components/calendar/EventDetailsModal';
 import { VideoPlayerModal } from '../components/video/VideoPlayerModal';
 import { ImageLightbox } from '../components/gallery/ImageLightbox';
@@ -18,6 +20,9 @@ import {
   UpdateEventPayload,
   FileItem,
 } from '../types';
+import {
+  isExpiryEvent,
+} from '../utils/calendarHelpers';
 import { calendarApi } from '../services/calendarApi';
 import { useToast } from '../contexts/ToastContext';
 import { Loader2 } from 'lucide-react';
@@ -27,7 +32,7 @@ export const CalendarPage: React.FC = () => {
 
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [viewMode, setViewMode] = useState<CalendarViewMode>('month');
-  const [selectedType, setSelectedType] = useState<CalendarEventType | 'ALL'>('ALL');
+  const [selectedType, setSelectedType] = useState<CalendarEventType | 'ALL' | 'EXPIRIES'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
 
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -35,6 +40,7 @@ export const CalendarPage: React.FC = () => {
 
   // Modals
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [isExpiryModalOpen, setIsExpiryModalOpen] = useState(false);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventToEdit, setEventToEdit] = useState<CalendarEvent | null>(null);
@@ -87,7 +93,8 @@ export const CalendarPage: React.FC = () => {
         startDate: start.toISOString(),
         endDate: end.toISOString(),
       };
-      if (selectedType !== 'ALL') {
+      // If it's a specific enum type, filter by it on backend
+      if (selectedType !== 'ALL' && selectedType !== 'EXPIRIES') {
         filters.type = selectedType;
       }
       if (searchTerm.trim()) {
@@ -107,6 +114,23 @@ export const CalendarPage: React.FC = () => {
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
+
+  // Filter events client-side for EXPIRIES or search query
+  const filteredEvents = useMemo(() => {
+    return events.filter((ev) => {
+      if (selectedType === 'EXPIRIES') {
+        if (!isExpiryEvent(ev)) return false;
+      }
+      if (searchTerm.trim()) {
+        const query = searchTerm.toLowerCase().trim();
+        const titleMatch = ev.title.toLowerCase().includes(query);
+        const descMatch = ev.description ? ev.description.toLowerCase().includes(query) : false;
+        const locMatch = ev.location ? ev.location.toLowerCase().includes(query) : false;
+        if (!titleMatch && !descMatch && !locMatch) return false;
+      }
+      return true;
+    });
+  }, [events, selectedType, searchTerm]);
 
   // Date navigation
   const handlePrev = () => {
@@ -144,6 +168,12 @@ export const CalendarPage: React.FC = () => {
     setIsEventModalOpen(true);
   };
 
+  // Save Expiry action
+  const handleOpenExpiryModal = (date?: Date) => {
+    setInitialCreateDate(date || currentDate);
+    setIsExpiryModalOpen(true);
+  };
+
   // Inspect event details
   const handleSelectEvent = (ev: CalendarEvent) => {
     setSelectedEvent(ev);
@@ -157,7 +187,7 @@ export const CalendarPage: React.FC = () => {
     setIsEventModalOpen(true);
   };
 
-  // Save event (create or update)
+  // Save event (create or update standard event)
   const handleSaveEvent = async (data: CreateEventPayload | UpdateEventPayload) => {
     if (eventToEdit) {
       const targetId = eventToEdit.masterEventId || eventToEdit.id;
@@ -169,7 +199,15 @@ export const CalendarPage: React.FC = () => {
     }
     setIsEventModalOpen(false);
     fetchEvents();
-    // Dispatch custom event for notifications & dashboard
+    window.dispatchEvent(new CustomEvent('calendar_events_updated'));
+  };
+
+  // Save expiry date action
+  const handleSaveExpiry = async (payload: CreateEventPayload) => {
+    await calendarApi.createEvent(payload);
+    success('Expiry date saved successfully');
+    setIsExpiryModalOpen(false);
+    fetchEvents();
     window.dispatchEvent(new CustomEvent('calendar_events_updated'));
   };
 
@@ -195,52 +233,63 @@ export const CalendarPage: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Calendar Header toolbar */}
-      <CalendarHeader
-        currentDate={currentDate}
-        viewMode={viewMode}
-        onViewModeChange={setViewMode}
-        onPrev={handlePrev}
-        onNext={handleNext}
-        onToday={handleToday}
-        selectedType={selectedType}
-        onTypeChange={setSelectedType}
+    <div className="flex flex-col lg:flex-row items-start gap-6 pb-12">
+      {/* Left Companion Panel: Actions, Filters, Search & Upcoming Expiries Watchlist */}
+      <CalendarSidebar
+        onNewEvent={() => handleOpenCreateModal()}
+        onSaveExpiry={() => handleOpenExpiryModal()}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
-        onNewEvent={() => handleOpenCreateModal()}
+        selectedType={selectedType}
+        onTypeChange={setSelectedType}
+        events={events}
+        onSelectEvent={handleSelectEvent}
       />
 
-      {/* Main View Area */}
-      {isLoading ? (
-        <div className="flex flex-col items-center justify-center h-[500px] bg-slate-900/40 border border-slate-800 rounded-2xl">
-          <Loader2 className="w-8 h-8 text-brand-500 animate-spin mb-2" />
-          <p className="text-xs text-slate-400">Loading your schedule...</p>
-        </div>
-      ) : viewMode === 'month' ? (
-        <CalendarMonthView
+      {/* Right Column: Calendar Navigation Header + Interactive View */}
+      <div className="flex-1 min-w-0 w-full space-y-4">
+        <CalendarHeader
           currentDate={currentDate}
-          events={events}
-          onSelectEvent={handleSelectEvent}
-          onCreateEvent={handleOpenCreateModal}
+          viewMode={viewMode}
+          onViewModeChange={setViewMode}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          onToday={handleToday}
+          onNewEvent={() => handleOpenCreateModal()}
+          onSaveExpiry={() => handleOpenExpiryModal()}
         />
-      ) : viewMode === 'week' ? (
-        <CalendarWeekView
-          currentDate={currentDate}
-          events={events}
-          onSelectEvent={handleSelectEvent}
-          onCreateEvent={handleOpenCreateModal}
-        />
-      ) : (
-        <CalendarDayView
-          currentDate={currentDate}
-          events={events}
-          onSelectEvent={handleSelectEvent}
-          onCreateEvent={handleOpenCreateModal}
-        />
-      )}
 
-      {/* Event Create / Edit Modal */}
+        {/* Main View Area */}
+        {isLoading ? (
+          <div className="flex flex-col items-center justify-center h-[500px] bg-slate-900/40 border border-slate-800 rounded-2xl">
+            <Loader2 className="w-8 h-8 text-brand-500 animate-spin mb-2" />
+            <p className="text-xs text-slate-400">Loading your schedule...</p>
+          </div>
+        ) : viewMode === 'month' ? (
+          <CalendarMonthView
+            currentDate={currentDate}
+            events={filteredEvents}
+            onSelectEvent={handleSelectEvent}
+            onCreateEvent={handleOpenCreateModal}
+          />
+        ) : viewMode === 'week' ? (
+          <CalendarWeekView
+            currentDate={currentDate}
+            events={filteredEvents}
+            onSelectEvent={handleSelectEvent}
+            onCreateEvent={handleOpenCreateModal}
+          />
+        ) : (
+          <CalendarDayView
+            currentDate={currentDate}
+            events={filteredEvents}
+            onSelectEvent={handleSelectEvent}
+            onCreateEvent={handleOpenCreateModal}
+          />
+        )}
+      </div>
+
+      {/* Standard Event Create / Edit Modal */}
       {isEventModalOpen && (
         <EventModal
           isOpen={isEventModalOpen}
@@ -248,6 +297,16 @@ export const CalendarPage: React.FC = () => {
           eventToEdit={eventToEdit}
           initialDate={initialCreateDate}
           onSave={handleSaveEvent}
+        />
+      )}
+
+      {/* Dedicated Save Expiry Date Modal */}
+      {isExpiryModalOpen && (
+        <ExpiryDateModal
+          isOpen={isExpiryModalOpen}
+          onClose={() => setIsExpiryModalOpen(false)}
+          initialDate={initialCreateDate}
+          onSave={handleSaveExpiry}
         />
       )}
 
@@ -261,7 +320,6 @@ export const CalendarPage: React.FC = () => {
           onDelete={handleDeleteEvent}
           onRefresh={() => {
             fetchEvents();
-            // refresh active modal event
             calendarApi.getEventById(selectedEvent.masterEventId || selectedEvent.id).then((fresh) => {
               if (fresh) setSelectedEvent(fresh);
             });

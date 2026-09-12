@@ -172,3 +172,184 @@ export const REMINDER_OFFSET_OPTIONS = [
   { label: '2 days before', value: 2880 },
   { label: '1 week before', value: 10080 },
 ];
+
+export const EXPIRY_REMINDER_OPTIONS = [
+  { label: 'On expiry date (0d)', value: 0 },
+  { label: '1 day before (24h)', value: 1440 },
+  { label: '3 days before', value: 4320 },
+  { label: '7 days before (1 week)', value: 10080 },
+  { label: '15 days before', value: 21600 },
+  { label: '30 days before (1 month)', value: 43200 },
+  { label: '60 days before (2 months)', value: 86400 },
+];
+
+export interface ExpiryPreset {
+  id: string;
+  label: string;
+  defaultTitle: string;
+  iconName: string;
+  descriptionPlaceholder: string;
+  defaultCategory: CalendarEventType;
+}
+
+export const EXPIRY_PRESETS: ExpiryPreset[] = [
+  {
+    id: 'passport',
+    label: 'Passport Expiry',
+    defaultTitle: 'Passport Expiry',
+    iconName: 'FileText',
+    descriptionPlaceholder: 'Passport number, issuing country, renewal requirements...',
+    defaultCategory: 'DEADLINE',
+  },
+  {
+    id: 'license',
+    label: 'Driving License',
+    defaultTitle: 'Driving License Expiry',
+    iconName: 'Car',
+    descriptionPlaceholder: 'License number, class, RTO/DMV location...',
+    defaultCategory: 'DEADLINE',
+  },
+  {
+    id: 'insurance',
+    label: 'Insurance Policy',
+    defaultTitle: 'Insurance Policy Renewal',
+    iconName: 'Shield',
+    descriptionPlaceholder: 'Policy number, insurer, coverage details, premium due date...',
+    defaultCategory: 'IMPORTANT',
+  },
+  {
+    id: 'warranty',
+    label: 'Product Warranty',
+    defaultTitle: 'Product Warranty Expiry',
+    iconName: 'ShieldCheck',
+    descriptionPlaceholder: 'Product serial number, purchase store, warranty period...',
+    defaultCategory: 'REMINDER',
+  },
+  {
+    id: 'subscription',
+    label: 'Subscription / Cloud',
+    defaultTitle: 'Subscription Renewal',
+    iconName: 'CreditCard',
+    descriptionPlaceholder: 'Plan details, auto-renew status, billing frequency...',
+    defaultCategory: 'REMINDER',
+  },
+  {
+    id: 'visa',
+    label: 'Visa / Permit / ID',
+    defaultTitle: 'Visa / Residence Permit Expiry',
+    iconName: 'Stamp',
+    descriptionPlaceholder: 'Visa type, country, sponsor/agency...',
+    defaultCategory: 'DEADLINE',
+  },
+  {
+    id: 'contract',
+    label: 'Lease / Contract / Cert',
+    defaultTitle: 'Contract / Certification Expiry',
+    iconName: 'FileCheck',
+    descriptionPlaceholder: 'Contract or certificate title, agreement parties, renewal terms...',
+    defaultCategory: 'IMPORTANT',
+  },
+  {
+    id: 'custom',
+    label: 'Custom Expiry',
+    defaultTitle: 'Important Expiry Date',
+    iconName: 'Clock',
+    descriptionPlaceholder: 'Notes, important reference numbers or renewal links...',
+    defaultCategory: 'DEADLINE',
+  },
+];
+
+export const isExpiryEvent = (ev: { title: string; description?: string | null; type?: string }): boolean => {
+  if (!ev) return false;
+  const title = (ev.title || '').toLowerCase();
+  const desc = (ev.description || '').toLowerCase();
+  return (
+    title.includes('[expiry]') ||
+    title.includes('expiry') ||
+    title.includes('expires') ||
+    title.includes('renewal') ||
+    desc.includes('#expiry') ||
+    desc.includes('expiry')
+  );
+};
+
+export const cleanEventTitle = (title: string): string => {
+  if (!title) return '';
+  return title.replace(/^\[EXPIRY\]\s*/i, '').trim();
+};
+
+export const formatExpiryCountdown = (dateStr: string): {
+  text: string;
+  badgeClass: string;
+  isUrgent: boolean;
+  isExpired: boolean;
+  daysDiff: number;
+} => {
+  const target = new Date(dateStr);
+  const now = new Date();
+  // Normalize both to start of day
+  const targetDay = new Date(target.getFullYear(), target.getMonth(), target.getDate()).getTime();
+  const todayDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+
+  const diffMs = targetDay - todayDay;
+  const days = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+  if (days < 0) {
+    const absDays = Math.abs(days);
+    return {
+      text: absDays === 1 ? 'Expired yesterday' : `Expired ${absDays}d ago`,
+      badgeClass: 'bg-red-500/20 text-red-300 border-red-500/40',
+      isUrgent: true,
+      isExpired: true,
+      daysDiff: days,
+    };
+  }
+
+  if (days === 0) {
+    return {
+      text: 'Expires Today',
+      badgeClass: 'bg-red-500/25 text-red-200 border-red-500/50 animate-pulse font-bold',
+      isUrgent: true,
+      isExpired: false,
+      daysDiff: 0,
+    };
+  }
+
+  if (days === 1) {
+    return {
+      text: 'Expires Tomorrow',
+      badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40 font-bold',
+      isUrgent: true,
+      isExpired: false,
+      daysDiff: 1,
+    };
+  }
+
+  if (days <= 7) {
+    return {
+      text: `Expires in ${days} days`,
+      badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+      isUrgent: true,
+      isExpired: false,
+      daysDiff: days,
+    };
+  }
+
+  if (days <= 30) {
+    return {
+      text: `In ${days} days`,
+      badgeClass: 'bg-blue-500/15 text-blue-300 border-blue-500/30',
+      isUrgent: false,
+      isExpired: false,
+      daysDiff: days,
+    };
+  }
+
+  return {
+    text: `In ${days} days`,
+    badgeClass: 'bg-slate-800/80 text-slate-400 border-slate-700/60',
+    isUrgent: false,
+    isExpired: false,
+    daysDiff: days,
+  };
+};

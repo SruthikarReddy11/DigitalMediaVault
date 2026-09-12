@@ -17,6 +17,7 @@ import {
   Download,
   Eye,
   Loader2,
+  ShieldAlert,
 } from 'lucide-react';
 import { CalendarEvent, FileItem } from '../../types';
 import {
@@ -24,6 +25,9 @@ import {
   getPriorityConfig,
   formatEventTime,
   REMINDER_OFFSET_OPTIONS,
+  isExpiryEvent,
+  cleanEventTitle,
+  formatExpiryCountdown,
 } from '../../utils/calendarHelpers';
 import { calendarApi } from '../../services/calendarApi';
 import { formatBytes, formatDate } from '../../utils/formatters';
@@ -130,13 +134,20 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col my-8">
         {/* Top banner / Category styling */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/90">
-          <div className="flex items-center gap-2">
-            <span
-              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border ${typeConfig.bgClass} ${typeConfig.borderClass} ${typeConfig.textClass}`}
-            >
-              <TypeIcon className="w-3.5 h-3.5" />
-              <span>{typeConfig.label}</span>
-            </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {isExpiryEvent(event) ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-sm">
+                <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                <span>Expiry Tracker</span>
+              </span>
+            ) : (
+              <span
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold border ${typeConfig.bgClass} ${typeConfig.borderClass} ${typeConfig.textClass}`}
+              >
+                <TypeIcon className="w-3.5 h-3.5" />
+                <span>{typeConfig.label}</span>
+              </span>
+            )}
 
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border ${priorityConfig.bgClass}`}
@@ -144,6 +155,15 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               <span className={`w-2 h-2 rounded-full ${priorityConfig.dotColor}`} />
               <span>{priorityConfig.label}</span>
             </span>
+
+            {isExpiryEvent(event) && (() => {
+              const cd = formatExpiryCountdown(event.startTime);
+              return (
+                <span className={`inline-flex items-center px-2.5 py-1 rounded-xl text-xs font-bold border ${cd.badgeClass}`}>
+                  {cd.text}
+                </span>
+              );
+            })()}
 
             {event.isCompleted && (
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-500/20 text-emerald-300 text-xs font-bold border border-emerald-500/30">
@@ -190,7 +210,7 @@ export const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 event.isCompleted ? 'line-through text-slate-400' : ''
               }`}
             >
-              {event.title}
+              {cleanEventTitle(event.title)}
             </h2>
 
             {/* Time & Recurrence */}

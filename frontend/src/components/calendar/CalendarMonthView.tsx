@@ -5,6 +5,8 @@ import {
 import {
   getEventTypeConfig,
   getPriorityConfig,
+  isExpiryEvent,
+  cleanEventTitle,
 } from '../../utils/calendarHelpers';
 import {
   Paperclip,
@@ -12,6 +14,7 @@ import {
   X,
   Plus,
   Clock,
+  ShieldAlert,
 } from 'lucide-react';
 
 interface CalendarMonthViewProps {
@@ -37,8 +40,7 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({
   // Last day of month
   const lastDayOfMonth = new Date(year, month + 1, 0);
 
-  // Day of week for 1st day (0 = Sun, 1 = Mon ... 6 = Sat).
-  // We want week starting on Monday (Mon = 0, Sun = 6)
+  // Week starting on Monday (Mon = 0, Sun = 6)
   const startDayOfWeek = (firstDayOfMonth.getDay() + 6) % 7;
 
   // Total days in month
@@ -80,7 +82,6 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({
 
   const allGridDays = [...prevMonthDays, ...currentMonthDays, ...nextMonthDays];
 
-  // Helper to test if two dates are same day
   const isSameDay = (d1: Date, d2: Date) => {
     return (
       d1.getFullYear() === d2.getFullYear() &&
@@ -91,32 +92,26 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({
 
   const today = new Date();
 
-  // Get events falling on a specific date
   const getEventsForDay = (date: Date) => {
     return events.filter((ev) => {
       const s = new Date(ev.startTime);
       const e = new Date(ev.endTime);
 
       const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0);
-      const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59);
+      const dayEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
 
       return s <= dayEnd && e >= dayStart;
     });
   };
 
-  const weekDayHeaders = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  const weekHeaders = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
   return (
-    <div className="relative bg-slate-900/60 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl backdrop-blur-xl">
-      {/* Week days header row */}
-      <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-950/60 text-center py-2.5">
-        {weekDayHeaders.map((header, idx) => (
-          <div
-            key={header}
-            className={`text-[11px] font-bold uppercase tracking-wider ${
-              idx >= 5 ? 'text-indigo-400/80' : 'text-slate-400'
-            }`}
-          >
+    <div className="bg-slate-900/70 border border-slate-800 rounded-2xl shadow-2xl backdrop-blur-sm overflow-hidden transition-all duration-300">
+      {/* Day of Week Headers */}
+      <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-950/60 text-center text-xs font-bold text-slate-400 py-3 tracking-wider uppercase">
+        {weekHeaders.map((header) => (
+          <div key={header} className="text-center">
             {header}
           </div>
         ))}
@@ -135,7 +130,7 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({
             <div
               key={index}
               onClick={() => onCreateEvent(item.date)}
-              className={`min-h-[110px] sm:min-h-[125px] p-1.5 sm:p-2 flex flex-col justify-between transition group cursor-pointer hover:bg-slate-800/30 ${
+              className={`min-h-[105px] sm:min-h-[125px] p-1.5 sm:p-2 flex flex-col justify-between transition-colors duration-150 group cursor-pointer hover:bg-slate-800/40 ${
                 item.isCurrentMonth ? 'bg-transparent' : 'bg-slate-950/40 opacity-40'
               }`}
             >
@@ -169,8 +164,10 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({
               {/* Event Chips */}
               <div className="mt-1 space-y-1 flex-1 overflow-hidden">
                 {visibleEvents.map((ev) => {
+                  const isExpiry = isExpiryEvent(ev);
                   const typeConfig = getEventTypeConfig(ev.type);
                   const priorityConfig = getPriorityConfig(ev.priority);
+                  const cleanTitle = cleanEventTitle(ev.title);
 
                   return (
                     <div
@@ -179,13 +176,17 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({
                         e.stopPropagation();
                         onSelectEvent(ev);
                       }}
-                      className={`px-1.5 py-0.5 rounded-md border text-[10px] sm:text-[11px] font-medium flex items-center gap-1 transition cursor-pointer truncate ${
-                        typeConfig.bgClass
-                      } ${typeConfig.borderClass} ${typeConfig.textClass} hover:brightness-125 ${
-                        ev.isCompleted ? 'opacity-50 line-through' : ''
-                      }`}
+                      className={`px-1.5 py-0.5 rounded-md border text-[10px] sm:text-[11px] font-medium flex items-center gap-1 transition-all duration-150 cursor-pointer truncate ${
+                        isExpiry
+                          ? 'bg-amber-500/15 border-amber-500/40 text-amber-200 hover:bg-amber-500/25 shadow-sm'
+                          : `${typeConfig.bgClass} ${typeConfig.borderClass} ${typeConfig.textClass} hover:brightness-125`
+                      } ${ev.isCompleted ? 'opacity-50 line-through' : ''}`}
                     >
-                      <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityConfig.dotColor}`} />
+                      {isExpiry ? (
+                        <ShieldAlert className="w-2.5 h-2.5 text-amber-400 shrink-0" />
+                      ) : (
+                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${priorityConfig.dotColor}`} />
+                      )}
 
                       {!ev.allDay && (
                         <span className="opacity-80 text-[9px] shrink-0">
@@ -196,7 +197,7 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({
                         </span>
                       )}
 
-                      <span className="truncate font-semibold flex-1">{ev.title}</span>
+                      <span className="truncate font-semibold flex-1">{cleanTitle}</span>
 
                       {ev.attachments?.length > 0 && (
                         <Paperclip className="w-2.5 h-2.5 shrink-0 opacity-70" />
@@ -250,8 +251,10 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({
 
             <div className="max-h-72 overflow-y-auto space-y-1.5">
               {popoverDay.events.map((ev) => {
+                const isExpiry = isExpiryEvent(ev);
                 const typeConfig = getEventTypeConfig(ev.type);
                 const priorityConfig = getPriorityConfig(ev.priority);
+                const cleanTitle = cleanEventTitle(ev.title);
 
                 return (
                   <div
@@ -261,14 +264,18 @@ export const CalendarMonthView: React.FC<CalendarMonthViewProps> = ({
                       onSelectEvent(ev);
                     }}
                     className={`p-2 rounded-xl border text-xs flex items-center justify-between transition cursor-pointer ${
-                      typeConfig.bgClass
-                    } ${typeConfig.borderClass} ${typeConfig.textClass} hover:brightness-125 ${
-                      ev.isCompleted ? 'opacity-60 line-through' : ''
-                    }`}
+                      isExpiry
+                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-200 hover:bg-amber-500/25'
+                        : `${typeConfig.bgClass} ${typeConfig.borderClass} ${typeConfig.textClass} hover:brightness-125`
+                    } ${ev.isCompleted ? 'opacity-60 line-through' : ''}`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${priorityConfig.dotColor}`} />
-                      <span className="font-semibold truncate">{ev.title}</span>
+                      {isExpiry ? (
+                        <ShieldAlert className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      ) : (
+                        <span className={`w-2 h-2 rounded-full shrink-0 ${priorityConfig.dotColor}`} />
+                      )}
+                      <span className="font-semibold truncate">{cleanTitle}</span>
                     </div>
 
                     <span className="text-[10px] opacity-75 shrink-0 ml-2">
