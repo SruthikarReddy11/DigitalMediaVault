@@ -48,6 +48,7 @@ export const ProductsPage: React.FC = () => {
   // Custom Product Sections state
   const [sections, setSections] = useState<ProductSection[]>([]);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
+  const [unsectionedCount, setUnsectionedCount] = useState<number>(0);
   const [unlockedSectionIds, setUnlockedSectionIds] = useState<string[]>([]);
   const [isCreateSectionOpen, setIsCreateSectionOpen] = useState(false);
   const [sectionToEdit, setSectionToEdit] = useState<ProductSection | null>(null);
@@ -82,6 +83,7 @@ export const ProductsPage: React.FC = () => {
         store: selectedStore !== 'ALL' ? selectedStore : undefined,
         category: selectedCategory !== 'ALL' ? selectedCategory : undefined,
         sectionId: selectedSectionId || undefined,
+        unsectionedOnly: selectedSectionId ? undefined : true,
         favoriteOnly: favoriteOnly || undefined,
         isPurchased:
           viewMode === 'wishlist' ? false : viewMode === 'purchased' ? true : undefined,
@@ -104,6 +106,7 @@ export const ProductsPage: React.FC = () => {
       const res = await productsApi.getProducts(filters);
       setProducts(res.products);
       setTotalCount(res.totalCount);
+      if (res.unsectionedCount !== undefined) setUnsectionedCount(res.unsectionedCount);
       if (res.wishlistCount !== undefined) setWishlistCount(res.wishlistCount);
       if (res.purchasedCount !== undefined) setPurchasedCount(res.purchasedCount);
       setTotalValue(res.totalValue);
@@ -299,6 +302,7 @@ export const ProductsPage: React.FC = () => {
         unlockedSectionIds={unlockedSectionIds}
         onRelockSection={handleRelockSection}
         totalProductsCount={totalCount}
+        unsectionedCount={unsectionedCount}
       />
 
       {/* Grid Canvas */}
@@ -330,6 +334,8 @@ export const ProductsPage: React.FC = () => {
             <h3 className="text-base font-bold text-white">
               {selectedSectionId
                 ? 'No products in this section'
+                : !selectedSectionId && unsectionedCount === 0 && sections.length > 0 && !searchTerm && selectedStore === 'ALL' && selectedCategory === 'ALL'
+                ? 'All products organized into sections!'
                 : viewMode === 'purchased'
                 ? 'No purchased products yet'
                 : 'No products in wishlist'}
@@ -337,6 +343,8 @@ export const ProductsPage: React.FC = () => {
             <p className="text-xs text-slate-400">
               {selectedSectionId
                 ? 'This section is currently empty. Click "Add Products" above to populate it with items from your vault!'
+                : !selectedSectionId && unsectionedCount === 0 && sections.length > 0 && !searchTerm && selectedStore === 'ALL' && selectedCategory === 'ALL'
+                ? 'All your saved items have been placed into custom sections. Select a section above to view its products, or save a new product to your vault.'
                 : searchTerm || selectedStore !== 'ALL' || selectedCategory !== 'ALL' || favoriteOnly
                 ? 'No products match your current filters. Try resetting the search or filters.'
                 : viewMode === 'purchased'
@@ -453,8 +461,6 @@ export const ProductsPage: React.FC = () => {
           isOpen={!!sectionToAddProducts}
           onClose={() => setSectionToAddProducts(null)}
           section={sectionToAddProducts}
-          allProducts={products}
-          currentSectionProductIds={products.map((p) => p.id)}
           onProductsAdded={() => {
             fetchSections();
             fetchProducts();
@@ -469,6 +475,7 @@ export const ProductsPage: React.FC = () => {
           onClose={() => {
             setProductToAddToSection(null);
             fetchSections();
+            fetchProducts();
           }}
           product={productToAddToSection}
           onOpenCreateSection={() => {

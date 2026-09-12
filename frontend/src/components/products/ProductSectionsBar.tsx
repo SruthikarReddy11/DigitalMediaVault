@@ -24,6 +24,7 @@ interface ProductSectionsBarProps {
   unlockedSectionIds: string[];
   onRelockSection: (sectionId: string) => void;
   totalProductsCount: number;
+  unsectionedCount?: number;
 }
 
 export const ProductSectionsBar: React.FC<ProductSectionsBarProps> = ({
@@ -37,6 +38,7 @@ export const ProductSectionsBar: React.FC<ProductSectionsBarProps> = ({
   unlockedSectionIds,
   onRelockSection,
   totalProductsCount,
+  unsectionedCount,
 }) => {
   const activeSection = sections.find((s) => s.id === selectedSectionId) || null;
 
@@ -44,10 +46,11 @@ export const ProductSectionsBar: React.FC<ProductSectionsBarProps> = ({
     <div className="space-y-3">
       {/* Horizontal Chip Bar */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-thin">
-        {/* All Products Chip */}
+        {/* Main Vault (Unassigned) Chip */}
         <button
           type="button"
           onClick={() => onSelectSection(null)}
+          title="Products not organized into any section"
           className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
             selectedSectionId === null
               ? 'bg-slate-800 text-white border border-slate-700 shadow-md'
@@ -55,9 +58,9 @@ export const ProductSectionsBar: React.FC<ProductSectionsBarProps> = ({
           }`}
         >
           <Layers className="w-3.5 h-3.5 text-brand-400" />
-          <span>All Vault</span>
+          <span>Main Vault</span>
           <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-slate-800/80 text-slate-300 font-mono">
-            {totalProductsCount}
+            {unsectionedCount !== undefined ? unsectionedCount : totalProductsCount}
           </span>
         </button>
 

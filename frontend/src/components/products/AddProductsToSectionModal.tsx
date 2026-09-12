@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   Search,
@@ -17,8 +17,8 @@ interface AddProductsToSectionModalProps {
   isOpen: boolean;
   onClose: () => void;
   section: ProductSection | null;
-  allProducts: SavedProduct[];
-  currentSectionProductIds: string[];
+  allProducts?: SavedProduct[];
+  currentSectionProductIds?: string[];
   onProductsAdded: () => void;
 }
 
@@ -26,19 +26,47 @@ export const AddProductsToSectionModal: React.FC<AddProductsToSectionModalProps>
   isOpen,
   onClose,
   section,
-  allProducts,
-  currentSectionProductIds,
+  allProducts = [],
+  currentSectionProductIds = [],
   onProductsAdded,
 }) => {
   const { success, error } = useToast();
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [candidateProducts, setCandidateProducts] = useState<SavedProduct[]>(allProducts);
+  const [existingIds, setExistingIds] = useState<string[]>(currentSectionProductIds);
+  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen || !section) return;
+    setIsLoading(true);
+    setSelectedProductIds([]);
+
+    Promise.all([
+      productsApi.getProducts(),
+      productsApi.getSectionById(section.id).catch(() => null),
+    ])
+      .then(([res, secDetails]) => {
+        setCandidateProducts(res.products);
+        if (secDetails && secDetails.products) {
+          setExistingIds(secDetails.products.map((p) => p.id));
+        } else {
+          setExistingIds(currentSectionProductIds);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to load products for section:', err);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+  }, [isOpen, section]);
 
   // Filter available products
   const filteredProducts = useMemo(() => {
     const term = searchTerm.toLowerCase().trim();
-    return allProducts.filter((p) => {
+    return candidateProducts.filter((p) => {
       if (term) {
         const matches =
           p.title.toLowerCase().includes(term) ||
@@ -49,12 +77,12 @@ export const AddProductsToSectionModal: React.FC<AddProductsToSectionModalProps>
       }
       return true;
     });
-  }, [allProducts, searchTerm]);
+  }, [candidateProducts, searchTerm]);
 
   if (!isOpen || !section) return null;
 
   const toggleSelect = (id: string) => {
-    if (currentSectionProductIds.includes(id)) return; // already in section
+    if (existingIds.includes(id)) return; // already in section
     if (selectedProductIds.includes(id)) {
       setSelectedProductIds(selectedProductIds.filter((pId) => pId !== id));
     } else {
@@ -125,14 +153,19 @@ export const AddProductsToSectionModal: React.FC<AddProductsToSectionModalProps>
 
         {/* Product List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-2.5 min-h-[250px] max-h-[50vh]">
-          {filteredProducts.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-500 space-y-3">
+              <div className="w-7 h-7 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+              <p className="text-xs font-medium">Loading products...</p>
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-500 space-y-2">
               <ShoppingBag className="w-10 h-10 stroke-[1.5]" />
               <p className="text-xs">No products found</p>
             </div>
           ) : (
             filteredProducts.map((product) => {
-              const isAlreadyIn = currentSectionProductIds.includes(product.id);
+              const isAlreadyIn = existingIds.includes(product.id);
               const isSelected = selectedProductIds.includes(product.id);
 
               return (

@@ -32,6 +32,7 @@ export const productsApi = {
     if (filters?.store && filters.store !== 'ALL') params.store = filters.store;
     if (filters?.category && filters.category !== 'ALL') params.category = filters.category;
     if (filters?.sectionId) params.sectionId = filters.sectionId;
+    if (filters?.unsectionedOnly !== undefined) params.unsectionedOnly = filters.unsectionedOnly;
     if (filters?.favoriteOnly) params.favoriteOnly = true;
     if (filters?.isPurchased !== undefined) params.isPurchased = filters.isPurchased;
     else if (filters?.purchasedOnly !== undefined) params.isPurchased = filters.purchasedOnly;

@@ -98,6 +98,7 @@ export interface ProductFilterOptions {
   store?: string;
   category?: string;
   sectionId?: string;
+  unsectionedOnly?: boolean;
   favoriteOnly?: boolean;
   purchasedOnly?: boolean;
   isPurchased?: boolean;
@@ -108,6 +109,7 @@ export interface ProductFilterOptions {
 export interface ProductListResponse {
   products: SavedProduct[];
   totalCount: number;
+  unsectionedCount?: number;
   wishlistCount?: number;
   purchasedCount?: number;
   totalValue: number;

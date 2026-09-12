@@ -37,6 +37,7 @@ export class ProductController {
         store,
         category,
         sectionId,
+        unsectionedOnly,
         favoriteOnly,
         purchasedOnly,
         isPurchased,
@@ -49,6 +50,7 @@ export class ProductController {
       if (store) filters.store = String(store);
       if (category) filters.category = String(category);
       if (sectionId) filters.sectionId = String(sectionId);
+      if (unsectionedOnly !== undefined) filters.unsectionedOnly = unsectionedOnly === 'true';
       if (favoriteOnly !== undefined) filters.isFavorite = favoriteOnly === 'true';
       if (isPurchased !== undefined) filters.isPurchased = isPurchased === 'true';
       else if (purchasedOnly !== undefined) filters.isPurchased = purchasedOnly === 'true';

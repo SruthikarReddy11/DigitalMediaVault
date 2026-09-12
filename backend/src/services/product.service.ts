@@ -53,6 +53,7 @@ export interface ProductListFilters {
   store?: string;
   category?: string;
   sectionId?: string;
+  unsectionedOnly?: boolean;
   isFavorite?: boolean;
   isPurchased?: boolean;
   sortBy?: 'createdAt' | 'price' | 'discountPercent' | 'title';
@@ -153,6 +154,10 @@ export class ProductService {
           sectionId: filters.sectionId,
         },
       };
+    } else if (filters.unsectionedOnly) {
+      where.sectionItems = {
+        none: {},
+      };
     }
 
     if (filters.search && filters.search.trim()) {
@@ -173,12 +178,18 @@ export class ProductService {
     const orderBy: any = {};
     orderBy[sortField] = sortOrder;
 
-    const [products, totalCount, wishlistCount, purchasedCount, storeGroups] = await Promise.all([
+    const [products, totalCount, unsectionedCount, wishlistCount, purchasedCount, storeGroups] = await Promise.all([
       prisma.savedProduct.findMany({
         where,
         orderBy,
       }),
       prisma.savedProduct.count({ where }),
+      prisma.savedProduct.count({
+        where: {
+          userId,
+          sectionItems: { none: {} },
+        },
+      }),
       prisma.savedProduct.count({ where: { userId, isPurchased: false } }),
       prisma.savedProduct.count({ where: { userId, isPurchased: true } }),
       prisma.savedProduct.groupBy({
@@ -195,6 +206,7 @@ export class ProductService {
     return {
       products,
       totalCount,
+      unsectionedCount,
       wishlistCount,
       purchasedCount,
       totalValue,
