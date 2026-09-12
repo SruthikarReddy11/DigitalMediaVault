@@ -38,6 +38,7 @@ export class ProductController {
         category,
         favoriteOnly,
         purchasedOnly,
+        isPurchased,
         sortBy,
         sortOrder,
       } = req.query;
@@ -47,7 +48,8 @@ export class ProductController {
       if (store) filters.store = String(store);
       if (category) filters.category = String(category);
       if (favoriteOnly !== undefined) filters.isFavorite = favoriteOnly === 'true';
-      if (purchasedOnly !== undefined) filters.isPurchased = purchasedOnly === 'true';
+      if (isPurchased !== undefined) filters.isPurchased = isPurchased === 'true';
+      else if (purchasedOnly !== undefined) filters.isPurchased = purchasedOnly === 'true';
       if (sortBy) filters.sortBy = String(sortBy);
       if (sortOrder) filters.sortOrder = String(sortOrder);
 

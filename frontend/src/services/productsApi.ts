@@ -29,7 +29,8 @@ export const productsApi = {
     if (filters?.store && filters.store !== 'ALL') params.store = filters.store;
     if (filters?.category && filters.category !== 'ALL') params.category = filters.category;
     if (filters?.favoriteOnly) params.favoriteOnly = true;
-    if (filters?.purchasedOnly) params.purchasedOnly = true;
+    if (filters?.isPurchased !== undefined) params.isPurchased = filters.isPurchased;
+    else if (filters?.purchasedOnly !== undefined) params.isPurchased = filters.purchasedOnly;
     if (filters?.sortBy) params.sortBy = filters.sortBy;
     if (filters?.sortOrder) params.sortOrder = filters.sortOrder;
 

@@ -164,12 +164,14 @@ export class ProductService {
     const orderBy: any = {};
     orderBy[sortField] = sortOrder;
 
-    const [products, totalCount, storeGroups] = await Promise.all([
+    const [products, totalCount, wishlistCount, purchasedCount, storeGroups] = await Promise.all([
       prisma.savedProduct.findMany({
         where,
         orderBy,
       }),
       prisma.savedProduct.count({ where }),
+      prisma.savedProduct.count({ where: { userId, isPurchased: false } }),
+      prisma.savedProduct.count({ where: { userId, isPurchased: true } }),
       prisma.savedProduct.groupBy({
         by: ['store'],
         where: { userId },
@@ -184,6 +186,8 @@ export class ProductService {
     return {
       products,
       totalCount,
+      wishlistCount,
+      purchasedCount,
       totalValue,
       totalDiscountedCount,
       storeCounts: storeGroups.map((g) => ({ store: g.store, count: g._count.id })),

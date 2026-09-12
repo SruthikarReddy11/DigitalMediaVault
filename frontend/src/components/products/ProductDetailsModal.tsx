@@ -302,12 +302,13 @@ export const ProductDetailsModal: React.FC<ProductDetailsModalProps> = ({
                 onClick={() => onTogglePurchased(product.id)}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-semibold border transition ${
                   product.isPurchased
-                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
-                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
+                    : 'bg-slate-800 text-slate-300 border-slate-700 hover:text-white hover:bg-slate-750'
                 }`}
+                title={product.isPurchased ? 'Move back to Wishlist' : 'Mark as Purchased'}
               >
                 <Check className="w-3.5 h-3.5 text-emerald-400" />
-                <span>{product.isPurchased ? 'Purchased' : 'Mark Bought'}</span>
+                <span>{product.isPurchased ? 'Bought ✓ (Move to Wishlist)' : 'Mark as Purchased'}</span>
               </button>
 
               <button

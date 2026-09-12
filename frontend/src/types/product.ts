@@ -99,6 +99,7 @@ export interface ProductFilterOptions {
   category?: string;
   favoriteOnly?: boolean;
   purchasedOnly?: boolean;
+  isPurchased?: boolean;
   sortBy?: 'createdAt' | 'price' | 'discountPercent' | 'title';
   sortOrder?: 'asc' | 'desc';
 }
@@ -106,6 +107,8 @@ export interface ProductFilterOptions {
 export interface ProductListResponse {
   products: SavedProduct[];
   totalCount: number;
+  wishlistCount?: number;
+  purchasedCount?: number;
   totalValue: number;
   totalDiscountedCount: number;
   storeCounts: { store: string; count: number }[];

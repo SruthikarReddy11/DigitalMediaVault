@@ -25,6 +25,10 @@ interface ProductsHeaderProps {
   onSortChange: (sort: string) => void;
   favoriteOnly: boolean;
   onToggleFavoriteOnly: () => void;
+  viewMode: 'wishlist' | 'purchased' | 'all';
+  onViewModeChange: (mode: 'wishlist' | 'purchased' | 'all') => void;
+  wishlistCount: number;
+  purchasedCount: number;
   storeCounts: { store: string; count: number }[];
   totalCount: number;
   totalValue: number;
@@ -65,6 +69,10 @@ export const ProductsHeader: React.FC<ProductsHeaderProps> = ({
   onSortChange,
   favoriteOnly,
   onToggleFavoriteOnly,
+  viewMode,
+  onViewModeChange,
+  wishlistCount,
+  purchasedCount,
   storeCounts,
   totalCount,
   totalValue,
@@ -110,17 +118,94 @@ export const ProductsHeader: React.FC<ProductsHeaderProps> = ({
         </button>
       </div>
 
+      {/* View Mode Toggle: Wishlist vs Purchased vs All */}
+      <div className="flex flex-wrap items-center justify-between gap-3 p-2 bg-slate-900/60 border border-slate-800 rounded-2xl">
+        <div className="flex items-center gap-1.5 p-1 bg-slate-950/80 rounded-xl border border-slate-800/80">
+          <button
+            type="button"
+            onClick={() => onViewModeChange('wishlist')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              viewMode === 'wishlist'
+                ? 'bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-500 text-white shadow-lg shadow-brand-500/25'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <ShoppingBag className="w-3.5 h-3.5" />
+            <span>Wishlist</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                viewMode === 'wishlist' ? 'bg-black/40 text-white' : 'bg-slate-800 text-slate-300'
+              }`}
+            >
+              {wishlistCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onViewModeChange('purchased')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              viewMode === 'purchased'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-lg shadow-emerald-500/25'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300" />
+            <span>Purchased Vault</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                viewMode === 'purchased' ? 'bg-black/40 text-white' : 'bg-slate-800 text-slate-300'
+              }`}
+            >
+              {purchasedCount}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onViewModeChange('all')}
+            className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+              viewMode === 'all'
+                ? 'bg-slate-800 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-900'
+            }`}
+          >
+            <span>All</span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                viewMode === 'all' ? 'bg-black/40 text-white' : 'bg-slate-800 text-slate-400'
+              }`}
+            >
+              {totalCount}
+            </span>
+          </button>
+        </div>
+
+        {/* View Mode Description Cue */}
+        <div className="text-[11px] text-slate-400 font-medium px-3 hidden sm:block">
+          {viewMode === 'wishlist' && 'Showing active wishlist (unpurchased items).'}
+          {viewMode === 'purchased' && 'Showing purchased items & order archive.'}
+          {viewMode === 'all' && 'Showing all saved products.'}
+        </div>
+      </div>
+
       {/* Summary Metrics Bar */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="p-3.5 bg-slate-900/60 border border-slate-800/80 rounded-xl flex items-center gap-3">
           <div className="p-2 rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/30">
-            <ShoppingBag className="w-4 h-4" />
+            {viewMode === 'purchased' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            ) : (
+              <ShoppingBag className="w-4 h-4" />
+            )}
           </div>
           <div>
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
-              Saved Items
+              {viewMode === 'purchased' ? 'Purchased Items' : viewMode === 'wishlist' ? 'Wishlist Items' : 'Total Items'}
             </span>
-            <span className="text-base font-extrabold text-white">{totalCount}</span>
+            <span className="text-base font-extrabold text-white">
+              {viewMode === 'purchased' ? purchasedCount : viewMode === 'wishlist' ? wishlistCount : totalCount}
+            </span>
           </div>
         </div>
 

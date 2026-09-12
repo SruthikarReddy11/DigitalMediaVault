@@ -130,8 +130,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           ) : null}
 
           {product.isPurchased && (
-            <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-brand-500/20 text-brand-300 border border-brand-500/40 flex items-center gap-1 backdrop-blur-md">
-              <Check className="w-3 h-3" />
+            <span className="px-2 py-0.5 rounded-lg text-[10px] font-extrabold bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 backdrop-blur-md shadow-md shadow-emerald-500/10">
+              <Check className="w-3 h-3 text-emerald-400" />
               <span>Purchased</span>
             </span>
           )}
@@ -143,8 +143,25 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           )}
         </div>
 
-        {/* Top-Right Action Controls (Favorite & Options) */}
+        {/* Top-Right Action Controls (Favorite, Purchased, Share & Options) */}
         <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 z-10">
+          {/* Quick Purchased Toggle */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onTogglePurchased(product.id);
+            }}
+            className={`p-2 rounded-xl backdrop-blur-md border transition-all ${
+              product.isPurchased
+                ? 'bg-emerald-500/30 border-emerald-500/60 text-emerald-300 shadow-md shadow-emerald-500/20'
+                : 'bg-slate-900/70 border-slate-700/60 text-slate-400 hover:text-emerald-400 hover:bg-slate-800'
+            }`}
+            title={product.isPurchased ? 'Move back to Wishlist' : 'Mark as Purchased'}
+          >
+            <Check className="w-3.5 h-3.5" />
+          </button>
+
           {/* Favorite toggle */}
           <button
             type="button"
@@ -238,7 +255,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
                   className="w-full flex items-center gap-2 px-3 py-2 text-slate-300 hover:text-white hover:bg-slate-800 transition"
                 >
                   <Check className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>{product.isPurchased ? 'Mark as Unbought' : 'Mark as Bought'}</span>
+                  <span>{product.isPurchased ? 'Move to Wishlist' : 'Mark as Purchased'}</span>
                 </button>
 
                 <button
