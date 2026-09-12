@@ -5,6 +5,7 @@ import { ToastProvider } from './contexts/ToastContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { AudioPlayerProvider } from './contexts/AudioPlayerContext';
 import { AppRoutes } from './routes/AppRoutes';
+import { PageLaserBorder } from './components/common/PageLaserBorder';
 
 export const App: React.FC = () => {
   return (
@@ -13,6 +14,7 @@ export const App: React.FC = () => {
         <ToastProvider>
           <AuthProvider>
             <AudioPlayerProvider>
+              <PageLaserBorder />
               <AppRoutes />
             </AudioPlayerProvider>
           </AuthProvider>
