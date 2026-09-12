@@ -197,8 +197,23 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
 
   return (
     <header className="sticky top-0 z-30 h-16 bg-slate-950/90 backdrop-blur-3xl border-b border-white/[0.08] shadow-[inset_0_1px_1px_rgba(255,255,255,0.12)] px-2.5 sm:px-6 flex items-center justify-between gap-2 sm:gap-4 relative select-none">
-      {/* Luminous Neon Cyber Animated Bottom Laser Streak */}
-      <div className="absolute bottom-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-cyan-400 via-indigo-500 to-transparent animate-laser-sweep pointer-events-none opacity-85" />
+      {/* Spectacular Multi-Color Neon Light Header with Atmospheric Glow */}
+      <div className="absolute bottom-0 left-0 right-0 pointer-events-none overflow-visible z-10">
+        {/* Layer 1: Wide Volumetric Atmospheric Underglow (diffuses softly onto page content) */}
+        <div className="absolute -bottom-1.5 left-0 right-0 h-3.5 neon-multi-gradient animate-neon-flow animate-neon-pulse opacity-60 dark:opacity-80 blur-md" />
+
+        {/* Layer 2: Secondary Vibrant Halo Aura (gives the neon beam rich luminous volume) */}
+        <div className="absolute -bottom-0.5 left-0 right-0 h-2 neon-multi-gradient animate-neon-flow opacity-85 blur-[2.5px]" />
+
+        {/* Layer 3: Razor Core Filament (crisp, high-definition vibrant multi-color laser beam) */}
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] neon-multi-gradient animate-neon-flow shadow-[0_0_10px_rgba(34,211,238,0.8),0_0_20px_rgba(168,85,247,0.6),0_0_30px_rgba(244,63,94,0.4)]" />
+
+        {/* Layer 4: Prismatic Traveling Laser Comet (high-speed stylish glint sweeping across with trailing flare) */}
+        <div className="absolute -bottom-[1px] left-0 w-1/4 h-[3px] bg-gradient-to-r from-transparent via-white to-transparent animate-neon-laser blur-[0.5px] opacity-90 mix-blend-overlay" />
+
+        {/* Layer 5: Sparkling Micro-Shimmer Light Sweep */}
+        <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[linear-gradient(90deg,transparent_0%,rgba(255,255,255,0.8)_50%,transparent_100%)] animate-neon-shimmer opacity-40 mix-blend-screen" />
+      </div>
 
       {/* MOBILE SEARCH OVERLAY MODE (when expanded on < sm) */}
       {isMobileSearchExpanded ? (
