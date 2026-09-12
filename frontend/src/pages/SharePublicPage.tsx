@@ -25,6 +25,7 @@ import {
   Sparkles,
   Images,
   Play,
+  ShoppingBag,
 } from 'lucide-react';
 import { shareApi } from '../services/shareApi';
 import { getMediaUrl } from '../services/api';
@@ -37,6 +38,7 @@ import { SlideshowModal } from '../components/gallery/SlideshowModal';
 import { Logo3D } from '../components/common/Logo3D';
 import { HolographicMusicShareView } from '../components/music/HolographicMusicShareView';
 import { PublicCinemaVideoPlayer } from '../components/video/PublicCinemaVideoPlayer';
+import { PublicProductShareView } from '../components/products/PublicProductShareView';
 
 export const SharePublicPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
@@ -474,8 +476,19 @@ export const SharePublicPage: React.FC = () => {
                   </button>
                 )}
 
-                {/* Download Actions */}
-                {shareData.isDownloadLimitReached ? (
+                {/* Product Direct Buy Action */}
+                {shareData.product ? (
+                  <a
+                    href={shareData.product.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-brand-600 via-indigo-600 to-teal-500 hover:from-brand-500 hover:via-indigo-500 hover:to-teal-400 text-white text-xs sm:text-sm font-black shadow-lg shadow-brand-600/25 transition active:scale-95 cursor-pointer"
+                  >
+                    <ShoppingBag className="w-4 h-4" />
+                    <span>Buy on {shareData.product.store}</span>
+                    <ExternalLink className="w-3.5 h-3.5 ml-0.5 opacity-80" />
+                  </a>
+                ) : shareData.isDownloadLimitReached ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -594,6 +607,14 @@ export const SharePublicPage: React.FC = () => {
                   View Details
                 </button>
               </div>
+            )}
+
+            {/* PRODUCT SHOWCASE PREVIEW */}
+            {shareData.product && (
+              <PublicProductShareView
+                product={shareData.product}
+                shareData={shareData}
+              />
             )}
 
             {/* SINGLE FILE PREVIEW */}

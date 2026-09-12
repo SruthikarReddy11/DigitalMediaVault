@@ -28,11 +28,13 @@ export class ShareController {
     try {
       const fileId = req.query.fileId as string | undefined;
       const folderId = req.query.folderId as string | undefined;
+      const productId = req.query.productId as string | undefined;
       const status = req.query.status as any;
 
       const links = await ShareService.getUserShareLinks(req.user!, {
         fileId,
         folderId,
+        productId,
         status,
       });
 

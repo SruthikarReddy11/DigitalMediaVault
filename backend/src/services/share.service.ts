@@ -9,6 +9,8 @@ import { ActivityService } from './activity.service';
 export interface CreateShareLinkInput {
   fileId?: string;
   folderId?: string;
+  albumId?: string;
+  productId?: string;
   password?: string;
   expiresAtOption?: '1h' | '1d' | '7d' | '30d' | 'never' | string;
   customExpiresAt?: string;
@@ -79,6 +81,8 @@ export class ShareService {
     const {
       fileId,
       folderId,
+      albumId,
+      productId,
       password,
       expiresAtOption,
       customExpiresAt,
@@ -87,13 +91,37 @@ export class ShareService {
       title,
     } = input;
 
-    if (!fileId && !folderId) {
-      const err: any = new Error('Either fileId or folderId must be provided.');
+    if (!fileId && !folderId && !albumId && !productId) {
+      const err: any = new Error('Either fileId, folderId, albumId, or productId must be provided.');
       err.statusCode = 400;
       throw err;
     }
 
     let defaultTitle = title?.trim() || '';
+
+    // Verify Product
+    if (productId) {
+      const product = await prisma.savedProduct.findUnique({
+        where: { id: productId },
+        select: { id: true, userId: true, title: true },
+      });
+
+      if (!product) {
+        const err: any = new Error('Product not found.');
+        err.statusCode = 404;
+        throw err;
+      }
+
+      if (product.userId !== user.id && user.role !== 'ADMIN') {
+        const err: any = new Error('You do not have permission to share this product.');
+        err.statusCode = 403;
+        throw err;
+      }
+
+      if (!defaultTitle) {
+        defaultTitle = product.title;
+      }
+    }
 
     // Verify File
     if (fileId) {
@@ -159,6 +187,8 @@ export class ShareService {
         userId: user.id,
         fileId: fileId || null,
         folderId: folderId || null,
+        albumId: albumId || null,
+        productId: productId || null,
         token,
         title: defaultTitle,
         passwordHash,
@@ -183,15 +213,29 @@ export class ShareService {
             name: true,
           },
         },
+        product: {
+          select: {
+            id: true,
+            title: true,
+            store: true,
+            price: true,
+            originalPrice: true,
+            currencySymbol: true,
+            discountPercent: true,
+            imageUrl: true,
+            url: true,
+            rating: true,
+          },
+        },
       },
     });
 
     // Log Activity
     await ActivityService.log({
       userId: user.id,
-      action: fileId ? 'FILE_SHARED' : 'FOLDER_SHARED',
-      resourceType: fileId ? 'FILE' : 'FOLDER',
-      resourceId: fileId || folderId,
+      action: productId ? 'PRODUCT_SHARED' : fileId ? 'FILE_SHARED' : 'FOLDER_SHARED',
+      resourceType: productId ? 'PRODUCT' : fileId ? 'FILE' : 'FOLDER',
+      resourceId: productId || fileId || folderId,
       metadata: {
         shareId: shareLink.id,
         token: shareLink.token,
@@ -211,7 +255,7 @@ export class ShareService {
    */
   public static async getUserShareLinks(
     user: AuthUser,
-    filter?: { fileId?: string; folderId?: string; status?: 'active' | 'revoked' | 'expired' }
+    filter?: { fileId?: string; folderId?: string; productId?: string; status?: 'active' | 'revoked' | 'expired' }
   ) {
     const where: any = {
       userId: user.id,
@@ -219,6 +263,7 @@ export class ShareService {
 
     if (filter?.fileId) where.fileId = filter.fileId;
     if (filter?.folderId) where.folderId = filter.folderId;
+    if (filter?.productId) where.productId = filter.productId;
 
     if (filter?.status === 'revoked') {
       where.isRevoked = true;
@@ -247,6 +292,15 @@ export class ShareService {
           select: {
             id: true,
             name: true,
+          },
+        },
+        product: {
+          select: {
+            id: true,
+            title: true,
+            store: true,
+            price: true,
+            imageUrl: true,
           },
         },
         _count: {
@@ -488,6 +542,7 @@ export class ShareService {
             },
           },
         },
+        product: true,
       },
     });
 
@@ -516,7 +571,13 @@ export class ShareService {
     const isDownloadLimitReached =
       share.maxDownloads !== null && share.downloadCount >= share.maxDownloads;
 
-    const shareType = share.fileId ? 'FILE' : share.albumId ? 'ALBUM' : 'FOLDER';
+    const shareType = share.productId
+      ? 'PRODUCT'
+      : share.fileId
+      ? 'FILE'
+      : share.albumId
+      ? 'ALBUM'
+      : 'FOLDER';
 
     // Check Password Protection
     if (share.hasPassword) {
@@ -525,7 +586,7 @@ export class ShareService {
           isUnlocked: false,
           hasPassword: true,
           token: share.token,
-          title: share.title || (share.file?.originalName || share.folder?.name || share.album?.name),
+          title: share.title || (share.file?.originalName || share.folder?.name || share.album?.name || share.product?.title),
           type: shareType,
           owner: {
             name: share.user.name,
@@ -564,9 +625,9 @@ export class ShareService {
     // Log Activity for PDL
     await ActivityService.log({
       userId: share.userId,
-      action: share.fileId ? 'FILE_VIEWED' : share.albumId ? 'ALBUM_SHARED' : 'FOLDER_VIEWED',
-      resourceType: share.fileId ? 'FILE' : share.albumId ? 'ALBUM' : 'FOLDER',
-      resourceId: (share.fileId || share.folderId || share.albumId) ?? undefined,
+      action: share.productId ? 'PRODUCT_VIEWED' : share.fileId ? 'FILE_VIEWED' : share.albumId ? 'ALBUM_SHARED' : 'FOLDER_VIEWED',
+      resourceType: share.productId ? 'PRODUCT' : share.fileId ? 'FILE' : share.albumId ? 'ALBUM' : 'FOLDER',
+      resourceId: (share.productId || share.fileId || share.folderId || share.albumId) ?? undefined,
       metadata: {
         token: share.token,
         title: share.title,
@@ -666,6 +727,30 @@ export class ShareService {
               streamUrl: `/api/share/public/${share.token}/stream/${it.file.id}${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
               downloadUrl: `/api/share/public/${share.token}/download/${it.file.id}${share.hasPassword && password ? `?pwd=${encodeURIComponent(password)}` : ''}`,
             })),
+          }
+        : null,
+      product: share.product
+        ? {
+            id: share.product.id,
+            title: share.product.title,
+            description: share.product.description,
+            brand: share.product.brand,
+            store: share.product.store,
+            category: share.product.category,
+            price: share.product.price,
+            originalPrice: share.product.originalPrice,
+            currency: share.product.currency,
+            currencySymbol: share.product.currencySymbol,
+            discountPercent: share.product.discountPercent,
+            imageUrl: share.product.imageUrl,
+            additionalImages: share.product.additionalImages,
+            rating: share.product.rating,
+            reviewCount: share.product.reviewCount,
+            inStock: share.product.inStock,
+            notes: share.product.notes,
+            tags: share.product.tags,
+            url: share.product.url,
+            createdAt: share.product.createdAt,
           }
         : null,
     };
@@ -986,6 +1071,8 @@ export class ShareService {
       userId: link.userId,
       fileId: link.fileId,
       folderId: link.folderId,
+      albumId: link.albumId,
+      productId: link.productId,
       token: link.token,
       title: link.title,
       hasPassword: link.hasPassword,
@@ -1012,6 +1099,19 @@ export class ShareService {
         ? {
             id: link.folder.id,
             name: link.folder.name,
+          }
+        : null,
+      product: link.product
+        ? {
+            id: link.product.id,
+            title: link.product.title,
+            store: link.product.store,
+            price: link.product.price,
+            originalPrice: link.product.originalPrice,
+            currencySymbol: link.product.currencySymbol,
+            discountPercent: link.product.discountPercent,
+            imageUrl: link.product.imageUrl,
+            url: link.product.url,
           }
         : null,
       accessLogsCount: link._count?.accessLogs ?? undefined,

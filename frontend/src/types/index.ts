@@ -255,6 +255,8 @@ export interface ShareLinkItem {
   userId: string;
   fileId?: string | null;
   folderId?: string | null;
+  albumId?: string | null;
+  productId?: string | null;
   token: string;
   title?: string | null;
   hasPassword: boolean;
@@ -279,6 +281,17 @@ export interface ShareLinkItem {
     id: string;
     name: string;
   } | null;
+  product?: {
+    id: string;
+    title: string;
+    store: string;
+    price?: number | null;
+    originalPrice?: number | null;
+    currencySymbol?: string | null;
+    discountPercent?: number | null;
+    imageUrl?: string | null;
+    url?: string;
+  } | null;
   accessLogsCount?: number;
 }
 
@@ -295,6 +308,8 @@ export interface ShareAccessLogItem {
 export interface CreateShareInput {
   fileId?: string;
   folderId?: string;
+  albumId?: string;
+  productId?: string;
   title?: string;
   password?: string;
   expiresAtOption?: '1h' | '1d' | '7d' | '30d' | 'never' | string;
@@ -329,12 +344,35 @@ export interface PublicShareFile {
   } | null;
 }
 
+export interface PublicShareProduct {
+  id: string;
+  title: string;
+  description?: string | null;
+  brand?: string | null;
+  store: string;
+  category?: string | null;
+  price?: number | null;
+  originalPrice?: number | null;
+  currency: string;
+  currencySymbol: string;
+  discountPercent?: number | null;
+  imageUrl?: string | null;
+  additionalImages: string[];
+  rating?: number | null;
+  reviewCount?: number | null;
+  inStock: boolean;
+  notes?: string | null;
+  tags: string[];
+  url: string;
+  createdAt: string;
+}
+
 export interface PublicShareData {
   isUnlocked: boolean;
   hasPassword: boolean;
   token: string;
   title: string;
-  type: 'FILE' | 'FOLDER' | 'ALBUM';
+  type: 'FILE' | 'FOLDER' | 'ALBUM' | 'PRODUCT';
   allowDownload: boolean;
   isDownloadLimitReached?: boolean;
   maxDownloads?: number | null;
@@ -360,6 +398,7 @@ export interface PublicShareData {
     photoCount: number;
     photos: PublicShareFile[];
   } | null;
+  product?: PublicShareProduct | null;
 }
 
 // Global Search Types

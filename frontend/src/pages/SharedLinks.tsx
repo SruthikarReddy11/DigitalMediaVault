@@ -18,6 +18,7 @@ import {
   BarChart3,
   ExternalLink,
   RefreshCw,
+  ShoppingBag,
 } from 'lucide-react';
 import { shareApi } from '../services/shareApi';
 import { ShareLinkItem } from '../types';
@@ -291,7 +292,7 @@ export const SharedLinks: React.FC = () => {
               <tbody className="divide-y divide-slate-800/60 font-medium">
                 {filteredShares.map((link) => {
                   const isCopied = copiedId === link.id;
-                  const itemTitle = link.title || link.file?.originalName || link.folder?.name || 'Item';
+                  const itemTitle = link.title || link.product?.title || link.file?.originalName || link.folder?.name || 'Item';
 
                   return (
                     <tr
@@ -302,7 +303,9 @@ export const SharedLinks: React.FC = () => {
                       <td className="px-4 py-3.5">
                         <div className="flex items-center gap-3 max-w-xs">
                           <div className="p-2 rounded-lg bg-slate-800 text-brand-400 shrink-0">
-                            {link.folder ? (
+                            {link.product ? (
+                              <ShoppingBag className="w-4 h-4 text-emerald-400" />
+                            ) : link.folder ? (
                               <FolderIcon className="w-4 h-4" />
                             ) : (
                               <FileText className="w-4 h-4" />

@@ -21,6 +21,7 @@ export const shareApi = {
   async getMyShares(params?: {
     fileId?: string;
     folderId?: string;
+    productId?: string;
     status?: 'active' | 'revoked' | 'expired';
   }): Promise<ShareLinkItem[]> {
     const res = await api.get<{ success: boolean; data: ShareLinkItem[] }>('/share/my-links', {
