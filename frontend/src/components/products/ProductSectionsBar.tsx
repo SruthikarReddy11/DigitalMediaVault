@@ -20,7 +20,7 @@ interface ProductSectionsBarProps {
   onNewSection: () => void;
   onEditSection: (section: ProductSection) => void;
   onDeleteSection: (sectionId: string) => void;
-  onOpenAddProducts: (section: ProductSection) => void;
+  onAddProductLink: (section: ProductSection) => void;
   unlockedSectionIds: string[];
   onRelockSection: (sectionId: string) => void;
   totalProductsCount: number;
@@ -34,7 +34,7 @@ export const ProductSectionsBar: React.FC<ProductSectionsBarProps> = ({
   onNewSection,
   onEditSection,
   onDeleteSection,
-  onOpenAddProducts,
+  onAddProductLink,
   unlockedSectionIds,
   onRelockSection,
   totalProductsCount,
@@ -181,14 +181,14 @@ export const ProductSectionsBar: React.FC<ProductSectionsBarProps> = ({
 
           {/* Action Buttons */}
           <div className="flex items-center gap-2 flex-wrap shrink-0">
-            {/* + Add Products to this Section */}
+            {/* + Add Product Link to this Section */}
             <button
               type="button"
-              onClick={() => onOpenAddProducts(activeSection)}
+              onClick={() => onAddProductLink(activeSection)}
               className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white text-slate-950 hover:bg-slate-100 text-xs font-black shadow-md active:scale-95 transition cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5 stroke-[3]" />
-              <span>Add Products</span>
+              <span>Add Product Link</span>
             </button>
 
             {/* Relock Button if locked and unlocked */}

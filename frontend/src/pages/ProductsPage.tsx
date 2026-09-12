@@ -58,8 +58,14 @@ export const ProductsPage: React.FC = () => {
 
   // Modals
   const [isSaveModalOpen, setIsSaveModalOpen] = useState(false);
+  const [saveModalInitialSectionId, setSaveModalInitialSectionId] = useState<string | null>(null);
   const [productToShare, setProductToShare] = useState<SavedProduct | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
+
+  const handleOpenSaveModal = (sectionId?: string | null) => {
+    setSaveModalInitialSectionId(sectionId !== undefined ? sectionId : selectedSectionId);
+    setIsSaveModalOpen(true);
+  };
 
   const fetchSections = useCallback(async () => {
     try {
@@ -263,7 +269,7 @@ export const ProductsPage: React.FC = () => {
     <div className="space-y-6 pb-16 animate-fade-in">
       {/* Header with Search, Filter Pills & Summary Metrics */}
       <ProductsHeader
-        onNewProduct={() => setIsSaveModalOpen(true)}
+        onNewProduct={() => handleOpenSaveModal(selectedSectionId)}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         selectedStore={selectedStore}
@@ -298,7 +304,7 @@ export const ProductsPage: React.FC = () => {
           setIsCreateSectionOpen(true);
         }}
         onDeleteSection={handleDeleteSection}
-        onOpenAddProducts={(section) => setSectionToAddProducts(section)}
+        onAddProductLink={(section) => handleOpenSaveModal(section.id)}
         unlockedSectionIds={unlockedSectionIds}
         onRelockSection={handleRelockSection}
         totalProductsCount={totalCount}
@@ -356,14 +362,11 @@ export const ProductsPage: React.FC = () => {
           {selectedSectionId ? (
             <button
               type="button"
-              onClick={() => {
-                const sec = sections.find((s) => s.id === selectedSectionId);
-                if (sec) setSectionToAddProducts(sec);
-              }}
+              onClick={() => handleOpenSaveModal(selectedSectionId)}
               className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-500 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-brand-500/20 active:scale-95 transition cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Add Products to this Section</span>
+              <span>Add Product Link to this Section</span>
             </button>
           ) : viewMode === 'purchased' ? (
             <button
@@ -377,11 +380,11 @@ export const ProductsPage: React.FC = () => {
           ) : (
             <button
               type="button"
-              onClick={() => setIsSaveModalOpen(true)}
+              onClick={() => handleOpenSaveModal(null)}
               className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-500 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-brand-500/20 active:scale-95 transition cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Save Your First Product</span>
+              <span>Save Your First Product Link</span>
             </button>
           )}
         </div>
@@ -410,12 +413,17 @@ export const ProductsPage: React.FC = () => {
       {isSaveModalOpen && (
         <SaveProductModal
           isOpen={isSaveModalOpen}
-          onClose={() => setIsSaveModalOpen(false)}
+          onClose={() => {
+            setIsSaveModalOpen(false);
+            setSaveModalInitialSectionId(null);
+          }}
           onSaved={() => {
             fetchProducts();
             fetchSections();
-            success('Product saved to your vault!');
+            success('Product link saved successfully!');
           }}
+          sections={sections}
+          initialSectionId={saveModalInitialSectionId}
         />
       )}
 

@@ -54,6 +54,8 @@ export interface SaveProductInput {
   brand?: string;
   store?: string;
   category?: string;
+  sectionId?: string;
+  sectionIds?: string[];
   price?: number;
   originalPrice?: number;
   currency?: string;

@@ -9,6 +9,8 @@ export interface SaveProductInput {
   brand?: string;
   store?: string;
   category?: string;
+  sectionId?: string;
+  sectionIds?: string[];
   price?: number;
   originalPrice?: number;
   currency?: string;
@@ -99,6 +101,32 @@ export class ProductService {
 
     const { store, currency, currencySymbol } = ProductExtractorService.detectStore(input.url);
 
+    // Collect target section IDs if provided
+    const targetSectionIds: string[] = [];
+    if (finalData.sectionId && typeof finalData.sectionId === 'string' && finalData.sectionId.trim()) {
+      targetSectionIds.push(finalData.sectionId.trim());
+    }
+    if (finalData.sectionIds && Array.isArray(finalData.sectionIds)) {
+      for (const sId of finalData.sectionIds) {
+        if (typeof sId === 'string' && sId.trim() && !targetSectionIds.includes(sId.trim())) {
+          targetSectionIds.push(sId.trim());
+        }
+      }
+    }
+
+    // Verify sections exist and belong to this user
+    let validSectionIds: string[] = [];
+    if (targetSectionIds.length > 0) {
+      const ownedSections = await prisma.productSection.findMany({
+        where: {
+          id: { in: targetSectionIds },
+          userId,
+        },
+        select: { id: true },
+      });
+      validSectionIds = ownedSections.map((s) => s.id);
+    }
+
     return await prisma.savedProduct.create({
       data: {
         userId,
@@ -122,6 +150,16 @@ export class ProductService {
         isFavorite: finalData.isFavorite || false,
         notes: finalData.notes,
         tags: finalData.tags || [],
+        ...(validSectionIds.length > 0
+          ? {
+              sectionItems: {
+                create: validSectionIds.map((secId, idx) => ({
+                  sectionId: secId,
+                  position: idx,
+                })),
+              },
+            }
+          : {}),
       },
     });
   }
