@@ -368,24 +368,99 @@ export class CricketService {
         scorecardLinks.push({ id: lm[1], slug: lm[2] });
       }
 
-      // 2. Find matching link by team names in title
-      // Normalize words in title (e.g. "India", "Afghanistan")
-      const titleLower = title.toLowerCase();
-      const words = titleLower
-        .replace(/[^a-z0-9\s]/g, ' ')
-        .split(/\s+/)
-        .filter((w) => w.length > 2 && w !== 'women' && w !== 'men');
+      // 2. Accurate team & gender matching
+      const cleanTitle = title.replace(/&amp;/g, '&').trim();
+      const isWomen = /women|(\bw\b)/i.test(cleanTitle);
+      const parts = cleanTitle.split(/\s+(?:v|vs)\s+/i);
 
-      let targetLink = scorecardLinks.find((item) => {
-        const slug = item.slug.toLowerCase();
-        return words.filter((w) => slug.includes(w)).length >= 2;
-      });
+      const getTeamAliases = (teamName: string, womenFlag: boolean): string[] => {
+        const t = teamName.toLowerCase().replace(/women/g, '').replace(/[^a-z]/g, ' ').trim();
+        const aliases = new Set<string>();
+        aliases.add(t);
+        t.split(/\s+/).filter((w) => w.length > 1).forEach((w) => aliases.add(w));
 
-      if (!targetLink && words.length > 0) {
-        targetLink = scorecardLinks.find((item) => {
-          const slug = item.slug.toLowerCase();
-          return words.some((w) => slug.includes(w));
-        });
+        const map: Record<string, string[]> = {
+          india: ['ind'],
+          'sri lanka': ['sl', 'sri'],
+          'south africa': ['rsa', 'sa'],
+          afghanistan: ['afg'],
+          namibia: ['nam'],
+          zimbabwe: ['zim'],
+          england: ['eng', 'enga'],
+          australia: ['aus'],
+          pakistan: ['pak'],
+          'new zealand': ['nz'],
+          'west indies': ['wi'],
+          bangladesh: ['ban'],
+          rwanda: ['rwa'],
+          kenya: ['ken'],
+          belfast: ['bfw'],
+          glasgow: ['ggc'],
+          edinburgh: ['ecr'],
+          amsterdam: ['adf', 'ams'],
+          lions: ['lions'],
+          boland: ['bol'],
+          warriors: ['war'],
+        };
+
+        for (const [key, codes] of Object.entries(map)) {
+          if (t.includes(key)) {
+            codes.forEach((c) => aliases.add(c));
+          }
+        }
+
+        const baseList = Array.from(aliases);
+        if (womenFlag) {
+          const wList: string[] = [];
+          baseList.forEach((a) => {
+            wList.push(a + 'w');
+            wList.push(a + '-women');
+            wList.push(a);
+          });
+          return wList;
+        }
+        return baseList;
+      };
+
+      let targetLink: { id: string; slug: string } | undefined = undefined;
+
+      if (parts.length >= 2) {
+        const t1Aliases = getTeamAliases(parts[0], isWomen);
+        const t2Aliases = getTeamAliases(parts[1], isWomen);
+
+        let bestScore = -1;
+
+        for (const link of scorecardLinks) {
+          const slugLower = link.slug.toLowerCase();
+          const slugIsWomen =
+            slugLower.includes('women') ||
+            slugLower.includes('w-') ||
+            slugLower.includes('w_') ||
+            slugLower.includes('wvs') ||
+            slugLower.includes('-w-') ||
+            slugLower.endsWith('w');
+
+          // Strict gender filter: women's match must match women's slug, men's must not!
+          if (isWomen && !slugIsWomen) continue;
+          if (!isWomen && slugIsWomen) continue;
+
+          const t1Match = t1Aliases.some((a) => slugLower.includes(a));
+          const t2Match = t2Aliases.some((a) => slugLower.includes(a));
+
+          if (t1Match && t2Match) {
+            let score = 10;
+            t1Aliases.forEach((a) => {
+              if (slugLower.includes(a)) score += a.length;
+            });
+            t2Aliases.forEach((a) => {
+              if (slugLower.includes(a)) score += a.length;
+            });
+            if (score > bestScore) {
+              bestScore = score;
+              targetLink = link;
+            }
+          }
+        }
       }
 
       // If matched, fetch detailed scorecard page
