@@ -154,8 +154,9 @@ export const PublicProductShareView: React.FC<PublicProductShareViewProps> = ({
 
       {/* Main Glassmorphic Showcase Card */}
       <div className="relative rounded-3xl bg-slate-900/80 backdrop-blur-2xl border border-slate-800/80 shadow-2xl shadow-black/60 overflow-hidden">
-        {/* Top Accent Strip */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-brand-500 via-indigo-500 to-teal-400" />
+        {/* Top Cyber Laser Accent Strip */}
+        <div className="h-[2px] w-full laser-multi-streak opacity-95" />
+        <div className="-mt-[2px] h-[3px] w-full laser-multi-streak opacity-45 blur-[1px]" />
 
         <div className="p-5 sm:p-8 lg:p-10">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">

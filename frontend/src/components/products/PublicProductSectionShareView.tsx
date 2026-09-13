@@ -254,7 +254,10 @@ export const PublicProductSectionShareView: React.FC<PublicProductSectionShareVi
     return (
       <div className="space-y-6 animate-in fade-in duration-200">
         {/* Top Navigation & Breadcrumbs Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl backdrop-blur-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl backdrop-blur-xl relative overflow-hidden">
+          {/* Luminous Multi-Color Cyber Animated Bottom Laser Streak */}
+          <div className="absolute bottom-0 left-0 right-0 h-[1.5px] laser-multi-streak pointer-events-none opacity-95" />
+          <div className="absolute -bottom-[0.5px] left-0 right-0 h-[2.5px] laser-multi-streak pointer-events-none opacity-45 blur-[1px]" />
           <button
             type="button"
             onClick={handleBackToSection}
@@ -532,6 +535,10 @@ export const PublicProductSectionShareView: React.FC<PublicProductSectionShareVi
           borderColor: `${section.color || '#6366f1'}35`,
         }}
       >
+        {/* Luminous Multi-Color Cyber Animated Bottom Laser Streak */}
+        <div className="absolute bottom-0 left-0 right-0 h-[1.5px] laser-multi-streak pointer-events-none opacity-90" />
+        <div className="absolute -bottom-[0.5px] left-0 right-0 h-[2.5px] laser-multi-streak pointer-events-none opacity-40 blur-[1px]" />
+
         <div className="flex items-start sm:items-center gap-4">
           <div
             className="w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-2xl shrink-0"
@@ -660,8 +667,14 @@ export const PublicProductSectionShareView: React.FC<PublicProductSectionShareVi
               <div
                 key={product.id}
                 onClick={() => handleSelectProduct(product)}
-                className="group relative bg-slate-900/90 hover:bg-slate-900 border border-slate-800 hover:border-brand-500/60 rounded-3xl overflow-hidden shadow-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-brand-500/10 cursor-pointer flex flex-col justify-between"
+                className="group relative bg-slate-900/90 hover:bg-slate-900 border border-slate-800 hover:border-transparent rounded-3xl overflow-hidden shadow-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_30px_rgba(59,130,246,0.25)] cursor-pointer flex flex-col justify-between"
               >
+                {/* Multi-Color Cyber Laser Border on Hover */}
+                <div className="laser-border-glow" />
+                <div className="laser-border-container">
+                  <div className="laser-border-gradient" />
+                </div>
+
                 <div>
                   {/* Thumbnail Container */}
                   <div className="relative aspect-square w-full bg-slate-950 flex items-center justify-center p-3 overflow-hidden">

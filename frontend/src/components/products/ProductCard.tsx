@@ -126,8 +126,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   return (
     <div
       onClick={() => onSelect(product)}
-      className="group relative flex flex-col bg-slate-900/85 hover:bg-slate-900 border border-slate-800/80 hover:border-brand-500/40 rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-brand-500/10 transition-all duration-300 transform-gpu hover:-translate-y-1 cursor-pointer"
+      className="group relative flex flex-col bg-slate-900/85 hover:bg-slate-900 border border-slate-800/80 hover:border-transparent rounded-2xl overflow-hidden shadow-lg hover:shadow-2xl hover:shadow-[0_0_30px_rgba(59,130,246,0.25)] transition-all duration-300 transform-gpu hover:-translate-y-1 cursor-pointer"
     >
+      {/* Multi-Color Cyber Laser Border on Hover */}
+      <div className="laser-border-glow" />
+      <div className="laser-border-container">
+        <div className="laser-border-gradient" />
+      </div>
+
       {/* Top Store Micro-Accent Bar */}
       <div className={`h-1 w-full bg-gradient-to-r ${storeBadge.barGradient}`} />
 

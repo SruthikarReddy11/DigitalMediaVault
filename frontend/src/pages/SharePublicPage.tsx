@@ -261,7 +261,11 @@ export const SharePublicPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-brand-500/30 selection:text-white">
       {/* Top Navbar */}
-      <header className="h-16 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-xl px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40">
+      <header className="h-16 border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-xl px-4 sm:px-8 flex items-center justify-between sticky top-0 z-40 relative">
+        {/* Luminous Multi-Color Cyber Animated Bottom Laser Streak */}
+        <div className="absolute bottom-0 left-0 right-0 h-[1.5px] laser-multi-streak pointer-events-none opacity-95" />
+        <div className="absolute -bottom-[0.5px] left-0 right-0 h-[2.5px] laser-multi-streak pointer-events-none opacity-45 blur-[1px]" />
+
         <Logo3D size="sm" withText subtext="Secure Share" badge="SHARE" to="/" />
 
         <div className="flex items-center gap-2">
