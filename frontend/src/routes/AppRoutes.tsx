@@ -24,6 +24,7 @@ import { CalendarPage } from '../pages/CalendarPage';
 import { ContactsPage } from '../pages/ContactsPage';
 import { ProductsPage } from '../pages/ProductsPage';
 import { ProductDetailPage } from '../pages/ProductDetailPage';
+import { CricketLivePage } from '../pages/CricketLivePage';
 
 // Admin Pages
 import { AdminDashboard } from '../pages/admin/AdminDashboard';
@@ -110,6 +111,7 @@ export const AppRoutes: React.FC = () => {
         <Route path="/files" element={<Files />} />
         <Route path="/vault" element={<SecretVault />} />
         <Route path="/contacts" element={<ContactsPage />} />
+        <Route path="/cricket-live" element={<CricketLivePage />} />
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/products/:id" element={<ProductDetailPage />} />
         <Route path="/favorites" element={<Favorites />} />

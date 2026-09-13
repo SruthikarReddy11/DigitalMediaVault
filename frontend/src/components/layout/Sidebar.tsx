@@ -21,6 +21,7 @@ import {
   Calendar,
   BookUser,
   ShoppingBag,
+  Radio,
   X,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
@@ -98,6 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 { to: '/gallery', label: 'Photos', icon: Image },
                 { to: '/videos', label: 'Cinema & Video', icon: Video },
                 { to: '/music', label: 'Lossless Music', icon: Music, badge: 'Hi-Fi' },
+                { to: '/cricket-live', label: 'Cricket Live', icon: Radio, badge: 'LIVE', badgeColor: 'bg-rose-500/25 text-rose-300 border-rose-500/40' },
                 { to: '/files', label: 'Files Drive', icon: FolderClosed },
                 { to: '/calendar', label: 'Calendar', icon: Calendar },
                 { to: '/products', label: 'Product Wishlist', icon: ShoppingBag, badge: 'NEW', badgeColor: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30' },
