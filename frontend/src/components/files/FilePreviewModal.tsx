@@ -38,8 +38,14 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
 
     if (isTextOrCode) {
       setLoadingText(true);
-      fetch(getMediaUrl(file.streamUrl))
-        .then((res) => res.text())
+      const token = localStorage.getItem('pdl_auth_token');
+      fetch(getMediaUrl(file.streamUrl), {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.text();
+        })
         .then((text) => {
           setTextContent(text);
           setLoadingText(false);
@@ -141,14 +147,16 @@ export const FilePreviewModal: React.FC<FilePreviewModalProps> = ({
           </div>
 
           <div className="flex items-center gap-2">
-            <button
-              onClick={() => setIsShareOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white font-medium rounded-lg transition active:scale-95 cursor-pointer shadow-md shadow-brand-600/20"
-              title="Share file link"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              <span>Share</span>
-            </button>
+            {!file.isSecret && (
+              <button
+                onClick={() => setIsShareOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-500 text-white font-medium rounded-lg transition active:scale-95 cursor-pointer shadow-md shadow-brand-600/20"
+                title="Share file link"
+              >
+                <Share2 className="w-3.5 h-3.5" />
+                <span>Share</span>
+              </button>
+            )}
 
             <a
               href={getMediaUrl(file.downloadUrl)}

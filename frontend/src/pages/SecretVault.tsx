@@ -46,7 +46,9 @@ import { ViewCellModal } from '../components/vault/ViewCellModal';
 import { ConfirmDialog } from '../components/common/ConfirmDialog';
 import { ImageLightbox } from '../components/gallery/ImageLightbox';
 import { VideoPlayerModal } from '../components/video/VideoPlayerModal';
-import { formatBytes, formatDate } from '../utils/formatters';
+import { FilePreviewModal } from '../components/files/FilePreviewModal';
+import { formatBytes, formatDate, fileItemToMusicItem } from '../utils/formatters';
+import { getMediaUrl } from '../services/api';
 import { useNavigate } from 'react-router-dom';
 
 export const SecretVault: React.FC = () => {
@@ -87,10 +89,11 @@ export const SecretVault: React.FC = () => {
   const [deleteCellTarget, setDeleteCellTarget] = useState<VaultCell | null>(null);
   const [deleteFileTarget, setDeleteFileTarget] = useState<FileItem | null>(null);
 
-  // 6. Media Preview State (Lightbox, Video Player, Cell Detail)
+  // 6. Media Preview State (Lightbox, Video Player, In-Website File Preview, Cell Detail)
   const [viewingCell, setViewingCell] = useState<VaultCell | null>(null);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [activeVideo, setActiveVideo] = useState<FileItem | null>(null);
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null);
 
   const activeFolderRef = useRef(activeFolder);
   useEffect(() => {
@@ -336,6 +339,20 @@ export const SecretVault: React.FC = () => {
     setLightboxIndex(idx >= 0 ? idx : 0);
   };
 
+  const handleFilePreview = (file: FileItem) => {
+    if (file.fileType === 'IMAGE') {
+      openLightboxForFile(file);
+    } else if (file.fileType === 'VIDEO') {
+      setActiveVideo(file);
+    } else if (file.fileType === 'AUDIO') {
+      const musicItem = file.music || fileItemToMusicItem(file);
+      playSongNow(musicItem);
+      success(`Playing "${file.originalName}"`);
+    } else {
+      setPreviewFile(file);
+    }
+  };
+
   const counts = useMemo(() => {
     return {
       all: activeFiles.length,
@@ -483,6 +500,15 @@ export const SecretVault: React.FC = () => {
           video={activeVideo}
           isOpen={!!activeVideo}
           onClose={() => setActiveVideo(null)}
+        />
+      )}
+
+      {/* 8. In-Website File Preview Modal for Documents, PDFs, Text, Code & Spreadsheets */}
+      {previewFile && (
+        <FilePreviewModal
+          file={previewFile}
+          isOpen={!!previewFile}
+          onClose={() => setPreviewFile(null)}
         />
       )}
 
@@ -894,13 +920,14 @@ export const SecretVault: React.FC = () => {
                         return (
                           <div
                             key={file.id}
-                            className="group relative bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-emerald-500/50 rounded-3xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 shadow-lg flex flex-col justify-between"
+                            onClick={() => handleFilePreview(file)}
+                            className="group relative bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-emerald-500/50 rounded-3xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 shadow-lg flex flex-col justify-between cursor-pointer"
                           >
                             {/* Media Preview Box */}
                             <div className="relative aspect-video w-full bg-slate-950 flex items-center justify-center overflow-hidden">
                               {isImage ? (
                                 <img
-                                  src={`/api/files/${file.id}/stream`}
+                                  src={getMediaUrl(file.streamUrl || `/api/files/${file.id}/stream`)}
                                   alt={file.originalName}
                                   loading="lazy"
                                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
@@ -931,65 +958,45 @@ export const SecretVault: React.FC = () => {
                               )}
 
                               {/* Hover Quick Action Buttons */}
-                              <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-3">
-                                {isImage && (
-                                  <button
-                                    onClick={() => openLightboxForFile(file)}
-                                    className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition cursor-pointer"
-                                    title="View Fullscreen"
-                                  >
+                              <div
+                                className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-3"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {/* Direct in-website preview button for all file types */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleFilePreview(file);
+                                  }}
+                                  className="p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white backdrop-blur-md transition shadow-lg cursor-pointer"
+                                  title="Preview in Website"
+                                >
+                                  {isImage ? (
                                     <ZoomIn className="w-4 h-4" />
-                                  </button>
-                                )}
-
-                                {isVideo && (
-                                  <button
-                                    onClick={() => setActiveVideo(file)}
-                                    className="p-2.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white shadow-lg transition cursor-pointer"
-                                    title="Play Cinema Video"
-                                  >
+                                  ) : isVideo || isAudio ? (
                                     <Play className="w-4 h-4 ml-0.5" />
-                                  </button>
-                                )}
-
-                                {isAudio && (
-                                  <button
-                                    onClick={() => {
-                                      if (file.music) {
-                                        playSongNow(file.music);
-                                        success(`Playing "${file.originalName}"`);
-                                      }
-                                    }}
-                                    className="p-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white shadow-lg transition cursor-pointer"
-                                    title="Play Audio"
-                                  >
-                                    <Play className="w-4 h-4 ml-0.5" />
-                                  </button>
-                                )}
-
-                                {!isImage && !isVideo && (
-                                  <a
-                                    href={`/api/files/${file.id}/stream`}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition cursor-pointer"
-                                    title="Open / Preview in New Tab"
-                                  >
+                                  ) : (
                                     <Eye className="w-4 h-4" />
-                                  </a>
-                                )}
+                                  )}
+                                </button>
 
                                 <a
-                                  href={`/api/files/${file.id}/download`}
-                                  download
+                                  href={getMediaUrl(file.downloadUrl || `/api/files/${file.id}/download`)}
+                                  download={file.originalName}
+                                  onClick={(e) => e.stopPropagation()}
                                   className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white backdrop-blur-md transition cursor-pointer"
-                                  title="Download"
+                                  title="Download File"
                                 >
                                   <Download className="w-4 h-4" />
                                 </a>
 
                                 <button
-                                  onClick={() => setDeleteFileTarget(file)}
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeleteFileTarget(file);
+                                  }}
                                   className="p-2.5 rounded-xl bg-rose-500/20 hover:bg-rose-500 text-rose-300 hover:text-white border border-rose-500/30 transition cursor-pointer"
                                   title="Delete Private File"
                                 >
