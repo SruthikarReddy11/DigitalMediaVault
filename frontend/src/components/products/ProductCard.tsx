@@ -435,10 +435,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         )}
 
         {/* Pricing & Dual CTAs Area */}
-        <div className="pt-2 border-t border-slate-800/60 flex items-center justify-between gap-2">
-          <div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-lg font-black text-white tracking-tight font-mono">
+        <div className="pt-2.5 border-t border-slate-800/60 flex items-center justify-between gap-2 relative z-10">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-1.5 flex-wrap">
+              <span className="text-base sm:text-lg font-black text-white tracking-tight font-mono">
                 {product.price !== null && product.price !== undefined
                   ? formatCurrency(product.price)
                   : 'Check Store'}
@@ -454,15 +454,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({
             </div>
 
             {product.targetPrice && (
-              <p className="text-[10px] text-amber-400 flex items-center gap-1 mt-0.5 font-medium">
-                <AlertCircle className="w-3 h-3" />
-                <span>Target: {formatCurrency(product.targetPrice)}</span>
+              <p className="text-[10px] text-amber-400 flex items-center gap-1 mt-0.5 font-medium truncate">
+                <AlertCircle className="w-3 h-3 shrink-0" />
+                <span className="truncate">Target: {formatCurrency(product.targetPrice)}</span>
               </p>
             )}
           </div>
 
           {/* Action CTAs */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0 relative z-20" onClick={(e) => e.stopPropagation()}>
             {/* View Details CTA */}
             <button
               type="button"
@@ -473,8 +473,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-800 hover:bg-slate-750 text-slate-200 hover:text-white text-xs font-semibold rounded-xl border border-slate-700/80 transition cursor-pointer"
               title="Open full product page"
             >
-              <span>Details</span>
               <Eye className="w-3 h-3 text-brand-400" />
+              <span className="text-[11px]">Details</span>
             </button>
 
             {/* External Store Link Button */}
@@ -482,9 +482,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
               href={product.url}
               target="_blank"
               rel="noopener noreferrer"
-              onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-md shadow-brand-500/20 active:scale-95 transition-all"
-              title={`Open product on ${product.store}`}
+              onClick={(e) => {
+                e.stopPropagation();
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-brand-600 to-indigo-600 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-md shadow-brand-500/20 active:scale-95 transition-all cursor-pointer"
+              title={`Buy on ${product.store}`}
             >
               <span>Buy</span>
               <ExternalLink className="w-3 h-3" />
