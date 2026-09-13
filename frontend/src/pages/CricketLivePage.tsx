@@ -25,8 +25,10 @@ import {
   Clipboard,
   X,
   Compass,
+  Trophy,
 } from 'lucide-react';
 import { useToast } from '../contexts/ToastContext';
+import { CricketScoresBar, CricketMatch } from '../components/cricket/CricketScoresBar';
 
 export interface CricketStreamItem {
   id: string;
@@ -83,6 +85,9 @@ export const CricketLivePage: React.FC = () => {
   const [activeStreamId, setActiveStreamId] = useState<string>(() => {
     return streams[0]?.id || 'default-ntv-1';
   });
+
+  // Live cricket scores state
+  const [selectedMatch, setSelectedMatch] = useState<CricketMatch | null>(null);
 
   // Player controls state
   const [isTheaterMode, setIsTheaterMode] = useState<boolean>(false);
@@ -358,6 +363,12 @@ export const CricketLivePage: React.FC = () => {
         </form>
       </div>
 
+      {/* LIVE CRICKET SCORES SECTION */}
+      <CricketScoresBar
+        onSelectMatch={setSelectedMatch}
+        selectedMatchId={selectedMatch?.id}
+      />
+
       {/* MAIN STREAMING ARENA */}
       <div
         ref={playerContainerRef}
@@ -365,6 +376,67 @@ export const CricketLivePage: React.FC = () => {
           isTheaterMode ? 'max-w-none w-full' : 'w-full'
         }`}
       >
+        {/* PINNED MATCH SCORECARD BANNER (if a match is selected) */}
+        {selectedMatch && (
+          <div className="px-4 sm:px-6 py-2.5 bg-gradient-to-r from-slate-900 via-rose-950/30 to-slate-900 border-b border-rose-500/30 flex flex-wrap items-center justify-between gap-3 text-xs relative z-10">
+            <div className="flex items-center gap-2.5 flex-wrap">
+              <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-extrabold border border-rose-500/40 text-[10px] tracking-wide uppercase">
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>
+                <span>{selectedMatch.status} SCORECARD</span>
+              </span>
+
+              <div className="flex items-center gap-2 font-bold text-white text-xs sm:text-sm">
+                <span className={selectedMatch.team1.isBatting ? 'text-amber-300' : 'text-slate-200'}>
+                  {selectedMatch.team1.name}
+                  {selectedMatch.team1.score && (
+                    <strong className="ml-1.5 font-mono text-white bg-slate-800/80 px-2 py-0.5 rounded-lg border border-slate-700">
+                      {selectedMatch.team1.score}
+                      {selectedMatch.team1.isBatting && <span className="text-rose-400 ml-0.5">*</span>}
+                    </strong>
+                  )}
+                </span>
+
+                <span className="text-slate-500 text-xs font-semibold">vs</span>
+
+                <span className={selectedMatch.team2.isBatting ? 'text-amber-300' : 'text-slate-200'}>
+                  {selectedMatch.team2.name}
+                  {selectedMatch.team2.score && (
+                    <strong className="ml-1.5 font-mono text-white bg-slate-800/80 px-2 py-0.5 rounded-lg border border-slate-700">
+                      {selectedMatch.team2.score}
+                      {selectedMatch.team2.isBatting && <span className="text-rose-400 ml-0.5">*</span>}
+                    </strong>
+                  )}
+                </span>
+              </div>
+
+              <span className="hidden lg:inline text-[11px] text-slate-400">
+                • {selectedMatch.statusText}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              <a
+                href={selectedMatch.cricinfoLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-1 text-[11px] text-brand-400 hover:text-brand-300 transition underline font-semibold"
+              >
+                <span>Cricinfo Live Ball-by-Ball</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setSelectedMatch(null)}
+                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+                title="Unpin score banner"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Live Player Bar */}
         <div className="px-4 sm:px-6 py-3.5 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 relative z-10">
           <div className="flex items-center gap-3 min-w-0">

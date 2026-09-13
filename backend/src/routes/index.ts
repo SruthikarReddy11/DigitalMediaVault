@@ -15,6 +15,7 @@ import galleryRoutes from './gallery.routes';
 import calendarRoutes from './calendar.routes';
 import contactRoutes from './contact.routes';
 import productRoutes from './product.routes';
+import cricketRoutes from './cricket.routes';
 
 const router = Router();
 
@@ -34,6 +35,7 @@ router.use('/gallery', galleryRoutes);
 router.use('/calendar', calendarRoutes);
 router.use('/contacts', contactRoutes);
 router.use('/products', productRoutes);
+router.use('/cricket', cricketRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {
