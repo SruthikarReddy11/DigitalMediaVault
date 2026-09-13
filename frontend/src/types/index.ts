@@ -262,6 +262,7 @@ export interface ShareLinkItem {
   folderId?: string | null;
   albumId?: string | null;
   productId?: string | null;
+  productSectionId?: string | null;
   token: string;
   title?: string | null;
   hasPassword: boolean;
@@ -297,6 +298,14 @@ export interface ShareLinkItem {
     imageUrl?: string | null;
     url?: string;
   } | null;
+  productSection?: {
+    id: string;
+    name: string;
+    description?: string | null;
+    color?: string | null;
+    icon?: string | null;
+    totalProducts: number;
+  } | null;
   accessLogsCount?: number;
 }
 
@@ -315,6 +324,7 @@ export interface CreateShareInput {
   folderId?: string;
   albumId?: string;
   productId?: string;
+  productSectionId?: string;
   title?: string;
   password?: string;
   expiresAtOption?: '1h' | '1d' | '7d' | '30d' | 'never' | string;
@@ -372,12 +382,22 @@ export interface PublicShareProduct {
   createdAt: string;
 }
 
+export interface PublicShareProductSection {
+  id: string;
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  icon?: string | null;
+  totalProducts: number;
+  products: PublicShareProduct[];
+}
+
 export interface PublicShareData {
   isUnlocked: boolean;
   hasPassword: boolean;
   token: string;
   title: string;
-  type: 'FILE' | 'FOLDER' | 'ALBUM' | 'PRODUCT';
+  type: 'FILE' | 'FOLDER' | 'ALBUM' | 'PRODUCT' | 'PRODUCT_SECTION';
   allowDownload: boolean;
   isDownloadLimitReached?: boolean;
   maxDownloads?: number | null;
@@ -404,6 +424,7 @@ export interface PublicShareData {
     photos: PublicShareFile[];
   } | null;
   product?: PublicShareProduct | null;
+  productSection?: PublicShareProductSection | null;
 }
 
 // Global Search Types

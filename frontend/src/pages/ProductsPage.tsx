@@ -4,6 +4,7 @@ import { ProductsHeader } from '../components/products/ProductsHeader';
 import { ProductCard } from '../components/products/ProductCard';
 import { SaveProductModal } from '../components/products/SaveProductModal';
 import { ShareProductModal } from '../components/products/ShareProductModal';
+import { ShareSectionModal } from '../components/products/ShareSectionModal';
 import { ProductSectionsBar } from '../components/products/ProductSectionsBar';
 import { CreateSectionModal } from '../components/products/CreateSectionModal';
 import { UnlockSectionModal } from '../components/products/UnlockSectionModal';
@@ -54,6 +55,7 @@ export const ProductsPage: React.FC = () => {
   const [sectionToEdit, setSectionToEdit] = useState<ProductSection | null>(null);
   const [sectionToUnlock, setSectionToUnlock] = useState<ProductSection | null>(null);
   const [sectionToAddProducts, setSectionToAddProducts] = useState<ProductSection | null>(null);
+  const [sectionToShare, setSectionToShare] = useState<ProductSection | null>(null);
   const [productToAddToSection, setProductToAddToSection] = useState<SavedProduct | null>(null);
 
   // Modals
@@ -305,6 +307,7 @@ export const ProductsPage: React.FC = () => {
         }}
         onDeleteSection={handleDeleteSection}
         onAddProductLink={(section) => handleOpenSaveModal(section.id)}
+        onShareSection={(section) => setSectionToShare(section)}
         unlockedSectionIds={unlockedSectionIds}
         onRelockSection={handleRelockSection}
         totalProductsCount={totalCount}
@@ -490,6 +493,15 @@ export const ProductsPage: React.FC = () => {
             setSectionToEdit(null);
             setIsCreateSectionOpen(true);
           }}
+        />
+      )}
+
+      {/* Share Section Modal */}
+      {sectionToShare && (
+        <ShareSectionModal
+          isOpen={!!sectionToShare}
+          onClose={() => setSectionToShare(null)}
+          section={sectionToShare}
         />
       )}
     </div>

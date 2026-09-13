@@ -10,6 +10,7 @@ import {
   ShoppingBag,
   Sparkles,
   TrendingUp,
+  Share2,
 } from 'lucide-react';
 import { ProductSection } from '../../types/product';
 
@@ -21,6 +22,7 @@ interface ProductSectionsBarProps {
   onEditSection: (section: ProductSection) => void;
   onDeleteSection: (sectionId: string) => void;
   onAddProductLink: (section: ProductSection) => void;
+  onShareSection?: (section: ProductSection) => void;
   unlockedSectionIds: string[];
   onRelockSection: (sectionId: string) => void;
   totalProductsCount: number;
@@ -35,6 +37,7 @@ export const ProductSectionsBar: React.FC<ProductSectionsBarProps> = ({
   onEditSection,
   onDeleteSection,
   onAddProductLink,
+  onShareSection,
   unlockedSectionIds,
   onRelockSection,
   totalProductsCount,
@@ -190,6 +193,19 @@ export const ProductSectionsBar: React.FC<ProductSectionsBarProps> = ({
               <Plus className="w-3.5 h-3.5 stroke-[3]" />
               <span>Add Product Link</span>
             </button>
+
+            {/* Share Section */}
+            {onShareSection && (
+              <button
+                type="button"
+                onClick={() => onShareSection(activeSection)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-brand-300 hover:text-white border border-brand-500/30 hover:border-brand-500/60 text-xs font-bold transition shadow-md active:scale-95 cursor-pointer"
+                title="Share this Section & Products"
+              >
+                <Share2 className="w-3.5 h-3.5 text-brand-400" />
+                <span>Share Section</span>
+              </button>
+            )}
 
             {/* Relock Button if locked and unlocked */}
             {activeSection.isLocked && unlockedSectionIds.includes(activeSection.id) && (

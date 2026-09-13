@@ -302,6 +302,7 @@ model ShareLink {
   folderId      String?
   albumId       String?
   productId     String?
+  productSectionId String?
   token         String           @unique
   title         String?
   passwordHash  String?
@@ -320,6 +321,7 @@ model ShareLink {
   folder        Folder?          @relation(fields: [folderId], references: [id], onDelete: Cascade)
   album         PhotoAlbum?      @relation(fields: [albumId], references: [id], onDelete: Cascade)
   product       SavedProduct?    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productSection ProductSection? @relation(fields: [productSectionId], references: [id], onDelete: Cascade)
   accessLogs    ShareAccessLog[]
 
   @@index([token])
@@ -328,6 +330,7 @@ model ShareLink {
   @@index([folderId])
   @@index([albumId])
   @@index([productId])
+  @@index([productSectionId])
   @@index([expiresAt])
   @@map("share_links")
 }
@@ -565,6 +568,7 @@ model ProductSection {
 
   user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
   items        ProductSectionItem[]
+  shareLinks   ShareLink[]
 
   @@index([userId])
   @@index([userId, position])

@@ -12,14 +12,15 @@ const createShareSchema = z.object({
   folderId: z.string().optional().nullable(),
   albumId: z.string().optional().nullable(),
   productId: z.string().optional().nullable(),
+  productSectionId: z.string().optional().nullable(),
   title: z.string().max(500).optional().nullable(),
   password: z.string().max(100).optional().nullable(),
   expiresAtOption: z.enum(['1h', '1d', '7d', '30d', 'never']).or(z.string()).optional().nullable(),
   customExpiresAt: z.string().optional().nullable(),
   allowDownload: z.boolean().optional().nullable(),
   maxDownloads: z.number().int().min(1).nullable().optional(),
-}).refine((data) => Boolean(data.fileId || data.folderId || data.albumId || data.productId), {
-  message: 'Either fileId, folderId, albumId, or productId must be provided.',
+}).refine((data) => Boolean(data.fileId || data.folderId || data.albumId || data.productId || data.productSectionId), {
+  message: 'Either fileId, folderId, albumId, productId, or productSectionId must be provided.',
 });
 
 const uuidParam = z.object({

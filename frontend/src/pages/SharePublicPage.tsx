@@ -26,6 +26,7 @@ import {
   Images,
   Play,
   ShoppingBag,
+  Layers,
 } from 'lucide-react';
 import { shareApi } from '../services/shareApi';
 import { getMediaUrl } from '../services/api';
@@ -39,6 +40,7 @@ import { Logo3D } from '../components/common/Logo3D';
 import { HolographicMusicShareView } from '../components/music/HolographicMusicShareView';
 import { PublicCinemaVideoPlayer } from '../components/video/PublicCinemaVideoPlayer';
 import { PublicProductShareView } from '../components/products/PublicProductShareView';
+import { PublicProductSectionShareView } from '../components/products/PublicProductSectionShareView';
 
 export const SharePublicPage: React.FC = () => {
   const { token } = useParams<{ token: string }>();
@@ -351,6 +353,10 @@ export const SharePublicPage: React.FC = () => {
               <div className="p-2 rounded-lg bg-slate-800 text-brand-400 shrink-0">
                 {shareData?.type === 'FOLDER' ? (
                   <FolderIcon className="w-5 h-5" />
+                ) : shareData?.type === 'PRODUCT_SECTION' ? (
+                  <Layers className="w-5 h-5 text-indigo-400" />
+                ) : shareData?.type === 'PRODUCT' ? (
+                  <ShoppingBag className="w-5 h-5 text-emerald-400" />
                 ) : (
                   <FileText className="w-5 h-5" />
                 )}
@@ -398,8 +404,9 @@ export const SharePublicPage: React.FC = () => {
         ) : (
           /* Unlocked Content Screen */
           <div className="w-full max-w-5xl space-y-6 animate-in fade-in duration-300">
-            {/* Shared Header Card */}
-            <div className="p-5 sm:p-6 rounded-3xl bg-slate-900/80 border border-slate-800/90 shadow-xl backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Shared Header Card (files, folders, albums, single products) */}
+            {!shareData.productSection && (
+              <div className="p-5 sm:p-6 rounded-3xl bg-slate-900/80 border border-slate-800/90 shadow-xl backdrop-blur-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div className="flex items-start gap-4">
                 <div className={`p-3.5 rounded-2xl border shrink-0 ${
                   shareData.type === 'ALBUM' || shareData.album
@@ -572,6 +579,7 @@ export const SharePublicPage: React.FC = () => {
                 )}
               </div>
             </div>
+            )}
 
             {/* Maximum Download Limit Reached In-Page Alert Banner */}
             {shareData.isDownloadLimitReached && (
@@ -613,6 +621,14 @@ export const SharePublicPage: React.FC = () => {
             {shareData.product && (
               <PublicProductShareView
                 product={shareData.product}
+                shareData={shareData}
+              />
+            )}
+
+            {/* PRODUCT SECTION SHOWCASE PREVIEW */}
+            {shareData.productSection && (
+              <PublicProductSectionShareView
+                section={shareData.productSection}
                 shareData={shareData}
               />
             )}
