@@ -34,11 +34,13 @@ export interface CricketMatch {
 interface CricketScoresBarProps {
   onSelectMatch?: (match: CricketMatch | null) => void;
   selectedMatchId?: string | null;
+  onOpenScorecard?: (match: CricketMatch) => void;
 }
 
 export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
   onSelectMatch,
   selectedMatchId,
+  onOpenScorecard,
 }) => {
   const [matches, setMatches] = useState<CricketMatch[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -359,7 +361,13 @@ export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
             return (
               <div
                 key={match.id}
-                onClick={() => onSelectMatch?.(isSelected ? null : match)}
+                onClick={() => {
+                  if (onOpenScorecard) {
+                    onOpenScorecard(match);
+                  } else {
+                    onSelectMatch?.(isSelected ? null : match);
+                  }
+                }}
                 className={`flex-shrink-0 w-72 sm:w-80 rounded-2xl p-3.5 transition-all duration-200 cursor-pointer border snap-start relative group flex flex-col justify-between ${
                   isSelected
                     ? 'bg-gradient-to-b from-brand-900/40 via-slate-900 to-slate-950 border-brand-500 shadow-lg shadow-brand-500/20 ring-1 ring-brand-500'
@@ -368,7 +376,7 @@ export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
                     : 'bg-slate-950/60 hover:bg-slate-900/70 border-slate-800 hover:border-slate-700'
                 }`}
               >
-                {/* Match Header: Status & Cricinfo Link */}
+                {/* Match Header: Status & Scorecard Button */}
                 <div className="flex items-center justify-between gap-2 pb-2 border-b border-slate-800/70 text-[10px]">
                   <div className="flex items-center gap-1.5">
                     {isLive ? (
@@ -391,17 +399,19 @@ export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
                     </span>
                   </div>
 
-                  <a
-                    href={match.cricinfoLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="flex items-center gap-1 text-slate-400 hover:text-brand-300 transition shrink-0 underline decoration-slate-600 hover:decoration-brand-300"
-                    title="Open live scorecard on Cricinfo"
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onOpenScorecard) {
+                        onOpenScorecard(match);
+                      }
+                    }}
+                    className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 font-bold transition shrink-0 text-[10px] border border-brand-500/40 cursor-pointer"
+                    title="View full detailed scorecard in this website"
                   >
-                    <span>Scorecard</span>
-                    <ExternalLink className="w-2.5 h-2.5" />
-                  </a>
+                    <span>Full Scorecard</span>
+                  </button>
                 </div>
 
                 {/* Teams & Scores */}
@@ -467,18 +477,12 @@ export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
 
                 {/* Footer / Select Prompt */}
                 <div className="pt-1.5 border-t border-slate-800/60 flex items-center justify-between text-[10px] text-slate-400">
-                  <span className="truncate">
-                    {isSelected ? (
-                      <strong className="text-brand-300">★ Pinned to stream</strong>
-                    ) : (
-                      'Click to pin score above video'
-                    )}
+                  <span className="truncate text-brand-400 font-medium group-hover:underline">
+                    Click to view full scorecard
                   </span>
-                  {isSelected && (
-                    <span className="px-1.5 py-0.5 rounded-md bg-brand-500/20 text-brand-300 text-[9px] font-bold">
-                      ACTIVE
-                    </span>
-                  )}
+                  <span className="px-1.5 py-0.5 rounded-md bg-slate-800 group-hover:bg-brand-500/20 text-slate-300 group-hover:text-brand-300 text-[9px] font-bold transition">
+                    VIEW
+                  </span>
                 </div>
               </div>
             );

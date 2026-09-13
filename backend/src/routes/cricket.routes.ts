@@ -3,7 +3,8 @@ import { CricketController } from '../controllers/cricket.controller';
 
 const router = Router();
 
-// Public endpoint for live cricket scores
+// Public endpoints for cricket
 router.get('/live-scores', CricketController.getLiveScores);
+router.get('/scorecard', CricketController.getMatchScorecard);
 
 export default router;
