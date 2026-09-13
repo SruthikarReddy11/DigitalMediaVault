@@ -162,8 +162,6 @@ export const Dashboard: React.FC = () => {
 
       {/* Cricket Live Match Quick Access Banner */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-rose-950/30 to-slate-900 border border-rose-500/30 p-4 sm:p-5 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Luminous multi-color laser bottom streak */}
-        <div className="absolute bottom-0 left-0 right-0 h-[1.5px] laser-multi-streak pointer-events-none opacity-90" />
         <div className="flex items-center gap-3.5">
           <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0 shadow-lg shadow-rose-500/20">
             <Radio className="w-6 h-6 animate-pulse" />

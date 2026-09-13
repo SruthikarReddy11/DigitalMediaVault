@@ -254,10 +254,7 @@ export const PublicProductSectionShareView: React.FC<PublicProductSectionShareVi
     return (
       <div className="space-y-6 animate-in fade-in duration-200">
         {/* Top Navigation & Breadcrumbs Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl backdrop-blur-xl relative overflow-hidden">
-          {/* Luminous Multi-Color Cyber Animated Bottom Laser Streak */}
-          <div className="absolute bottom-0 left-0 right-0 h-[1.5px] laser-multi-streak pointer-events-none opacity-95" />
-          <div className="absolute -bottom-[0.5px] left-0 right-0 h-[2.5px] laser-multi-streak pointer-events-none opacity-45 blur-[1px]" />
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl backdrop-blur-xl">
           <button
             type="button"
             onClick={handleBackToSection}
@@ -535,10 +532,6 @@ export const PublicProductSectionShareView: React.FC<PublicProductSectionShareVi
           borderColor: `${section.color || '#6366f1'}35`,
         }}
       >
-        {/* Luminous Multi-Color Cyber Animated Bottom Laser Streak */}
-        <div className="absolute bottom-0 left-0 right-0 h-[1.5px] laser-multi-streak pointer-events-none opacity-90" />
-        <div className="absolute -bottom-[0.5px] left-0 right-0 h-[2.5px] laser-multi-streak pointer-events-none opacity-40 blur-[1px]" />
-
         <div className="flex items-start sm:items-center gap-4">
           <div
             className="w-16 h-16 rounded-3xl flex items-center justify-center text-white shadow-2xl shrink-0"

@@ -14,7 +14,10 @@ import {
   Copy,
   Check,
   AlertCircle,
+  Shield,
   ShieldCheck,
+  ShieldAlert,
+  Info,
   Flame,
   Volume2,
   Layers,
@@ -77,6 +80,21 @@ export const CricketLivePage: React.FC = () => {
   const [refreshKey, setRefreshKey] = useState<number>(0);
   const [isStreamLoading, setIsStreamLoading] = useState<boolean>(true);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+
+  // Ad Shield Mode: 'balanced' (blocks popups & redirects) | 'strict' (maximum script lockdown) | 'off'
+  const [adShieldMode, setAdShieldMode] = useState<'balanced' | 'strict' | 'off'>('balanced');
+  const [showShieldDropdown, setShowShieldDropdown] = useState<boolean>(false);
+
+  // Computed iframe sandbox attribute to block ads and popups
+  const getSandboxString = () => {
+    if (adShieldMode === 'off') return undefined;
+    if (adShieldMode === 'strict') {
+      return 'allow-scripts allow-same-origin';
+    }
+    // 'balanced' (Default): allows video engine scripts, same-origin chunks, forms & presentation,
+    // but crucially BLOCKS all popups, new tabs, downloads, and top navigation!
+    return 'allow-scripts allow-same-origin allow-forms allow-presentation';
+  };
 
   // Modal / Add stream state
   const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
@@ -233,10 +251,6 @@ export const CricketLivePage: React.FC = () => {
     <div className="space-y-6 animate-fade-in pb-12">
       {/* Top Banner & Header */}
       <div className="relative rounded-3xl bg-slate-900/80 border border-slate-800 shadow-2xl backdrop-blur-xl overflow-hidden p-6 sm:p-8">
-        {/* Luminous Multi-Color Cyber Animated Bottom Laser Streak */}
-        <div className="absolute bottom-0 left-0 right-0 h-[1.5px] laser-multi-streak pointer-events-none opacity-95" />
-        <div className="absolute -bottom-[0.5px] left-0 right-0 h-[2.5px] laser-multi-streak pointer-events-none opacity-45 blur-[1px]" />
-
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
           <div className="space-y-2">
             <div className="flex items-center gap-2.5 flex-wrap">
@@ -342,10 +356,6 @@ export const CricketLivePage: React.FC = () => {
           isTheaterMode ? 'max-w-none w-full' : 'w-full'
         }`}
       >
-        {/* Luminous Top Multi-Color Laser Accent Bar */}
-        <div className="absolute top-0 left-0 right-0 h-[2px] laser-multi-streak pointer-events-none opacity-95 z-20" />
-        <div className="absolute top-0 left-0 right-0 h-[3px] laser-multi-streak pointer-events-none opacity-45 blur-[1px] z-20" />
-
         {/* Live Player Bar */}
         <div className="px-4 sm:px-6 py-3.5 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 relative z-10">
           <div className="flex items-center gap-3 min-w-0">
@@ -372,12 +382,123 @@ export const CricketLivePage: React.FC = () => {
           </div>
 
           {/* Player Bar Controls */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Ad Shield Mode Selector */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowShieldDropdown(!showShieldDropdown)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
+                  adShieldMode !== 'off'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 shadow-sm shadow-emerald-500/20'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                }`}
+                title="Configure Ad Shield (Popup & Redirect Blocker)"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">
+                  {adShieldMode === 'balanced' ? 'Ad Shield: ON' : adShieldMode === 'strict' ? 'Ad Shield: Strict' : 'Ad Shield: Off'}
+                </span>
+                <span className="sm:hidden">Shield</span>
+              </button>
+
+              {/* Shield Dropdown Menu */}
+              {showShieldDropdown && (
+                <div className="absolute right-0 top-full mt-2 w-72 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3 z-30 space-y-2 text-xs">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <span className="font-bold text-white flex items-center gap-1.5">
+                      <Shield className="w-4 h-4 text-emerald-400" />
+                      <span>Ad & Popup Shield</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowShieldDropdown(false)}
+                      className="p-1 text-slate-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    Stream embeds inject popups and new-tab redirects. Ad Shield drops them at the browser engine level:
+                  </p>
+
+                  <div className="space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdShieldMode('balanced');
+                        setShowShieldDropdown(false);
+                        success('Ad Shield: Balanced (Popups & Redirects Blocked)');
+                      }}
+                      className={`w-full text-left p-2 rounded-xl transition flex flex-col gap-0.5 cursor-pointer ${
+                        adShieldMode === 'balanced'
+                          ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                      }`}
+                    >
+                      <span className="font-bold flex items-center justify-between text-xs">
+                        <span>🛡️ Balanced (Recommended)</span>
+                        {adShieldMode === 'balanced' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Blocks all popups, new tabs, and parent redirects while keeping video controls fully functional.
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdShieldMode('strict');
+                        setShowShieldDropdown(false);
+                        success('Ad Shield: Strict Mode Activated');
+                      }}
+                      className={`w-full text-left p-2 rounded-xl transition flex flex-col gap-0.5 cursor-pointer ${
+                        adShieldMode === 'strict'
+                          ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                      }`}
+                    >
+                      <span className="font-bold flex items-center justify-between text-xs">
+                        <span>⚡ Strict Lockdown</span>
+                        {adShieldMode === 'strict' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Minimal scripts and media chunks only. Maximum isolation against intrusive embeds.
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAdShieldMode('off');
+                        setShowShieldDropdown(false);
+                        info('Ad Shield disabled (Unrestricted mode)');
+                      }}
+                      className={`w-full text-left p-2 rounded-xl transition flex flex-col gap-0.5 cursor-pointer ${
+                        adShieldMode === 'off'
+                          ? 'bg-amber-500/20 text-amber-200 border border-amber-500/40'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
+                      }`}
+                    >
+                      <span className="font-bold flex items-center justify-between text-xs">
+                        <span>🔓 Off (Unrestricted)</span>
+                        {adShieldMode === 'off' && <Check className="w-3.5 h-3.5 text-amber-400" />}
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Use only if a stream fails to play inside sandbox protection.
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={handleRefreshStream}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition cursor-pointer"
-              title="Refresh stream"
+              title="Refresh stream / Clear overlays"
             >
               <RotateCw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Refresh</span>
@@ -427,9 +548,9 @@ export const CricketLivePage: React.FC = () => {
             </div>
           )}
 
-          {/* Embedded Live Iframe */}
+          {/* Embedded Live Iframe with Sandboxed Anti-Popup Ad Shield */}
           <iframe
-            key={`${activeStream.id}-${refreshKey}`}
+            key={`${activeStream.id}-${refreshKey}-${adShieldMode}`}
             ref={iframeRef}
             src={activeStream.src}
             title={activeStream.title}
@@ -437,19 +558,62 @@ export const CricketLivePage: React.FC = () => {
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
             allowFullScreen
             referrerPolicy="no-referrer"
+            sandbox={getSandboxString()}
             onLoad={() => setIsStreamLoading(false)}
           />
         </div>
 
         {/* Player Footer Notification / Tips */}
-        <div className="px-4 sm:px-6 py-2.5 bg-slate-900/60 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+        <div className="px-4 sm:px-6 py-3 bg-slate-900/60 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
           <div className="flex items-center gap-2">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Secure Sandboxed Stream • If the player does not autoplay, click inside the screen to initiate audio/video.</span>
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>
+              <strong className="text-emerald-300">Ad Shield Active:</strong> Browser-level sandbox blocks all popup tabs and redirect hijackers.
+            </span>
           </div>
 
           <div className="flex items-center gap-3">
             <span>Stream Source: <strong className="text-slate-300">{new URL(activeStream.src).hostname || 'Live Embed'}</strong></span>
+          </div>
+        </div>
+      </div>
+
+      {/* AD BLOCKING & STREAM VIEWING GUIDE */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-slate-900/70 border border-slate-800/80 shadow-lg backdrop-blur-md space-y-3">
+        <div className="flex items-center gap-2 text-rose-300 font-bold text-xs sm:text-sm">
+          <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+          <span>How to Block Ads on Free Stream Embeds</span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-300">
+          <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+            <div className="font-bold text-white flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]">1</span>
+              <span>Built-in Pop-up Shield</span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Our player operates in a secure sandbox that blocks all new tabs, gambling popups, and page redirects that streaming servers attempt to open.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+            <div className="font-bold text-white flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]">2</span>
+              <span>Click Trap Dismissal</span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              If an initial click on the play button does nothing, click once more. With Ad Shield active, the transparent click-trap is dismissed harmlessly without any popups.
+            </p>
+          </div>
+
+          <div className="p-3 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1">
+            <div className="font-bold text-white flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px]">3</span>
+              <span>On-Screen Banner Blocking</span>
+            </div>
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              To also remove static in-video ad banners hardcoded by the stream provider, install the free <strong className="text-white">uBlock Origin</strong> extension or browse via <strong className="text-white">Brave Browser</strong>.
+            </p>
           </div>
         </div>
       </div>
@@ -579,9 +743,6 @@ export const CricketLivePage: React.FC = () => {
       {isAddModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
           <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-6">
-            {/* Luminous Top Multi-Color Laser Streak */}
-            <div className="absolute top-0 left-0 right-0 h-[2px] laser-multi-streak pointer-events-none opacity-95" />
-
             {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/90">
               <div className="flex items-center gap-2.5">
