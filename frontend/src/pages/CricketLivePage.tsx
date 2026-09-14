@@ -13,7 +13,7 @@ import {
   Trophy,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { CricketScorecardModal } from '../components/cricket/CricketScorecardModal';
+import { CricketScorecardView } from '../components/cricket/CricketScorecardModal';
 import {
   CricketMatch,
   getTeamBadgeStyle,
@@ -140,6 +140,16 @@ export const CricketLivePage: React.FC = () => {
       return dateTimeGMT;
     }
   };
+
+  // If a match is selected, render the dedicated full-screen scorecard view (no modal)
+  if (scorecardMatch) {
+    return (
+      <CricketScorecardView
+        match={scorecardMatch}
+        onBack={() => setScorecardMatch(null)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6 animate-fade-in pb-16 max-w-7xl mx-auto">
@@ -521,12 +531,6 @@ export const CricketLivePage: React.FC = () => {
           })}
         </div>
       )}
-
-      {/* FULL IN-WEBSITE SCORECARD MODAL */}
-      <CricketScorecardModal
-        match={scorecardMatch}
-        onClose={() => setScorecardMatch(null)}
-      />
     </div>
   );
 };
