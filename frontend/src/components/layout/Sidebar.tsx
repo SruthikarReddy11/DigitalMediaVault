@@ -99,6 +99,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 { to: '/gallery', label: 'Photos', icon: Image },
                 { to: '/videos', label: 'Cinema & Video', icon: Video },
                 { to: '/music', label: 'Lossless Music', icon: Music, badge: 'Hi-Fi' },
+                { to: '/ai', label: 'AI Assistant', icon: Sparkles, badge: 'PRO', badgeColor: 'bg-indigo-500/25 text-indigo-300 border-indigo-500/40' },
                 { to: '/cricket-live', label: 'Cricket Live', icon: Radio, badge: 'LIVE', badgeColor: 'bg-rose-500/25 text-rose-300 border-rose-500/40' },
                 { to: '/files', label: 'Files Drive', icon: FolderClosed },
                 { to: '/calendar', label: 'Calendar', icon: Calendar },
