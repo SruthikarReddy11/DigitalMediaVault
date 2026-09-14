@@ -36,7 +36,7 @@ export const CricketLivePage: React.FC = () => {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [secondsAgo, setSecondsAgo] = useState<number>(0);
 
-  // Fetch matches from CricketData.org via backend
+  // Fetch matches from ESPN Cricinfo via backend
   const fetchMatches = useCallback(async (manual = false) => {
     if (manual) setIsRefreshing(true);
 
@@ -164,7 +164,7 @@ export const CricketLivePage: React.FC = () => {
 
               <span className="px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 text-[11px] font-bold flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-sky-400" />
-                <span>CricketData.org (CricAPI)</span>
+                <span>ESPN Cricinfo International</span>
               </span>
 
               <span className="text-xs text-slate-400 flex items-center gap-1">
@@ -179,7 +179,7 @@ export const CricketLivePage: React.FC = () => {
             </h1>
 
             <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-              Explore official live scores, upcoming international fixtures, and recent match scorecards. Click on any match card to open the complete ball-by-ball scorecard inside this website.
+              Explore official live scores, upcoming international fixtures, and recent match scorecards exclusively for international cricket (Test, ODI, T20I). Click on any match card to open the complete ball-by-ball scorecard inside this website.
             </p>
           </div>
 

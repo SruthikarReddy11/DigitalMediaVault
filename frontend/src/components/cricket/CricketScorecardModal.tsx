@@ -16,6 +16,7 @@ import {
   Info,
   ChevronRight,
   TrendingUp,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '../../services/api';
 import { CricketMatch, getTeamBadgeStyle, getTeamAbbr } from './CricketScoresBar';
@@ -284,6 +285,11 @@ export const CricketScorecardModal: React.FC<CricketScorecardModalProps> = ({
                   <span className="truncate max-w-[280px]">{scorecard.seriesName}</span>
                 </span>
               )}
+
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-500/30 text-xs font-bold text-sky-300">
+                <Sparkles className="w-3.5 h-3.5 text-sky-400" />
+                <span>ESPN Cricinfo</span>
+              </span>
             </div>
 
             {/* Top Action Buttons */}

@@ -4,7 +4,7 @@ import { CricketService } from '../services/cricket.service';
 export class CricketController {
   /**
    * GET /api/cricket/matches?type=all|live|upcoming|completed
-   * Returns matches list from CricketData.org (CricAPI)
+   * Returns international matches list from ESPN Cricinfo
    */
   public static async getMatches(req: Request, res: Response, next: NextFunction) {
     try {
@@ -18,7 +18,7 @@ export class CricketController {
 
   /**
    * GET /api/cricket/live-scores
-   * Returns live matches (backwards compatible)
+   * Returns live international matches (backwards compatible)
    */
   public static async getLiveScores(req: Request, res: Response, next: NextFunction) {
     try {
@@ -31,7 +31,7 @@ export class CricketController {
 
   /**
    * GET /api/cricket/scorecard?id=...&title=...
-   * Returns full detailed scorecard for a match from CricketData.org (CricAPI)
+   * Returns full detailed scorecard for an international match from ESPN Cricinfo
    */
   public static async getMatchScorecard(req: Request, res: Response, next: NextFunction) {
     try {

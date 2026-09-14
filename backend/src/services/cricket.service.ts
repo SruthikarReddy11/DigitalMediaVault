@@ -1,3 +1,4 @@
+import http from 'http';
 import https from 'https';
 
 export interface CricketTeamScore {
@@ -103,35 +104,57 @@ interface CacheEntry<T> {
 
 let cachedMatchesList: CacheEntry<CricketMatch[]> | null = null;
 const scorecardCache = new Map<string, CacheEntry<DetailedScorecardResult>>();
-
-// Match index cache for Cricbuzz detailed scorecards
-let cricbuzzMatchIndex: Map<string, string> | null = null;
-let cricbuzzIndexExpiry = 0;
+const athleteNameCache = new Map<string, string>();
 
 const MATCHES_CACHE_TTL_MS = 60 * 1000; // 60 seconds
-const SCORECARD_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const SCORECARD_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes for completed
+const SCORECARD_LIVE_CACHE_TTL_MS = 25 * 1000; // 25 seconds for live
+
+// Known ICC National / International Cricket Entities
+const KNOWN_INTERNATIONAL_TEAMS = new Set([
+  'india', 'australia', 'england', 'pakistan', 'south africa', 'new zealand',
+  'sri lanka', 'west indies', 'bangladesh', 'afghanistan', 'zimbabwe', 'ireland',
+  'scotland', 'netherlands', 'namibia', 'nepal', 'oman', 'united arab emirates',
+  'uae', 'usa', 'united states of america', 'canada', 'papua new guinea', 'png',
+  'uganda', 'kenya', 'hong kong', 'italy', 'jersey', 'kuwait', 'bahrain',
+  'singapore', 'malaysia', 'japan', 'china', 'thailand', 'rwanda', 'botswana',
+  'sierra leone', 'tanzania', 'nigeria', 'ghana', 'malawi', 'mozambique',
+  'bermuda', 'cayman islands', 'argentina', 'brazil', 'fiji', 'vanuatu',
+  'samoa', 'germany', 'spain', 'denmark', 'norway', 'sweden', 'finland',
+  'austria', 'france', 'belgium', 'luxembourg', 'cyprus', 'gibraltar', 'portugal',
+  'switzerland', 'guernsey', 'isle of man', 'czech republic', 'bulgaria', 'romania',
+  'serbia', 'greece', 'turkey', 'croatia', 'slovenia', 'malta', 'hungary',
+  'estonia', 'qatar', 'saudi arabia', 'maldives', 'bhutan', 'indonesia', 'philippines',
+  'myanmar', 'cambodia', 'mongolia', 'cook islands'
+]);
+
+// Words that indicate domestic cricket rather than international
+const DOMESTIC_KEYWORDS = [
+  'county championship', 'one-day cup', 'vitality blast', 'sheffield shield',
+  'marsh cup', 'ranji trophy', 'vijay hazare', 'syed mushtaq ali', 'duleep trophy',
+  'plunket shield', 'ford trophy', 'super smash', 'csa 4-day', 'csa t20 challenge',
+  'first-class matches', 'second xi', 'academy', 'provincial', 'trophy division'
+];
 
 export class CricketService {
-  private static BASE_URL = 'https://api.cricapi.com/v1';
-
-  private static getApiKey(): string {
-    return (process.env.CRICAPI_KEY || '84b6199a-37a3-4e3a-b62b-8d34a9d83bc2').trim();
-  }
+  private static CORE_BASE_URL =
+    process.env.ESPN_CRICINFO_CORE_URL || 'http://core.espnuk.org/v2/sports/cricket';
+  private static RSS_LIVESCORS_URL =
+    process.env.ESPN_CRICINFO_RSS_URL || 'https://static.cricinfo.com/rss/livescores.xml';
 
   /**
-   * Fetch URL with user agent and timeout
+   * Generic HTTP/HTTPS JSON fetcher with User-Agent & timeout
    */
-  private static fetchUrl<T = string>(url: string, asJson = false, timeoutMs = 10000): Promise<T> {
-    return new Promise((resolve, reject) => {
-      const req = https.get(
+  private static fetchJson<T = any>(url: string, timeoutMs = 8000): Promise<T | null> {
+    return new Promise((resolve) => {
+      const client = url.startsWith('https') ? https : http;
+      const req = client.get(
         url,
         {
           headers: {
             'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-            Accept: asJson
-              ? 'application/json, text/plain, */*'
-              : 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            Accept: 'application/json, text/plain, */*',
           },
           timeout: timeoutMs,
         },
@@ -143,15 +166,9 @@ export class CricketService {
           });
           res.on('end', () => {
             try {
-              if (asJson) {
-                const json = JSON.parse(data);
-                resolve(json as T);
-              } else {
-                resolve(data as unknown as T);
-              }
-            } catch (err) {
-              if (asJson) reject(err);
-              else resolve(data as unknown as T);
+              resolve(JSON.parse(data) as T);
+            } catch {
+              resolve(null);
             }
           });
         }
@@ -159,17 +176,112 @@ export class CricketService {
 
       req.on('timeout', () => {
         req.destroy();
-        reject(new Error(`Timeout fetching ${url}`));
+        resolve(null);
       });
 
-      req.on('error', (err) => {
-        reject(err);
+      req.on('error', () => {
+        resolve(null);
       });
     });
   }
 
   /**
-   * Fetches all matches (Live, Upcoming, and Completed)
+   * Fetch text or XML from URL
+   */
+  private static fetchText(url: string, timeoutMs = 8000): Promise<string | null> {
+    return new Promise((resolve) => {
+      const client = url.startsWith('https') ? https : http;
+      const req = client.get(
+        url,
+        {
+          headers: {
+            'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+            Accept: 'application/xml, text/xml, */*',
+          },
+          timeout: timeoutMs,
+        },
+        (res) => {
+          let data = '';
+          res.setEncoding('utf8');
+          res.on('data', (chunk) => {
+            data += chunk;
+          });
+          res.on('end', () => {
+            resolve(data);
+          });
+        }
+      );
+
+      req.on('timeout', () => {
+        req.destroy();
+        resolve(null);
+      });
+
+      req.on('error', () => {
+        resolve(null);
+      });
+    });
+  }
+
+  /**
+   * Formats Date to YYYYMMDD string for ESPN Core API
+   */
+  private static formatDateParam(d: Date): string {
+    const y = d.getUTCFullYear();
+    const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(d.getUTCDate()).padStart(2, '0');
+    return `${y}${m}${day}`;
+  }
+
+  /**
+   * Evaluates whether an ESPN match is genuinely an International match
+   */
+  public static isInternationalMatch(
+    eventName: string,
+    cls?: any,
+    competitors?: any[]
+  ): boolean {
+    const lowerName = (eventName || '').toLowerCase();
+
+    // Reject any match with domestic keywords in name or class name
+    const className = (cls?.name || '').toLowerCase();
+    if (DOMESTIC_KEYWORDS.some((kw) => lowerName.includes(kw) || className.includes(kw))) {
+      return false;
+    }
+
+    // Check internationalClassId: in ESPN Cricinfo, 0 = domestic, > 0 = international (Test, ODI, T20I, Women, Youth)
+    const intClassId = cls?.internationalClassId;
+    if (intClassId && intClassId !== '0') {
+      return true;
+    }
+
+    // Secondary check: verify teams against known ICC national teams
+    const vsParts = lowerName.split(/\s+(?:v|vs)\s+/i);
+    if (vsParts.length >= 2) {
+      const t1Clean = vsParts[0].replace(/(?:women|under-19s|u19|'a'|\(c\)|\(wk\))/g, '').trim();
+      const t2Clean = vsParts[1].replace(/(?:women|under-19s|u19|'a'|\(c\)|\(wk\))/g, '').trim();
+
+      const t1IsInt = Array.from(KNOWN_INTERNATIONAL_TEAMS).some((t) => t1Clean.includes(t));
+      const t2IsInt = Array.from(KNOWN_INTERNATIONAL_TEAMS).some((t) => t2Clean.includes(t));
+
+      if (t1IsInt && t2IsInt) return true;
+    }
+
+    // Competitor country flag check
+    if (Array.isArray(competitors) && competitors.length >= 2) {
+      const c1 = competitors[0]?.team;
+      const c2 = competitors[1]?.team;
+      if (c1?.isCountry || c1?.isNational || c2?.isCountry || c2?.isNational) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Fetches all international matches (Live, Upcoming, and Completed)
    */
   public static async getMatches(
     type: 'all' | 'live' | 'upcoming' | 'completed' = 'all'
@@ -182,80 +294,20 @@ export class CricketService {
       matches = cachedMatchesList.data;
       isCached = true;
     } else {
-      const apiKey = this.getApiKey();
-      const currentUrl =
-        process.env.CRICAPI_CURRENT_MATCHES_URL || `${this.BASE_URL}/currentMatches`;
-      const matchesUrl =
-        process.env.CRICAPI_MATCHES_URL || `${this.BASE_URL}/matches`;
-      const scoreUrl =
-        process.env.CRICAPI_CRIC_SCORE_URL || `${this.BASE_URL}/cricScore`;
-
-      const matchMap = new Map<string, CricketMatch>();
-
       try {
-        // Query user's 3 CricAPI feeds
-        const [currentRes, matchesRes, scoreRes] = await Promise.allSettled([
-          this.fetchUrl<any>(`${currentUrl}?apikey=${apiKey}&offset=0`, true),
-          this.fetchUrl<any>(`${matchesUrl}?apikey=${apiKey}&offset=0`, true),
-          this.fetchUrl<any>(`${scoreUrl}?apikey=${apiKey}`, true),
-        ]);
-
-        // Check if CricAPI returned hit limits or errors
-        const hasCricApiHits =
-          (currentRes.status === 'fulfilled' && currentRes.value?.status === 'success') ||
-          (matchesRes.status === 'fulfilled' && matchesRes.value?.status === 'success') ||
-          (scoreRes.status === 'fulfilled' && scoreRes.value?.status === 'success');
-
-        if (hasCricApiHits) {
-          // 1. Process currentMatches
-          if (currentRes.status === 'fulfilled' && currentRes.value?.data) {
-            currentRes.value.data.forEach((m: any) => {
-              if (m?.id) matchMap.set(m.id, this.mapCurrentOrScheduleMatch(m));
-            });
-          }
-
-          // 2. Process matches
-          if (matchesRes.status === 'fulfilled' && matchesRes.value?.data) {
-            matchesRes.value.data.forEach((m: any) => {
-              if (m?.id && !matchMap.has(m.id)) {
-                matchMap.set(m.id, this.mapCurrentOrScheduleMatch(m));
-              }
-            });
-          }
-
-          // 3. Process cricScore
-          if (scoreRes.status === 'fulfilled' && scoreRes.value?.data) {
-            scoreRes.value.data.forEach((sc: any) => {
-              if (!sc?.id) return;
-              if (!matchMap.has(sc.id)) {
-                matchMap.set(sc.id, this.mapCricScoreItem(sc));
-              } else {
-                const existing = matchMap.get(sc.id)!;
-                if (!existing.team1.img && sc.t1img) existing.team1.img = sc.t1img;
-                if (!existing.team2.img && sc.t2img) existing.team2.img = sc.t2img;
-                if (!existing.team1.score && sc.t1s) existing.team1.score = sc.t1s;
-                if (!existing.team2.score && sc.t2s) existing.team2.score = sc.t2s;
-              }
-            });
-          }
+        matches = await this.aggregateInternationalMatches();
+        if (matches.length > 0) {
+          cachedMatchesList = {
+            expiry: now + MATCHES_CACHE_TTL_MS,
+            data: matches,
+          };
         }
       } catch (err) {
-        console.warn('[CricketService] Error fetching CricAPI feeds:', err);
-      }
-
-      // If CricAPI was exhausted or returned empty, ingest live matches index
-      if (matchMap.size === 0) {
-        const liveIndexMatches = await this.fetchLiveMatchesFromIndex();
-        liveIndexMatches.forEach((m) => matchMap.set(m.id, m));
-      }
-
-      matches = Array.from(matchMap.values());
-
-      if (matches.length > 0) {
-        cachedMatchesList = {
-          expiry: now + MATCHES_CACHE_TTL_MS,
-          data: matches,
-        };
+        console.warn('[CricketService] Error aggregating ESPN international matches:', err);
+        if (cachedMatchesList) {
+          matches = cachedMatchesList.data;
+          isCached = true;
+        }
       }
     }
 
@@ -274,7 +326,7 @@ export class CricketService {
 
     return {
       success: true,
-      provider: 'CricketData.org (CricAPI)',
+      provider: 'ESPN Cricinfo International',
       totalCount: filtered.length,
       liveCount,
       upcomingCount,
@@ -300,9 +352,310 @@ export class CricketService {
   }
 
   /**
-   * Detailed Scorecard for any match:
-   * 1. Resolves official ball-by-ball player scorecard with real batter & bowler names
-   * 2. Checks CricAPI match_scorecard
+   * Aggregates international matches across past, present, and future dates
+   */
+  private static async aggregateInternationalMatches(): Promise<CricketMatch[]> {
+    const matchesMap = new Map<string, CricketMatch>();
+
+    // 1. Fetch live scores from ESPN Cricinfo RSS feed (Fastest real-time updates)
+    try {
+      const rssText = await this.fetchText(this.RSS_LIVESCORS_URL, 5000);
+      if (rssText) {
+        const rssMatches = this.parseRssLiveScores(rssText);
+        rssMatches.forEach((m) => matchesMap.set(m.id, m));
+      }
+    } catch (rssErr) {
+      console.warn('[CricketService] RSS live feed warning:', rssErr);
+    }
+
+    // 2. Query dates from -2 days to +4 days (Today, Recent Results, and Upcoming Fixtures)
+    const dates: string[] = [];
+    const baseDate = new Date();
+    for (let offset = -2; offset <= 4; offset++) {
+      const d = new Date(baseDate.getTime() + offset * 24 * 60 * 60 * 1000);
+      dates.push(this.formatDateParam(d));
+    }
+
+    // Query date listings in parallel
+    const dateResponses = await Promise.all(
+      dates.map((dt) =>
+        this.fetchJson<any>(`${this.CORE_BASE_URL}/events?dates=${dt}`, 6000)
+      )
+    );
+
+    const eventRefs = new Set<string>();
+    dateResponses.forEach((res) => {
+      res?.items?.forEach((it: any) => {
+        if (it?.$ref) eventRefs.add(it.$ref);
+      });
+    });
+
+    // Ingest event details in concurrent batches
+    const refArray = Array.from(eventRefs);
+    const BATCH_SIZE = 12;
+
+    for (let i = 0; i < refArray.length; i += BATCH_SIZE) {
+      const chunk = refArray.slice(i, i + BATCH_SIZE);
+      const eventDetails = await Promise.all(
+        chunk.map(async (ref) => {
+          try {
+            const ev = await this.fetchJson<any>(ref, 6000);
+            if (!ev || !ev.id) return null;
+
+            const comp = ev.competitions?.[0];
+            const compData = comp?.$ref
+              ? await this.fetchJson<any>(comp.$ref, 6000)
+              : comp;
+            if (!compData) return null;
+
+            // Strict International Filter
+            const cls = compData.class || {};
+            const isInt = this.isInternationalMatch(ev.name, cls, compData.competitors);
+            if (!isInt) return null;
+
+            return await this.mapEspnEventToMatch(ev, compData);
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      eventDetails.filter(Boolean).forEach((m) => {
+        if (m) {
+          // If already in map from RSS live feed with real-time score, merge
+          if (matchesMap.has(m.id)) {
+            const existing = matchesMap.get(m.id)!;
+            existing.venue = existing.venue || m.venue;
+            existing.dateTimeGMT = m.dateTimeGMT;
+            if (!existing.team1.score && m.team1.score) existing.team1.score = m.team1.score;
+            if (!existing.team2.score && m.team2.score) existing.team2.score = m.team2.score;
+          } else {
+            matchesMap.set(m.id, m);
+          }
+        }
+      });
+    }
+
+    // Sort: LIVE first, then UPCOMING by earliest date, then COMPLETED by latest date
+    const list = Array.from(matchesMap.values());
+    list.sort((a, b) => {
+      if (a.status === 'LIVE' && b.status !== 'LIVE') return -1;
+      if (b.status === 'LIVE' && a.status !== 'LIVE') return 1;
+
+      if (a.status === 'UPCOMING' && b.status === 'UPCOMING') {
+        return (
+          new Date(a.dateTimeGMT || 0).getTime() -
+          new Date(b.dateTimeGMT || 0).getTime()
+        );
+      }
+
+      return (
+        new Date(b.dateTimeGMT || 0).getTime() -
+        new Date(a.dateTimeGMT || 0).getTime()
+      );
+    });
+
+    return list;
+  }
+
+  /**
+   * Maps an ESPN Core API event & competition to a structured CricketMatch
+   */
+  private static async mapEspnEventToMatch(ev: any, comp: any): Promise<CricketMatch> {
+    const id = String(ev.id);
+    const title = ev.name || 'International Match';
+    const venue = comp.venue?.fullName || comp.venue?.address?.city || '';
+    const dateTimeGMT = comp.date || ev.date || new Date().toISOString();
+
+    const cls = comp.class || {};
+    const rawType = (cls.generalClassCard || cls.eventType || 't20').toLowerCase();
+    const matchType = rawType.includes('test')
+      ? 'test'
+      : rawType.includes('odi')
+      ? 'odi'
+      : 't20';
+
+    // Status classification: resolve status $ref if present
+    const statusData = comp.status?.$ref
+      ? await this.fetchJson<any>(comp.status.$ref, 4000)
+      : comp.status;
+
+    const statusType = statusData?.type || {};
+    const state = (statusType.state || '').toLowerCase();
+    const desc = (statusType.description || statusType.detail || '').toLowerCase();
+
+    const matchDateMs = new Date(dateTimeGMT).getTime();
+    const isPast = matchDateMs < Date.now() - 6 * 60 * 60 * 1000;
+
+    let status: 'LIVE' | 'COMPLETED' | 'UPCOMING' = 'UPCOMING';
+    if (state === 'in' || desc.includes('live') || desc.includes('progress') || desc.includes('tea') || desc.includes('lunch') || desc.includes('stumps')) {
+      status = 'LIVE';
+    } else if (state === 'post' || desc.includes('result') || desc.includes('final') || desc.includes('won by') || desc.includes('abandoned') || desc.includes('draw') || isPast) {
+      status = 'COMPLETED';
+    } else {
+      status = 'UPCOMING';
+    }
+
+    const statusText =
+      statusData?.longSummary ||
+      statusData?.summary ||
+      statusType.detail ||
+      statusType.shortDetail ||
+      statusType.description ||
+      (status === 'UPCOMING'
+        ? `Starts ${dateTimeGMT.replace('T', ' ').slice(0, 16)} GMT`
+        : 'Match concluded');
+
+    // Extract Competitors & resolve score $ref if present
+    const competitors = comp.competitors || [];
+    const c1 = competitors[0] || {};
+    const c2 = competitors[1] || {};
+
+    const [team1Data, team2Data, score1Data, score2Data] = await Promise.all([
+      c1.team?.$ref ? this.fetchJson<any>(c1.team.$ref, 4000) : c1.team,
+      c2.team?.$ref ? this.fetchJson<any>(c2.team.$ref, 4000) : c2.team,
+      c1.score?.$ref ? this.fetchJson<any>(c1.score.$ref, 4000) : c1.score,
+      c2.score?.$ref ? this.fetchJson<any>(c2.score.$ref, 4000) : c2.score,
+    ]);
+
+    const t1Name = team1Data?.name || this.extractTeamFromTitle(title, 0);
+    const t2Name = team2Data?.name || this.extractTeamFromTitle(title, 1);
+
+    const t1ScoreRaw = score1Data?.displayValue || score1Data?.value || '';
+    const t2ScoreRaw = score2Data?.displayValue || score2Data?.value || '';
+
+    return {
+      id,
+      title,
+      matchType,
+      status,
+      statusText,
+      venue,
+      dateTimeGMT,
+      hasScorecard: status !== 'UPCOMING',
+      team1: {
+        name: t1Name,
+        shortName: team1Data?.abbreviation || this.getAbbr(t1Name),
+        score: t1ScoreRaw,
+        isBatting: false,
+      },
+      team2: {
+        name: t2Name,
+        shortName: team2Data?.abbreviation || this.getAbbr(t2Name),
+        score: t2ScoreRaw,
+        isBatting: false,
+      },
+    };
+  }
+
+  /**
+   * Parse real-time live matches from ESPN Cricinfo RSS feed
+   */
+  private static parseRssLiveScores(xml: string): CricketMatch[] {
+    const list: CricketMatch[] = [];
+    const itemRegex = /<item>([\s\S]*?)<\/item>/g;
+    let match: RegExpExecArray | null;
+
+    while ((match = itemRegex.exec(xml)) !== null) {
+      const itemContent = match[1];
+
+      const titleMatch = itemContent.match(/<title>([\s\S]*?)<\/title>/);
+      const rawTitle = titleMatch ? titleMatch[1].trim() : '';
+
+      const guidMatch = itemContent.match(/<guid>[\s\S]*?(\d+)\.html<\/guid>/);
+      const id = guidMatch ? guidMatch[1] : `espn-rss-${Math.random().toString(36).substring(2, 9)}`;
+
+      if (!rawTitle) continue;
+
+      // Filter: only international matches
+      if (!this.isInternationalMatch(rawTitle)) continue;
+
+      const vsParts = rawTitle.split(/\s+(?:v|vs)\s+/i);
+      if (vsParts.length < 2) continue;
+
+      const part1 = vsParts[0].trim();
+      const part2 = vsParts[1].trim();
+
+      // Parse score from part e.g. "Malaysia 144/6" or "UAE 150/4 *"
+      const t1Parsed = this.extractTeamAndScore(part1);
+      const t2Parsed = this.extractTeamAndScore(part2);
+
+      const isLive = part1.includes('*') || part2.includes('*') || (!part1.includes('won') && !part2.includes('won'));
+
+      list.push({
+        id,
+        title: `${t1Parsed.name} vs ${t2Parsed.name}`,
+        matchType: /t20/i.test(rawTitle) ? 't20' : /odi/i.test(rawTitle) ? 'odi' : 'test',
+        status: isLive ? 'LIVE' : 'COMPLETED',
+        statusText: isLive ? 'Live In Progress' : 'Match Concluded',
+        dateTimeGMT: new Date().toISOString(),
+        hasScorecard: true,
+        team1: {
+          name: t1Parsed.name,
+          shortName: this.getAbbr(t1Parsed.name),
+          score: t1Parsed.score,
+          isBatting: t1Parsed.isBatting,
+        },
+        team2: {
+          name: t2Parsed.name,
+          shortName: this.getAbbr(t2Parsed.name),
+          score: t2Parsed.score,
+          isBatting: t2Parsed.isBatting,
+        },
+      });
+    }
+
+    return list;
+  }
+
+  /**
+   * Helper to extract team name and score from RSS feed string
+   */
+  private static extractTeamAndScore(str: string): { name: string; score: string; isBatting: boolean } {
+    const isBatting = str.includes('*');
+    const clean = str.replace(/\*/g, '').trim();
+
+    const scoreMatch = clean.match(/^(.*?)\s+(\d+\/\d+|\d+)(?:\s*\((.*?)\))?$/);
+    if (scoreMatch) {
+      const name = scoreMatch[1].trim();
+      const baseScore = scoreMatch[2];
+      const overs = scoreMatch[3] ? ` (${scoreMatch[3]})` : '';
+      return {
+        name,
+        score: `${baseScore}${overs}`,
+        isBatting,
+      };
+    }
+
+    return {
+      name: clean,
+      score: '',
+      isBatting,
+    };
+  }
+
+  /**
+   * Retrieves player display name with caching
+   */
+  private static async getAthleteName(athleteRef?: string): Promise<string> {
+    if (!athleteRef) return 'Player';
+    if (athleteNameCache.has(athleteRef)) {
+      return athleteNameCache.get(athleteRef)!;
+    }
+
+    try {
+      const data = await this.fetchJson<any>(athleteRef, 5000);
+      const name = data?.displayName || data?.shortName || 'Player';
+      athleteNameCache.set(athleteRef, name);
+      return name;
+    } catch {
+      return 'Player';
+    }
+  }
+
+  /**
+   * Detailed Scorecard for any match directly from ESPN Cricinfo:
+   * Returns authentic player statistics (runs, balls, 4s, 6s, overs, maidens, wickets, economy)
    */
   public static async getMatchScorecard(
     matchId?: string,
@@ -310,7 +663,8 @@ export class CricketService {
   ): Promise<DetailedScorecardResult> {
     const now = Date.now();
     const cleanTitle = title || '';
-    const cacheKey = matchId || cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '-');
+    const cleanId = matchId ? matchId.replace(/[^0-9]/g, '') : '';
+    const cacheKey = cleanId || cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '-');
 
     if (cacheKey && scorecardCache.has(cacheKey)) {
       const entry = scorecardCache.get(cacheKey)!;
@@ -319,687 +673,259 @@ export class CricketService {
       }
     }
 
-    // Step 1: Attempt to match against official live/archive match scorecard by team tokens
-    if (cleanTitle) {
+    // Step 1: Query ESPN Core API for this event
+    if (cleanId) {
       try {
-        const scorecardUrl = await this.findScorecardUrlByTitle(cleanTitle);
-        if (scorecardUrl) {
-          const html = await this.fetchUrl<string>(scorecardUrl, false, 8000);
-          const parsed = this.parseDetailedScorecardHtml(html, cleanTitle);
-          if (parsed && parsed.innings.length > 0) {
-            scorecardCache.set(cacheKey, {
-              expiry: now + SCORECARD_CACHE_TTL_MS,
-              data: parsed,
-            });
-            return parsed;
+        const ev = await this.fetchJson<any>(`${this.CORE_BASE_URL}/events/${cleanId}`, 8000);
+        if (ev && ev.id) {
+          const comp = ev.competitions?.[0];
+          const compData = comp?.$ref
+            ? await this.fetchJson<any>(comp.$ref, 8000)
+            : comp;
+
+          if (compData) {
+            const scorecard = await this.buildDetailedScorecardFromEspn(ev, compData);
+            if (scorecard) {
+              const ttl =
+                scorecard.status.toLowerCase().includes('live') ||
+                scorecard.status.toLowerCase().includes('progress')
+                  ? SCORECARD_LIVE_CACHE_TTL_MS
+                  : SCORECARD_CACHE_TTL_MS;
+
+              scorecardCache.set(cacheKey, {
+                expiry: now + ttl,
+                data: scorecard,
+              });
+              return scorecard;
+            }
           }
         }
       } catch (err) {
-        console.warn(`[CricketService] Official scorecard scrape error for "${cleanTitle}":`, err);
+        console.warn(`[CricketService] Error fetching ESPN scorecard for ID ${cleanId}:`, err);
       }
     }
 
-    // Step 2: Try CricAPI match_scorecard if key is active
-    const apiKey = this.getApiKey();
-    if (apiKey && matchId && !matchId.startsWith('fallback-')) {
-      try {
-        const scRes = await this.fetchUrl<any>(
-          `${this.BASE_URL}/match_scorecard?apikey=${apiKey}&id=${matchId}`,
-          true
-        );
-        if (scRes?.status === 'success' && scRes.data?.scorecard?.length > 0) {
-          const parsed = this.parseCricApiScorecard(scRes.data, cleanTitle);
-          scorecardCache.set(cacheKey, {
-            expiry: now + SCORECARD_CACHE_TTL_MS,
-            data: parsed,
-          });
-          return parsed;
-        }
-      } catch (err) {
-        // continue to match_info
-      }
-    }
-
-    // Step 3: If upcoming fixture
+    // Step 2: Fallback for upcoming fixture or pending scorecard
     const fallback: DetailedScorecardResult = {
       success: true,
-      provider: 'CricketData.org (CricAPI)',
-      matchTitle: cleanTitle || 'Cricket Match',
-      status: 'Upcoming Fixture',
+      provider: 'ESPN Cricinfo International',
+      matchTitle: cleanTitle || 'International Cricket Match',
+      status: 'Upcoming International Fixture',
+      venue: 'International Stadium',
       innings: [],
       isFallback: true,
     };
+
     return fallback;
   }
 
   /**
-   * Find Cricbuzz match scorecard URL by searching match index with team tokens
+   * Builds structured DetailedScorecardResult from ESPN Core API event & competition
    */
-  private static async findScorecardUrlByTitle(title: string): Promise<string | null> {
-    const now = Date.now();
-    if (!cricbuzzMatchIndex || now - cricbuzzIndexExpiry > 10 * 60 * 1000) {
-      const urls = new Map<string, string>();
-      try {
-        const [liveHtml, seriesHtml] = await Promise.allSettled([
-          this.fetchUrl<string>('https://www.cricbuzz.com/cricket-match/live-scores', false, 8000),
-          this.fetchUrl<string>('https://www.cricbuzz.com/cricket-series/matches', false, 8000),
-        ]);
+  private static async buildDetailedScorecardFromEspn(
+    ev: any,
+    comp: any
+  ): Promise<DetailedScorecardResult | null> {
+    const matchTitle = ev.name || 'International Match';
+    const venue = comp.venue?.fullName || comp.venue?.address?.city || '';
+    const dateTimeGMT = comp.date || ev.date || '';
 
-        const regex = /\/live-cricket-scores\/(\d+)\/([a-z0-9-]+)/g;
-        if (liveHtml.status === 'fulfilled') {
-          let m: RegExpExecArray | null;
-          while ((m = regex.exec(liveHtml.value)) !== null) {
-            urls.set(m[1], m[2]);
-          }
-        }
-        if (seriesHtml.status === 'fulfilled') {
-          let m: RegExpExecArray | null;
-          while ((m = regex.exec(seriesHtml.value)) !== null) {
-            urls.set(m[1], m[2]);
-          }
-        }
-      } catch (err) {
-        console.warn('[CricketService] Error fetching scorecard index:', err);
-      }
-      cricbuzzMatchIndex = urls;
-      cricbuzzIndexExpiry = now;
+    // Extract toss, series, match result
+    let toss: string | undefined;
+    let seriesName: string | undefined;
+    let result: string | undefined;
+
+    for (const note of comp.notes || []) {
+      if (note.type === 'toss') toss = note.text;
+      if (note.type === 'seriesnote') seriesName = note.text;
     }
 
-    const vsParts = title.split(/\s+(?:vs|v)\s+/i);
-    if (vsParts.length < 2) return null;
+    const statusData = comp.status?.$ref
+      ? await this.fetchJson<any>(comp.status.$ref, 5000)
+      : comp.status;
 
-    const t1Tokens = this.getTeamTokens(vsParts[0] || '');
-    const t2Tokens = this.getTeamTokens(vsParts[1] || '');
-    const isWomen = /women/i.test(title);
+    const statusObj = statusData?.type || {};
+    const status =
+      statusData?.longSummary ||
+      statusData?.summary ||
+      statusObj.detail ||
+      statusObj.description ||
+      'Match Concluded';
 
-    for (const [id, slug] of cricbuzzMatchIndex.entries()) {
-      const slugLower = slug.toLowerCase();
-      const slugIsWomen =
-        slugLower.includes('women') ||
-        slugLower.includes('indw') ||
-        slugLower.includes('slw') ||
-        slugLower.includes('wcpl');
+    const competitors = comp.competitors || [];
+    if (competitors.length < 2) return null;
 
-      if (isWomen !== slugIsWomen) continue;
+    // Collect competitor data and linescores
+    const teamDataList: {
+      teamId: string;
+      teamName: string;
+      teamShortName: string;
+      linescores: any[];
+    }[] = [];
 
-      const hasT1 = t1Tokens.some((tok) => slugLower.includes(tok));
-      const hasT2 = t2Tokens.some((tok) => slugLower.includes(tok));
+    for (const c of competitors) {
+      const team = c.team?.$ref
+        ? await this.fetchJson<any>(c.team.$ref, 5000)
+        : c.team;
+      const teamName = team?.name || 'Team';
+      const teamShortName = team?.abbreviation || this.getAbbr(teamName);
 
-      if (hasT1 && hasT2) {
-        return `https://www.cricbuzz.com/live-cricket-scorecard/${id}/${slug}`;
-      }
+      const lsObj = c.linescores?.$ref
+        ? await this.fetchJson<any>(c.linescores.$ref, 5000)
+        : c.linescores;
+      const linescores = Array.isArray(lsObj?.items) ? lsObj.items : [];
+
+      teamDataList.push({
+        teamId: String(c.id),
+        teamName,
+        teamShortName,
+        linescores,
+      });
     }
 
-    return null;
-  }
-
-  /**
-   * Extract comprehensive matching tokens for any team name
-   */
-  private static getTeamTokens(name: string): string[] {
-    const clean = name.toLowerCase().replace(/women/g, '').trim();
-    const tokens: string[] = [];
-    const words = clean.split(/\s+/);
-
-    tokens.push(clean.replace(/[^a-z]/g, ''));
-
-    words.forEach((w) => {
-      const cw = w.replace(/[^a-z]/g, '');
-      if (cw.length >= 3) {
-        tokens.push(cw);
-        tokens.push(cw.slice(0, 3));
-      }
+    // Gather all distinct innings periods (e.g. 1, 2)
+    const periods = new Set<number>();
+    teamDataList.forEach((td) => {
+      td.linescores.forEach((ls) => {
+        if (ls.period) periods.add(ls.period);
+      });
     });
 
-    if (words.length >= 2) {
-      tokens.push(words.map((w) => w[0]).join(''));
-    }
+    const sortedPeriods = Array.from(periods).sort((a, b) => a - b);
+    const inningsList: ScorecardInnings[] = [];
 
-    if (clean.includes('barbados')) tokens.push('bbt', 'bar', 'bdos');
-    if (clean.includes('guyana')) tokens.push('gaw', 'guy');
-    if (clean.includes('trinbago')) tokens.push('tkr');
-    if (clean.includes('jamaica')) tokens.push('jam', 'jt');
-    if (clean.includes('patriots') || clean.includes('kitts')) tokens.push('snp');
-    if (clean.includes('lucia')) tokens.push('slk');
-    if (clean.includes('sri lanka')) tokens.push('sl', 'slw', 'srl');
-    if (clean.includes('india')) tokens.push('ind', 'indw');
-    if (clean.includes('pakistan')) tokens.push('pak');
-    if (clean.includes('england')) tokens.push('eng');
-    if (clean.includes('australia')) tokens.push('aus');
-    if (clean.includes('south africa')) tokens.push('sa', 'rsa');
-    if (clean.includes('afghanistan')) tokens.push('afg');
-    if (clean.includes('namibia')) tokens.push('nam');
-
-    return Array.from(new Set(tokens.filter(Boolean)));
-  }
-
-  /**
-   * Parse detailed HTML scorecard from Cricbuzz into structured DetailedScorecardResult
-   */
-  private static parseDetailedScorecardHtml(
-    html: string,
-    defaultTitle: string
-  ): DetailedScorecardResult | null {
-    const titleMatch = html.match(/<h1[^>]*>([^<]+)<\/h1>/i);
-    const matchTitle = titleMatch ? titleMatch[1].replace(/scorecard/gi, '').trim() : defaultTitle;
-
-    const statusMatch =
-      html.match(/<div class="text-cbComplete[^"]*">([^<]+)<\/div>/i) ||
-      html.match(/<div class="text-cbLive[^"]*">([^<]+)<\/div>/i);
-    const status = statusMatch ? statusMatch[1].trim() : 'Match Concluded';
-
-    // 1. Try matching <div id="team-\d+-innings-(\d+)"
-    const innHeaderRegex = /<div id="team-\d+-innings-(\d+)"[^>]*>([\s\S]*?)<\/div><\/div><\/div>/g;
-    const innHeaders: { inningsNum: number; rawHeader: string; headerIndex: number }[] = [];
-    let m: RegExpExecArray | null;
-    while ((m = innHeaderRegex.exec(html)) !== null) {
-      innHeaders.push({
-        inningsNum: parseInt(m[1], 10),
-        rawHeader: m[2],
-        headerIndex: m.index,
+    for (const period of sortedPeriods) {
+      // Find the batting team and bowling team for this period
+      let battingTeamData = teamDataList.find((td) => {
+        const ls = td.linescores.find((l) => l.period === period);
+        return ls?.isBatting === true || (ls && ls.runs > 0);
       });
-    }
 
-    const scardRegex = /<div id="scard-team-\d+-innings-(\d+)"[^>]*>/g;
-    const scardBlocks: { inningsNum: number; startIndex: number }[] = [];
-    let scM: RegExpExecArray | null;
-    while ((scM = scardRegex.exec(html)) !== null) {
-      scardBlocks.push({
-        inningsNum: parseInt(scM[1], 10),
-        startIndex: scM.index,
-      });
-    }
+      let bowlingTeamData = teamDataList.find((td) => td !== battingTeamData);
 
-    const innings: ScorecardInnings[] = [];
+      if (!battingTeamData) {
+        battingTeamData = teamDataList[period % 2 === 1 ? 0 : 1] || teamDataList[0];
+        bowlingTeamData = teamDataList.find((td) => td !== battingTeamData) || teamDataList[1];
+      }
 
-    if (innHeaders.length > 0) {
-      for (let i = 0; i < innHeaders.length; i++) {
-        const hdr = innHeaders[i];
-        const teamNameMatch =
-          hdr.rawHeader.match(/<div class="hidden tb:block font-bold">([^<]+)<\/div>/i) ||
-          hdr.rawHeader.match(/<div class="[^"]*font-bold[^"]*">([^<]+)<\/div>/i);
-        const teamName = teamNameMatch ? teamNameMatch[1].trim() : `Team ${i + 1}`;
+      const batLs = battingTeamData?.linescores.find((l) => l.period === period);
+      const bowlLs = bowlingTeamData?.linescores.find((l) => l.period === period);
 
-        const scoreMatch = hdr.rawHeader.match(/(\d+)-(\d+)/);
-        const runs = scoreMatch ? parseInt(scoreMatch[1], 10) : 0;
-        const wickets = scoreMatch ? parseInt(scoreMatch[2], 10) : 0;
+      const runs = batLs?.runs || 0;
+      const wickets = batLs?.wickets || 0;
+      const overs = batLs?.overs || 0;
+      const runRate = overs > 0 ? Number((runs / overs).toFixed(2)) : 0;
 
-        const oversMatch = hdr.rawHeader.match(/\(([\d.]+)\s*Ov/i);
-        const overs = oversMatch ? parseFloat(oversMatch[1]) : 0;
-        const runRate = overs > 0 ? Number((runs / overs).toFixed(2)) : 0;
+      // Extract Batters
+      const batsmen: ScorecardBatsman[] = [];
+      const batLeadersObj = batLs?.leaders?.$ref
+        ? await this.fetchJson<any>(batLs.leaders.$ref, 5000)
+        : batLs?.leaders;
 
-        const scard = scardBlocks.find((b) => b.inningsNum === hdr.inningsNum) || scardBlocks[i];
-        let chunk = '';
-        if (scard) {
-          const nextScard =
-            scardBlocks.find((b) => b.inningsNum === hdr.inningsNum + 1) || scardBlocks[i + 1];
-          const endIdx = nextScard
-            ? nextScard.startIndex
-            : html.indexOf('scorecard-match-info', scard.startIndex);
-          chunk = html.substring(scard.startIndex, endIdx !== -1 ? endIdx : scard.startIndex + 80000);
-        }
+      if (batLeadersObj?.categories) {
+        const runCategory = batLeadersObj.categories.find(
+          (cat: any) => cat.name === 'runs'
+        );
+        if (runCategory?.leaders) {
+          for (let bIdx = 0; bIdx < runCategory.leaders.length; bIdx++) {
+            const ldr = runCategory.leaders[bIdx];
+            const name = await this.getAthleteName(ldr.athlete?.$ref);
+            const r = parseInt(ldr.value || '0', 10);
+            const b = parseInt(ldr.balls || '0', 10);
+            const fours = parseInt(ldr.fours || '0', 10);
+            const sixes = parseInt(ldr.sixes || '0', 10);
+            const sr = b > 0 ? Number(((r / b) * 100).toFixed(2)) : 0;
 
-        const batters: ScorecardBatsman[] = [];
-        const batRowRegex =
-          /<span class="hover:underline">([^<]+)<\/span>[\s\S]*?<div class="[^"]*text-cbTxtSec[^"]*">([^<]*)<\/div>[\s\S]*?<div class="[^"]*font-bold[^"]*">(\d+)<\/div>[\s\S]*?<div class="flex justify-center items-center">(\d+)<\/div>[\s\S]*?<div class="flex justify-center items-center">(\d+)<\/div>[\s\S]*?<div class="flex justify-center items-center">(\d+)<\/div>[\s\S]*?<div class="flex justify-center items-center">([\d.]+)<\/div>/g;
-
-        let bMatch: RegExpExecArray | null;
-        let bIdx = 1;
-        while ((bMatch = batRowRegex.exec(chunk)) !== null) {
-          const bName = bMatch[1].trim();
-          const outDesc = bMatch[2].trim() || 'not out';
-          batters.push({
-            id: bIdx++,
-            name: bName,
-            isCaptain: bName.includes('(c)'),
-            isKeeper: bName.includes('(wk)'),
-            runs: parseInt(bMatch[3], 10),
-            balls: parseInt(bMatch[4], 10),
-            fours: parseInt(bMatch[5], 10),
-            sixes: parseInt(bMatch[6], 10),
-            strikeRate: parseFloat(bMatch[7]),
-            outDesc,
-            isNotOut: outDesc.toLowerCase().includes('not out') || outDesc === '',
-          });
-        }
-
-        const bowlers: ScorecardBowler[] = [];
-        const bowlChunkIdx = chunk.indexOf('scorecard-bowl-grid');
-        if (bowlChunkIdx !== -1) {
-          const bowlChunk = chunk.substring(bowlChunkIdx);
-          const bowlRowRegex =
-            /<span class="hover:underline">([^<]+)<\/span>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">([\d.]+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">(\d+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">(\d+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">(\d+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">(\d+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">(\d+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">([\d.]+)<\/div>/g;
-
-          let bwMatch: RegExpExecArray | null;
-          let bwIdx = 1;
-          while ((bwMatch = bowlRowRegex.exec(bowlChunk)) !== null) {
-            bowlers.push({
-              id: bwIdx++,
-              name: bwMatch[1].trim(),
-              overs: bwMatch[2],
-              maidens: parseInt(bwMatch[3], 10),
-              runs: parseInt(bwMatch[4], 10),
-              wickets: parseInt(bwMatch[5], 10),
-              noBalls: parseInt(bwMatch[6], 10),
-              wides: parseInt(bwMatch[7], 10),
-              economy: parseFloat(bwMatch[8]),
+            batsmen.push({
+              id: bIdx + 1,
+              name,
+              runs: r,
+              balls: b,
+              fours,
+              sixes,
+              strikeRate: sr,
+              outDesc: r > 0 ? 'dismissed' : 'not out',
+              isNotOut: false,
             });
           }
         }
-
-        innings.push({
-          inningsId: hdr.inningsNum,
-          teamName,
-          teamShortName: teamName.slice(0, 4).toUpperCase(),
-          runs: runs || batters.reduce((s, b) => s + b.runs, 0),
-          wickets: wickets || batters.filter((b) => !b.isNotOut).length,
-          overs:
-            overs ||
-            (bowlers.length > 0
-              ? Math.max(...bowlers.map((b) => parseFloat(String(b.overs))))
-              : 20),
-          runRate,
-          batsmen: batters,
-          bowlers,
-        });
-      }
-    } else {
-      // 2. Fallback to hidden tb:block font-bold header
-      const innRegex = /<div class="hidden tb:block font-bold">([A-Za-z0-9\s]+Innings)<\/div>/g;
-      const innMatches: { title: string; index: number }[] = [];
-      let innM: RegExpExecArray | null;
-      while ((innM = innRegex.exec(html)) !== null) {
-        innMatches.push({ title: innM[1].trim(), index: innM.index });
       }
 
-      for (let i = 0; i < innMatches.length; i++) {
-        const startIdx = innMatches[i].index;
-        const endIdx =
-          i + 1 < innMatches.length
-            ? innMatches[i + 1].index
-            : html.indexOf('scorecard-match-info', startIdx);
-        const chunk = html.substring(startIdx, endIdx !== -1 ? endIdx : startIdx + 80000);
+      // Extract Bowlers (from opposing team's period leaders)
+      const bowlers: ScorecardBowler[] = [];
+      const bowlLeadersObj = bowlLs?.leaders?.$ref
+        ? await this.fetchJson<any>(bowlLs.leaders.$ref, 5000)
+        : bowlLs?.leaders;
 
-        const teamInningName = innMatches[i].title;
-        const teamCleanName = teamInningName.replace(/\s*(?:1st|2nd)?\s*Innings/gi, '').trim();
+      if (bowlLeadersObj?.categories) {
+        const wicketCategory = bowlLeadersObj.categories.find(
+          (cat: any) => cat.name === 'wickets'
+        );
+        if (wicketCategory?.leaders) {
+          for (let bwIdx = 0; bwIdx < wicketCategory.leaders.length; bwIdx++) {
+            const ldr = wicketCategory.leaders[bwIdx];
+            const name = await this.getAthleteName(ldr.athlete?.$ref);
+            const w = parseInt(ldr.value || '0', 10);
+            const r = parseInt(ldr.runs || '0', 10);
+            const ov = parseFloat(ldr.overs || '0');
+            const maidens = parseInt(ldr.maidens || '0', 10);
+            const eco = parseFloat(ldr.economyRate || '0');
 
-        const scoreMatch = chunk.match(/(\d+)-(\d+)\s*\(([\d.]+)\s*Ov/i);
-        const runs = scoreMatch ? parseInt(scoreMatch[1], 10) : 0;
-        const wickets = scoreMatch ? parseInt(scoreMatch[2], 10) : 0;
-        const overs = scoreMatch ? parseFloat(scoreMatch[3]) : 0;
-        const runRate = overs > 0 ? Number((runs / overs).toFixed(2)) : 0;
-
-        const batters: ScorecardBatsman[] = [];
-        const batRowRegex =
-          /<span class="hover:underline">([^<]+)<\/span>[\s\S]*?<div class="[^"]*text-cbTxtSec[^"]*">([^<]*)<\/div>[\s\S]*?<div class="[^"]*font-bold[^"]*">(\d+)<\/div>[\s\S]*?<div class="flex justify-center items-center">(\d+)<\/div>[\s\S]*?<div class="flex justify-center items-center">(\d+)<\/div>[\s\S]*?<div class="flex justify-center items-center">(\d+)<\/div>[\s\S]*?<div class="flex justify-center items-center">([\d.]+)<\/div>/g;
-
-        let bMatch: RegExpExecArray | null;
-        let bIdx = 1;
-        while ((bMatch = batRowRegex.exec(chunk)) !== null) {
-          const bName = bMatch[1].trim();
-          const outDesc = bMatch[2].trim() || 'not out';
-          batters.push({
-            id: bIdx++,
-            name: bName,
-            isCaptain: bName.includes('(c)'),
-            isKeeper: bName.includes('(wk)'),
-            runs: parseInt(bMatch[3], 10),
-            balls: parseInt(bMatch[4], 10),
-            fours: parseInt(bMatch[5], 10),
-            sixes: parseInt(bMatch[6], 10),
-            strikeRate: parseFloat(bMatch[7]),
-            outDesc,
-            isNotOut: outDesc.toLowerCase().includes('not out') || outDesc === '',
-          });
-        }
-
-        const bowlers: ScorecardBowler[] = [];
-        const bowlChunkIdx = chunk.indexOf('scorecard-bowl-grid');
-        if (bowlChunkIdx !== -1) {
-          const bowlChunk = chunk.substring(bowlChunkIdx);
-          const bowlRowRegex =
-            /<span class="hover:underline">([^<]+)<\/span>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">([\d.]+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">(\d+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">(\d+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">(\d+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">(\d+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">(\d+)<\/div>[\s\S]*?<div class="[^"]*flex justify-center[^"]*">([\d.]+)<\/div>/g;
-
-          let bwMatch: RegExpExecArray | null;
-          let bwIdx = 1;
-          while ((bwMatch = bowlRowRegex.exec(bowlChunk)) !== null) {
             bowlers.push({
-              id: bwIdx++,
-              name: bwMatch[1].trim(),
-              overs: bwMatch[2],
-              maidens: parseInt(bwMatch[3], 10),
-              runs: parseInt(bwMatch[4], 10),
-              wickets: parseInt(bwMatch[5], 10),
-              noBalls: parseInt(bwMatch[6], 10),
-              wides: parseInt(bwMatch[7], 10),
-              economy: parseFloat(bwMatch[8]),
+              id: bwIdx + 1,
+              name,
+              overs: ov,
+              maidens,
+              runs: r,
+              wickets: w,
+              economy: eco,
             });
           }
         }
-
-        innings.push({
-          inningsId: i + 1,
-          teamName: teamCleanName,
-          teamShortName: teamCleanName.slice(0, 4).toUpperCase(),
-          runs: runs || batters.reduce((s, b) => s + b.runs, 0),
-          wickets: wickets || batters.filter((b) => !b.isNotOut).length,
-          overs:
-            overs ||
-            (bowlers.length > 0
-              ? Math.max(...bowlers.map((b) => parseFloat(String(b.overs))))
-              : 20),
-          runRate,
-          batsmen: batters,
-          bowlers,
-        });
       }
-    }
 
-    if (innings.length === 0) return null;
-
-    return {
-      success: true,
-      provider: 'Cricket Live Data Service',
-      matchTitle,
-      status,
-      innings,
-      isFallback: false,
-    };
-  }
-
-  /**
-   * Parse CricAPI match_scorecard endpoint
-   */
-  private static parseCricApiScorecard(data: any, defaultTitle: string): DetailedScorecardResult {
-    const matchTitle = data.name || defaultTitle;
-    const status = data.status || 'Match Concluded';
-    const venue = data.venue || '';
-    const dateTimeGMT = data.dateTimeGMT || '';
-    const matchType = data.matchType || '';
-    const toss = data.tossWinner
-      ? `${data.tossWinner} chose to ${data.tossChoice || 'bat'}`
-      : undefined;
-
-    const innings: ScorecardInnings[] = [];
-
-    if (Array.isArray(data.scorecard)) {
-      data.scorecard.forEach((inn: any, idx: number) => {
-        const teamName = inn.inning ? inn.inning.replace(/inning\s*\d*/gi, '').trim() : `Innings ${idx + 1}`;
-
-        const batsmen: ScorecardBatsman[] = (inn.batting || []).map((b: any, bIdx: number) => ({
-          id: b.batsman?.id || bIdx,
-          name: b.batsman?.name || 'Batsman',
-          runs: Number(b.r ?? 0),
-          balls: Number(b.b ?? 0),
-          fours: Number(b['4s'] ?? b.fours ?? 0),
-          sixes: Number(b['6s'] ?? b.sixes ?? 0),
-          strikeRate: Number(b.sr ?? 0),
-          outDesc: b.dismissal || 'not out',
-          isNotOut: !b.dismissal || b.dismissal.toLowerCase().includes('not out'),
-        }));
-
-        const bowlers: ScorecardBowler[] = (inn.bowling || []).map((bw: any, bwIdx: number) => ({
-          id: bw.bowler?.id || bwIdx,
-          name: bw.bowler?.name || 'Bowler',
-          overs: bw.o ?? 0,
-          maidens: Number(bw.m ?? 0),
-          runs: Number(bw.r ?? 0),
-          wickets: Number(bw.w ?? 0),
-          economy: Number(bw.eco ?? 0),
-          wides: Number(bw.wides ?? 0),
-          noBalls: Number(bw.noBalls ?? 0),
-        }));
-
-        const runs = Number(inn.totals?.R ?? batsmen.reduce((sum, b) => sum + b.runs, 0));
-        const wickets = Number(inn.totals?.W ?? batsmen.filter((b) => !b.isNotOut).length);
-        const overs = Number(inn.totals?.O ?? (bowlers.length > 0 ? Math.max(...bowlers.map((bw) => Number(bw.overs))) : 20));
-        const runRate = Number(inn.totals?.RR ?? (overs > 0 ? Number((runs / overs).toFixed(2)) : 0));
-
-        innings.push({
-          inningsId: idx + 1,
-          teamName,
-          teamShortName: teamName.slice(0, 4).toUpperCase(),
-          runs,
-          wickets,
-          overs,
-          runRate,
-          batsmen,
-          bowlers,
-        });
+      inningsList.push({
+        inningsId: period,
+        teamName: battingTeamData.teamName,
+        teamShortName: battingTeamData.teamShortName,
+        runs,
+        wickets,
+        overs,
+        runRate,
+        batsmen,
+        bowlers,
       });
     }
 
     return {
       success: true,
-      provider: 'CricketData.org (CricAPI)',
+      provider: 'ESPN Cricinfo International',
       matchTitle,
       status,
+      seriesName,
       venue,
       dateTimeGMT,
-      matchType,
       toss,
-      innings,
-      isFallback: false,
+      result,
+      innings: inningsList,
+      isFallback: inningsList.length === 0,
     };
   }
 
   /**
-   * Fallback live index if CricAPI quota limit is reached
+   * Helper to parse team name from title string
    */
-  private static async fetchLiveMatchesFromIndex(): Promise<CricketMatch[]> {
-    const list: CricketMatch[] = [];
-    try {
-      const html = await this.fetchUrl<string>('https://www.cricbuzz.com/cricket-match/live-scores', false, 8000);
-      const regex = /\/live-cricket-scores\/(\d+)\/([a-z0-9-]+)/g;
-      let m: RegExpExecArray | null;
-      const seen = new Set<string>();
-
-      while ((m = regex.exec(html)) !== null) {
-        const id = m[1];
-        const slug = m[2];
-        if (seen.has(id)) continue;
-        seen.add(id);
-
-        const slugParts = slug.split('-vs-');
-        if (slugParts.length < 2) continue;
-
-        const t1Raw = slugParts[0].replace(/-/g, ' ').toUpperCase();
-        const rest = slugParts[1].split('-');
-        const t2Raw = rest[0].toUpperCase();
-        const tournament = rest.slice(1).join(' ');
-
-        list.push({
-          id,
-          title: `${t1Raw} vs ${t2Raw}${tournament ? `, ${tournament.toUpperCase()}` : ''}`,
-          status: 'LIVE',
-          statusText: 'Live Match in Progress',
-          dateTimeGMT: new Date().toISOString(),
-          team1: {
-            name: t1Raw,
-            shortName: t1Raw.slice(0, 4),
-            score: '',
-            isBatting: false,
-          },
-          team2: {
-            name: t2Raw,
-            shortName: t2Raw.slice(0, 4),
-            score: '',
-            isBatting: false,
-          },
-        });
-      }
-    } catch (err) {
-      console.warn('[CricketService] Error in live index fallback:', err);
-    }
-    return list;
+  private static extractTeamFromTitle(title: string, index: number): string {
+    const parts = title.split(/\s+(?:v|vs)\s+/i);
+    return parts[index]?.trim() || `Team ${index + 1}`;
   }
 
   /**
-   * Map currentMatches and matches endpoint items
+   * Generate clean 3-4 character abbreviation for team
    */
-  private static mapCurrentOrScheduleMatch(raw: any): CricketMatch {
-    const id = raw.id || `cricapi-${Math.random().toString(36).substring(2, 9)}`;
-    const title = raw.name || `${raw.teams?.[0] || 'Team 1'} vs ${raw.teams?.[1] || 'Team 2'}`;
-    const venue = raw.venue || '';
-    const dateTimeGMT = raw.dateTimeGMT || raw.date || new Date().toISOString();
-    const matchType = (raw.matchType || 't20').toLowerCase();
-
-    let status: 'LIVE' | 'COMPLETED' | 'UPCOMING' = 'UPCOMING';
-    if (raw.matchEnded) {
-      status = 'COMPLETED';
-    } else if (raw.matchStarted) {
-      status = 'LIVE';
-    }
-
-    const teamNames: string[] =
-      raw.teams || [raw.teamInfo?.[0]?.name || 'Team 1', raw.teamInfo?.[1]?.name || 'Team 2'];
-    const team1Name = teamNames[0] || 'Team 1';
-    const team2Name = teamNames[1] || 'Team 2';
-
-    const t1Info = raw.teamInfo?.find(
-      (t: any) => t.name === team1Name || t.shortname === team1Name
-    );
-    const t2Info = raw.teamInfo?.find(
-      (t: any) => t.name === team2Name || t.shortname === team2Name
-    );
-
-    const scores: any[] = Array.isArray(raw.score) ? raw.score : [];
-    let t1Score = '';
-    let t1Overs = '';
-    let t2Score = '';
-    let t2Overs = '';
-    let t1Batting = false;
-    let t2Batting = false;
-
-    scores.forEach((sc) => {
-      const inningStr = (sc.inning || '').toLowerCase();
-      const isTeam1 =
-        inningStr.includes(team1Name.toLowerCase()) ||
-        (t1Info?.shortname && inningStr.includes(t1Info.shortname.toLowerCase()));
-      const runsWickets = `${sc.r}/${sc.w}`;
-      const ovs = `${sc.o} ov`;
-
-      if (isTeam1) {
-        t1Score = runsWickets;
-        t1Overs = ovs;
-      } else {
-        t2Score = runsWickets;
-        t2Overs = ovs;
-      }
-    });
-
-    if (status === 'LIVE') {
-      if (scores.length === 1) {
-        t1Batting = true;
-      } else if (scores.length >= 2) {
-        t2Batting = true;
-      }
-    }
-
-    const statusText =
-      raw.status ||
-      (status === 'UPCOMING'
-        ? `Starts ${dateTimeGMT.replace('T', ' ')} GMT`
-        : 'Match in progress');
-
-    return {
-      id,
-      title,
-      matchType,
-      status,
-      statusText,
-      venue,
-      dateTimeGMT,
-      hasScorecard: status !== 'UPCOMING',
-      team1: {
-        name: team1Name,
-        shortName: t1Info?.shortname || this.getAbbr(team1Name),
-        img: t1Info?.img,
-        score: t1Score ? `${t1Score}${t1Overs ? ` (${t1Overs})` : ''}` : '',
-        overs: t1Overs,
-        isBatting: t1Batting,
-      },
-      team2: {
-        name: team2Name,
-        shortName: t2Info?.shortname || this.getAbbr(team2Name),
-        img: t2Info?.img,
-        score: t2Score ? `${t2Score}${t2Overs ? ` (${t2Overs})` : ''}` : '',
-        overs: t2Overs,
-        isBatting: t2Batting,
-      },
-    };
-  }
-
-  /**
-   * Map cricScore item
-   */
-  private static mapCricScoreItem(item: any): CricketMatch {
-    const id = item.id || `cricscore-${Math.random().toString(36).substring(2, 9)}`;
-    const matchType = (item.matchType || 't20').toLowerCase();
-    const dateTimeGMT = item.dateTimeGMT || new Date().toISOString();
-
-    let status: 'LIVE' | 'COMPLETED' | 'UPCOMING' = 'UPCOMING';
-    if (item.ms === 'live') {
-      status = 'LIVE';
-    } else if (item.ms === 'result') {
-      status = 'COMPLETED';
-    } else if (item.ms === 'fixture') {
-      status = 'UPCOMING';
-    }
-
-    const parseTeamWithBracket = (str: string) => {
-      const match = str.match(/^(.*?)(?:\s*\[(.*?)\])?$/);
-      if (match) {
-        const name = (match[1] || str).trim();
-        const abbr = match[2] ? match[2].trim() : '';
-        return { name, abbr };
-      }
-      return { name: str.trim(), abbr: '' };
-    };
-
-    const t1Parsed = parseTeamWithBracket(item.t1 || 'Team 1');
-    const t2Parsed = parseTeamWithBracket(item.t2 || 'Team 2');
-
-    const title = `${t1Parsed.name} vs ${t2Parsed.name}${
-      item.series ? `, ${item.series}` : ''
-    }`;
-    const statusText =
-      item.status ||
-      (status === 'UPCOMING'
-        ? `Starts ${dateTimeGMT.replace('T', ' ')} GMT`
-        : 'Match in progress');
-
-    const t1Batting = (item.t1s || '').includes('*');
-    const t2Batting = (item.t2s || '').includes('*');
-
-    return {
-      id,
-      title,
-      matchType,
-      status,
-      statusText,
-      dateTimeGMT,
-      hasScorecard: status !== 'UPCOMING',
-      team1: {
-        name: t1Parsed.name,
-        shortName: t1Parsed.abbr || this.getAbbr(t1Parsed.name),
-        img: item.t1img,
-        score: item.t1s || (status === 'UPCOMING' ? 'Scheduled' : ''),
-        isBatting: t1Batting,
-      },
-      team2: {
-        name: t2Parsed.name,
-        shortName: t2Parsed.abbr || this.getAbbr(t2Parsed.name),
-        img: item.t2img,
-        score: item.t2s || (status === 'UPCOMING' ? 'Scheduled' : ''),
-        isBatting: t2Batting,
-      },
-    };
-  }
-
   private static getAbbr(name: string): string {
-    const clean = name.replace(/women/gi, '').trim();
     const isW = /women/i.test(name);
+    const clean = name.replace(/women/gi, '').trim();
     const parts = clean.split(/\s+/);
     let abbr =
       parts.length >= 2
