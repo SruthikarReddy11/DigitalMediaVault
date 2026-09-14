@@ -1,879 +1,538 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Radio,
-  Tv,
-  Play,
   RotateCw,
-  Maximize2,
-  Minimize2,
-  ExternalLink,
-  Plus,
-  Trash2,
-  Sparkles,
-  Share2,
-  Copy,
-  Check,
-  AlertCircle,
-  Shield,
-  ShieldCheck,
-  ShieldAlert,
-  Info,
-  Flame,
-  Volume2,
-  Layers,
-  HelpCircle,
-  Clipboard,
-  X,
-  Compass,
+  Search,
+  Filter,
   Trophy,
-  Square,
+  Calendar,
+  Clock,
+  MapPin,
+  ChevronRight,
+  Flame,
+  Radio,
+  CheckCircle2,
+  AlertCircle,
+  ExternalLink,
+  Layers,
+  Sparkles,
 } from 'lucide-react';
-import { useToast } from '../contexts/ToastContext';
-import { CricketScoresBar, CricketMatch } from '../components/cricket/CricketScoresBar';
+import { api } from '../services/api';
 import { CricketScorecardModal } from '../components/cricket/CricketScorecardModal';
-
-export interface CricketStreamItem {
-  id: string;
-  title: string;
-  src: string;
-  serverName?: string;
-  category?: string;
-  addedAt: string;
-  isDefault?: boolean;
-}
-
-const STORAGE_KEY = 'cricket_live_streams_v1';
-
-const DEFAULT_STREAMS: CricketStreamItem[] = [
-  {
-    id: 'default-ntv-1',
-    title: 'Cricket Live Stream (NTV Live HD)',
-    src: 'https://ntv.cx/embed?t=Z0hobzNYTEYyVE4xRHNDRDNBSlFzbEdRM29PSXN3Vkw0UXROczFlMkh5OFZ0bzQrcGVPbVhGaEIrMjZDM0VMR2NqUFVpT0ExVUw5MGlvcWUzYityTVkzNDJoejdyODVYeEFITmNrVHJMMlNkYStrQkxQeHczM1h0cERNUGFpT1EvVWl0OUZlSmdQQVR1QTVzN3pLYVpnPT0~',
-    serverName: 'Server 1 (NTV Embed)',
-    category: 'Live Match',
-    addedAt: new Date().toISOString(),
-    isDefault: true,
-  },
-  {
-    id: 'default-cdn-2',
-    title: 'Astro Cricket HD (Direct Feed)',
-    src: 'https://cdnlivetv.tv/api/v1/channels/player/?name=Astro%20Cricket&code=us&user=ntvstream&plan=free',
-    serverName: 'Server 2 (Direct Feed)',
-    category: 'Live Match',
-    addedAt: new Date().toISOString(),
-    isDefault: true,
-  },
-];
+import {
+  CricketMatch,
+  CricketTeamScore,
+  getTeamBadgeStyle,
+  getTeamAbbr,
+} from '../components/cricket/CricketScoresBar';
 
 export const CricketLivePage: React.FC = () => {
-  const { success, error: toastError, info } = useToast();
-
-  // Streams state
-  const [streams, setStreams] = useState<CricketStreamItem[]>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {
-      // fallback
-    }
-    return DEFAULT_STREAMS;
-  });
-
-  const [activeStreamId, setActiveStreamId] = useState<string>(() => {
-    return streams[0]?.id || 'default-ntv-1';
-  });
-
-  // Live cricket scores state
-  const [selectedMatch, setSelectedMatch] = useState<CricketMatch | null>(null);
+  const [matches, setMatches] = useState<CricketMatch[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [selectedCategory, setSelectedCategory] = useState<'ALL' | 'LIVE' | 'UPCOMING' | 'COMPLETED'>('ALL');
+  const [selectedFormat, setSelectedFormat] = useState<'ALL' | 'T20' | 'ODI' | 'TEST'>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [scorecardMatch, setScorecardMatch] = useState<CricketMatch | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
+  const [secondsAgo, setSecondsAgo] = useState<number>(0);
 
-  // Player controls state
-  const [isStreamPlaying, setIsStreamPlaying] = useState<boolean>(true);
-  const [isTheaterMode, setIsTheaterMode] = useState<boolean>(false);
-  const [refreshKey, setRefreshKey] = useState<number>(0);
-  const [isStreamLoading, setIsStreamLoading] = useState<boolean>(true);
-  const [copiedLink, setCopiedLink] = useState<boolean>(false);
+  // Fetch matches from CricketData.org via backend
+  const fetchMatches = useCallback(async (manual = false) => {
+    if (manual) setIsRefreshing(true);
 
-  // Ad Shield Mode: 'off' (Default for live playback) | 'balanced' | 'strict'
-  const [adShieldMode, setAdShieldMode] = useState<'off' | 'balanced' | 'strict'>('off');
-  const [showShieldDropdown, setShowShieldDropdown] = useState<boolean>(false);
-
-  // Computed iframe sandbox attribute to block ads and popups
-  const getSandboxString = () => {
-    if (adShieldMode === 'off') return undefined;
-    if (adShieldMode === 'strict') {
-      return 'allow-scripts allow-same-origin';
-    }
-    // 'balanced' (Default): allows video engine scripts, same-origin chunks, forms & presentation,
-    // but crucially BLOCKS all popups, new tabs, downloads, and top navigation!
-    return 'allow-scripts allow-same-origin allow-forms allow-presentation';
-  };
-
-  // Modal / Add stream state
-  const [isAddModalOpen, setIsAddModalOpen] = useState<boolean>(false);
-  const [pasteInput, setPasteInput] = useState<string>('');
-  const [customTitle, setCustomTitle] = useState<string>('');
-  const [customServer, setCustomServer] = useState<string>('');
-
-  const playerContainerRef = useRef<HTMLDivElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // Save to localStorage
-  useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(streams));
-    } catch {
-      // ignore
-    }
-  }, [streams]);
+      const res = await api.get('/cricket/matches', {
+        params: { type: 'all' },
+        timeout: 9000,
+      });
 
-  const activeStream =
-    streams.find((s) => s.id === activeStreamId) ||
-    streams[0] ||
-    DEFAULT_STREAMS[0];
-
-  // Helper to extract clean URL from pasted iframe or direct link
-  const extractStreamUrl = (input: string): string => {
-    const trimmed = input.trim();
-    if (!trimmed) return '';
-
-    // If iframe tag passed, extract src="..."
-    const srcMatch = trimmed.match(/src=["']([^"']+)["']/i);
-    if (srcMatch && srcMatch[1]) {
-      let url = srcMatch[1];
-      if (url.startsWith('//')) url = 'https:' + url;
-      return url;
-    }
-
-    // If direct link passed
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-      return trimmed;
-    }
-    if (trimmed.startsWith('//')) {
-      return 'https:' + trimmed;
-    }
-    if (trimmed.includes('.') && !trimmed.includes('<')) {
-      return 'https://' + trimmed;
-    }
-
-    return trimmed;
-  };
-
-  // Quick Start Stream from paste input
-  const handleStartStream = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-
-    const cleanUrl = extractStreamUrl(pasteInput);
-    if (!cleanUrl) {
-      toastError('Please paste a valid iframe code or stream URL.');
-      return;
-    }
-
-    const titleToUse =
-      customTitle.trim() ||
-      `Live Match Stream #${streams.length + 1}`;
-
-    const newStream: CricketStreamItem = {
-      id: `stream-${Date.now()}`,
-      title: titleToUse,
-      src: cleanUrl,
-      serverName: customServer.trim() || `Live Server ${streams.length + 1}`,
-      category: 'User Stream',
-      addedAt: new Date().toISOString(),
-    };
-
-    setStreams((prev) => [newStream, ...prev]);
-    setActiveStreamId(newStream.id);
-    setIsStreamPlaying(true);
-    setIsStreamLoading(true);
-    setPasteInput('');
-    setCustomTitle('');
-    setCustomServer('');
-    setIsAddModalOpen(false);
-    success(`Streaming "${newStream.title}" live now!`);
-  };
-
-  // Paste from system clipboard
-  const handlePasteClipboard = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        setPasteInput(text);
-        info('Pasted link from clipboard!');
+      if (res.data && Array.isArray(res.data.matches) && res.data.matches.length > 0) {
+        setMatches(res.data.matches);
+        setLastUpdated(new Date());
+        setSecondsAgo(0);
+        setIsLoading(false);
+        setIsRefreshing(false);
+        return;
       }
+    } catch (err) {
+      console.warn('Backend cricket endpoint error, trying live-scores fallback:', err);
+      try {
+        const res2 = await api.get('/cricket/live-scores', { timeout: 7000 });
+        if (res2.data && Array.isArray(res2.data.matches) && res2.data.matches.length > 0) {
+          setMatches(res2.data.matches);
+          setLastUpdated(new Date());
+          setSecondsAgo(0);
+          setIsLoading(false);
+          setIsRefreshing(false);
+          return;
+        }
+      } catch (err2) {
+        console.error('All cricket match endpoints failed:', err2);
+      }
+    }
+
+    setIsLoading(false);
+    setIsRefreshing(false);
+  }, []);
+
+  // Poll for updates every 30 seconds
+  useEffect(() => {
+    fetchMatches();
+    const pollInterval = setInterval(() => {
+      fetchMatches();
+    }, 30000);
+
+    const timer = setInterval(() => {
+      setSecondsAgo((prev) => prev + 1);
+    }, 1000);
+
+    return () => {
+      clearInterval(pollInterval);
+      clearInterval(timer);
+    };
+  }, [fetchMatches]);
+
+  // Statistics counts
+  const liveCount = useMemo(() => matches.filter((m) => m.status === 'LIVE').length, [matches]);
+  const upcomingCount = useMemo(() => matches.filter((m) => m.status === 'UPCOMING').length, [matches]);
+  const completedCount = useMemo(() => matches.filter((m) => m.status === 'COMPLETED').length, [matches]);
+
+  // Filtered matches
+  const filteredMatches = useMemo(() => {
+    return matches.filter((m) => {
+      // Category filter
+      if (selectedCategory !== 'ALL' && m.status !== selectedCategory) {
+        return false;
+      }
+
+      // Format filter
+      if (selectedFormat !== 'ALL') {
+        const fmt = (m.matchType || '').toLowerCase();
+        if (selectedFormat === 'T20' && !fmt.includes('t20')) return false;
+        if (selectedFormat === 'ODI' && !fmt.includes('odi')) return false;
+        if (selectedFormat === 'TEST' && !fmt.includes('test')) return false;
+      }
+
+      // Search query filter
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase().trim();
+        const inTitle = m.title.toLowerCase().includes(q);
+        const inTeam1 = m.team1.name.toLowerCase().includes(q);
+        const inTeam2 = m.team2.name.toLowerCase().includes(q);
+        const inVenue = (m.venue || '').toLowerCase().includes(q);
+        const inStatus = m.statusText.toLowerCase().includes(q);
+        return inTitle || inTeam1 || inTeam2 || inVenue || inStatus;
+      }
+
+      return true;
+    });
+  }, [matches, selectedCategory, selectedFormat, searchQuery]);
+
+  // Helper to format match kick-off date / time
+  const formatMatchTime = (dateTimeGMT?: string) => {
+    if (!dateTimeGMT) return '';
+    try {
+      const d = new Date(dateTimeGMT);
+      if (isNaN(d.getTime())) return dateTimeGMT;
+      return d.toLocaleString(undefined, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
     } catch {
-      toastError('Could not read from clipboard. Please paste manually.');
+      return dateTimeGMT;
     }
-  };
-
-  // Toggle fullscreen
-  const handleToggleFullscreen = () => {
-    if (!playerContainerRef.current) return;
-
-    if (!document.fullscreenElement) {
-      playerContainerRef.current
-        .requestFullscreen()
-        .catch((err) => console.error('Fullscreen request failed:', err));
-    } else {
-      document.exitFullscreen().catch((err) => console.error('Exit fullscreen failed:', err));
-    }
-  };
-
-  // Refresh current stream
-  const handleRefreshStream = () => {
-    setIsStreamLoading(true);
-    setRefreshKey((prev) => prev + 1);
-    info('Reloading live stream...');
-  };
-
-  // Copy active stream link or iframe
-  const handleCopyIframe = () => {
-    if (!activeStream) return;
-    const iframeCode = `<iframe src="${activeStream.src}" width="800" height="450" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
-    navigator.clipboard.writeText(iframeCode);
-    setCopiedLink(true);
-    success('Iframe code copied to clipboard!');
-    setTimeout(() => setCopiedLink(false), 2500);
-  };
-
-  // Delete stream
-  const handleDeleteStream = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (streams.length <= 1) {
-      toastError('You must keep at least one stream in the list.');
-      return;
-    }
-
-    const filtered = streams.filter((s) => s.id !== id);
-    setStreams(filtered);
-    if (activeStreamId === id) {
-      setActiveStreamId(filtered[0].id);
-      setIsStreamLoading(true);
-    }
-    success('Stream removed from list.');
-  };
-
-  // Reset to default NTV stream
-  const handleResetDefaults = () => {
-    setStreams(DEFAULT_STREAMS);
-    setActiveStreamId(DEFAULT_STREAMS[0].id);
-    setIsStreamLoading(true);
-    info('Reset to default Cricket Live stream.');
   };
 
   return (
-    <div className="space-y-6 animate-fade-in pb-12">
-      {/* Top Banner & Header */}
-      <div className="relative rounded-3xl bg-slate-900/80 border border-slate-800 shadow-2xl backdrop-blur-xl overflow-hidden p-6 sm:p-8">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
-          <div className="space-y-2">
+    <div className="space-y-6 animate-fade-in pb-16 max-w-7xl mx-auto">
+      {/* WORLD-CLASS BROADCAST HERO BANNER */}
+      <div className="relative rounded-3xl bg-slate-900/90 border border-slate-800 shadow-2xl backdrop-blur-xl overflow-hidden p-6 sm:p-8">
+        {/* Ambient Top Glow */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 via-brand-500 to-emerald-500 opacity-80" />
+
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 relative z-10">
+          <div className="space-y-2.5 max-w-2xl">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-black uppercase tracking-wider animate-pulse shadow-sm shadow-rose-500/20">
+              <span className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 text-xs font-black uppercase tracking-wider shadow-sm shadow-rose-500/20">
                 <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
                 <span className="w-2 h-2 rounded-full bg-rose-500 -ml-3.5" />
-                <span>CRICKET LIVE</span>
+                <span>CRICKET ARENA</span>
               </span>
 
-              <span className="px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 text-[11px] font-bold">
-                1080p Ultra HD
+              <span className="px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-300 border border-sky-500/30 text-[11px] font-bold flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-sky-400" />
+                <span>CricketData.org (CricAPI)</span>
               </span>
 
-              <span className="text-xs text-slate-400">
-                Live Broadcast Arena
+              <span className="text-xs text-slate-400 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-slate-500" />
+                <span>Auto-refresh 30s</span>
               </span>
             </div>
 
             <h1 className="text-2xl sm:text-4xl font-black text-white tracking-tight flex items-center gap-3">
-              <span>Cricket Live Arena</span>
+              <span>Cricket Match Center</span>
               <Flame className="w-7 h-7 text-amber-400 animate-bounce" />
             </h1>
 
-            <p className="text-xs sm:text-sm text-slate-300 max-w-2xl leading-relaxed">
-              Watch premier cricket tournaments, live series, and matches in real-time. Paste any stream iframe code or embed link below to start streaming any match live instantly!
+            <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              Explore official live scores, upcoming international fixtures, and recent match scorecards. Click on any match card to open the complete ball-by-ball scorecard inside this website.
             </p>
           </div>
 
-          {/* Quick Header Actions */}
-          <div className="flex items-center gap-2.5 flex-wrap">
-            <button
-              type="button"
-              onClick={() => setIsAddModalOpen(true)}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-rose-600/30 hover:shadow-rose-600/50 transition-all cursor-pointer active:scale-95"
-            >
-              <Plus className="w-4 h-4 stroke-[2.5]" />
-              <span>+ Paste Iframe / Stream</span>
-            </button>
+          {/* Quick Stats Summary & Refresh */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <div className="grid grid-cols-3 gap-2.5 bg-slate-950/70 p-2.5 rounded-2xl border border-slate-800 text-center">
+              <div className="px-3 py-1.5">
+                <div className="text-xs text-slate-400 font-semibold flex items-center justify-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
+                  <span>Live</span>
+                </div>
+                <div className="text-lg font-black text-rose-400">{liveCount}</div>
+              </div>
+
+              <div className="px-3 py-1.5 border-x border-slate-800">
+                <div className="text-xs text-slate-400 font-semibold flex items-center justify-center gap-1">
+                  <Calendar className="w-3 h-3 text-blue-400" />
+                  <span>Upcoming</span>
+                </div>
+                <div className="text-lg font-black text-blue-400">{upcomingCount}</div>
+              </div>
+
+              <div className="px-3 py-1.5">
+                <div className="text-xs text-slate-400 font-semibold flex items-center justify-center gap-1">
+                  <Trophy className="w-3 h-3 text-emerald-400" />
+                  <span>Results</span>
+                </div>
+                <div className="text-lg font-black text-emerald-400">{completedCount}</div>
+              </div>
+            </div>
 
             <button
               type="button"
-              onClick={() => setIsTheaterMode(!isTheaterMode)}
-              className={`flex items-center gap-2 px-3.5 py-2.5 rounded-2xl border text-xs sm:text-sm font-bold transition cursor-pointer active:scale-95 ${
-                isTheaterMode
-                  ? 'bg-brand-500/20 text-brand-300 border-brand-500/50 shadow-md shadow-brand-500/20'
-                  : 'bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border-slate-700'
-              }`}
-              title="Toggle Theater Mode"
+              onClick={() => fetchMatches(true)}
+              disabled={isRefreshing}
+              className="flex items-center justify-center gap-2 px-4 py-3 rounded-2xl bg-slate-800 hover:bg-slate-750 active:scale-95 text-slate-200 hover:text-white border border-slate-700 text-xs sm:text-sm font-bold transition cursor-pointer shadow-lg disabled:opacity-50 shrink-0"
+              title="Refresh cricket matches data"
             >
-              {isTheaterMode ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-              <span className="hidden sm:inline">{isTheaterMode ? 'Standard View' : 'Theater Mode'}</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleRefreshStream}
-              className="p-2.5 rounded-2xl bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer active:scale-95"
-              title="Refresh Live Stream"
-            >
-              <RotateCw className="w-4 h-4" />
+              <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-brand-400' : ''}`} />
+              <span>{secondsAgo < 5 ? 'Just updated' : `${secondsAgo}s ago`}</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* QUICK PASTE BAR (Instant Live Stream Launcher) */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-slate-900/90 border border-slate-800 shadow-xl backdrop-blur-xl">
-        <form onSubmit={handleStartStream} className="flex flex-col md:flex-row items-center gap-3">
-          <div className="relative flex-1 w-full">
-            <Radio className="w-4 h-4 text-rose-400 absolute left-4 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={pasteInput}
-              onChange={(e) => setPasteInput(e.target.value)}
-              placeholder='Paste iframe code (<iframe src="...">) or stream URL to watch live...'
-              className="w-full bg-slate-950/80 border border-slate-700/80 rounded-2xl pl-11 pr-24 py-3 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition shadow-inner"
-            />
-            <button
-              type="button"
-              onClick={handlePasteClipboard}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-semibold border border-slate-700 transition cursor-pointer"
-              title="Paste from clipboard"
-            >
-              <Clipboard className="w-3 h-3" />
-              <span>Paste</span>
-            </button>
-          </div>
+      {/* FILTER CONTROLS & SEARCH BAR */}
+      <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 bg-slate-900/70 p-4 rounded-3xl border border-slate-800/80 backdrop-blur-xl">
+        {/* Category Filter Segments */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-950/80 rounded-2xl border border-slate-800 overflow-x-auto text-xs font-bold scrollbar-none">
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('ALL')}
+            className={`px-3.5 py-2 rounded-xl transition-all cursor-pointer whitespace-nowrap ${
+              selectedCategory === 'ALL'
+                ? 'bg-gradient-to-r from-brand-600 to-indigo-600 text-white shadow-md shadow-brand-500/25'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            All Matches ({matches.length})
+          </button>
 
           <button
-            type="submit"
-            className="w-full md:w-auto flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-gradient-to-r from-rose-600 via-pink-600 to-rose-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs sm:text-sm font-extrabold shadow-lg shadow-rose-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
+            type="button"
+            onClick={() => setSelectedCategory('LIVE')}
+            className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              selectedCategory === 'LIVE'
+                ? 'bg-gradient-to-r from-rose-600 to-red-600 text-white shadow-md shadow-rose-500/25'
+                : 'text-slate-400 hover:text-white'
+            }`}
           >
-            <Play className="w-4 h-4 fill-white" />
-            <span>Start Stream Live</span>
+            <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping" />
+            <span>Live Now ({liveCount})</span>
           </button>
-        </form>
-      </div>
 
-      {/* LIVE CRICKET SCORES SECTION */}
-      <CricketScoresBar
-        onSelectMatch={setSelectedMatch}
-        selectedMatchId={selectedMatch?.id}
-        onOpenScorecard={setScorecardMatch}
-      />
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('UPCOMING')}
+            className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              selectedCategory === 'UPCOMING'
+                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white shadow-md shadow-blue-500/25'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Calendar className="w-3.5 h-3.5" />
+            <span>Upcoming Fixtures ({upcomingCount})</span>
+          </button>
 
-      {/* MAIN STREAMING ARENA */}
-      <div
-        ref={playerContainerRef}
-        className={`relative rounded-3xl bg-slate-950 border border-slate-800/90 shadow-2xl overflow-hidden transition-all duration-300 ${
-          isTheaterMode ? 'max-w-none w-full' : 'w-full'
-        }`}
-      >
-        {/* PINNED MATCH SCORECARD BANNER (if a match is selected) */}
-        {selectedMatch && (
-          <div className="px-4 sm:px-6 py-2.5 bg-gradient-to-r from-slate-900 via-rose-950/30 to-slate-900 border-b border-rose-500/30 flex flex-wrap items-center justify-between gap-3 text-xs relative z-10">
-            <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-extrabold border border-rose-500/40 text-[10px] tracking-wide uppercase">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>
-                <span>{selectedMatch.status} SCORECARD</span>
-              </span>
-
-              <div className="flex items-center gap-2 font-bold text-white text-xs sm:text-sm">
-                <span className={selectedMatch.team1.isBatting ? 'text-amber-300' : 'text-slate-200'}>
-                  {selectedMatch.team1.name}
-                  {selectedMatch.team1.score && (
-                    <strong className="ml-1.5 font-mono text-white bg-slate-800/80 px-2 py-0.5 rounded-lg border border-slate-700">
-                      {selectedMatch.team1.score}
-                      {selectedMatch.team1.isBatting && <span className="text-rose-400 ml-0.5">*</span>}
-                    </strong>
-                  )}
-                </span>
-
-                <span className="text-slate-500 text-xs font-semibold">vs</span>
-
-                <span className={selectedMatch.team2.isBatting ? 'text-amber-300' : 'text-slate-200'}>
-                  {selectedMatch.team2.name}
-                  {selectedMatch.team2.score && (
-                    <strong className="ml-1.5 font-mono text-white bg-slate-800/80 px-2 py-0.5 rounded-lg border border-slate-700">
-                      {selectedMatch.team2.score}
-                      {selectedMatch.team2.isBatting && <span className="text-rose-400 ml-0.5">*</span>}
-                    </strong>
-                  )}
-                </span>
-              </div>
-
-              <span className="hidden lg:inline text-[11px] text-slate-400">
-                • {selectedMatch.statusText}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              <button
-                type="button"
-                onClick={() => setScorecardMatch(selectedMatch)}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-500/20 hover:bg-brand-500/30 text-brand-300 border border-brand-500/40 text-xs font-bold transition cursor-pointer"
-                title="View full detailed scorecard in this website"
-              >
-                <span>Full Scorecard</span>
-              </button>
-
-              <a
-                href={selectedMatch.cricinfoLink}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-slate-200 transition underline"
-              >
-                <span>Cricinfo</span>
-                <ExternalLink className="w-2.5 h-2.5" />
-              </a>
-
-              <button
-                type="button"
-                onClick={() => setSelectedMatch(null)}
-                className="p-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
-                title="Unpin score banner"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Live Player Bar */}
-        <div className="px-4 sm:px-6 py-3.5 bg-slate-900/90 border-b border-slate-800 flex flex-wrap items-center justify-between gap-3 relative z-10">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="flex h-2.5 w-2.5 relative shrink-0">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-rose-500"></span>
-            </span>
-
-            <div className="min-w-0">
-              <h2 className="text-sm sm:text-base font-bold text-white truncate flex items-center gap-2">
-                <span>{activeStream.title}</span>
-                {activeStream.isDefault && (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-500/20 text-brand-300 border border-brand-500/30">
-                    Official Feed
-                  </span>
-                )}
-              </h2>
-              <p className="text-[11px] text-slate-400 flex items-center gap-2">
-                <span>{activeStream.serverName || 'Live Stream'}</span>
-                <span>•</span>
-                <span className="text-emerald-400 font-medium">Active Stream Online</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Player Bar Controls */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Ad Shield Mode Selector */}
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setShowShieldDropdown(!showShieldDropdown)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer ${
-                  adShieldMode === 'off'
-                    ? 'bg-slate-800 text-emerald-300 border-emerald-500/40 hover:bg-slate-750'
-                    : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/50'
-                }`}
-                title="Ad Shield & Popup Settings"
-              >
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="hidden sm:inline">
-                  {adShieldMode === 'off' ? 'Ad Shield: Direct Play' : adShieldMode === 'balanced' ? 'Ad Shield: Sandboxed' : 'Ad Shield: Strict'}
-                </span>
-                <span className="sm:hidden">Shield</span>
-              </button>
-
-              {/* Shield Dropdown Menu */}
-              {showShieldDropdown && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-slate-900 border border-slate-700 rounded-2xl shadow-2xl p-3.5 z-30 space-y-2.5 text-xs">
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
-                    <span className="font-bold text-white flex items-center gap-1.5">
-                      <Shield className="w-4 h-4 text-emerald-400" />
-                      <span>Ad & Playback Shield Settings</span>
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowShieldDropdown(false)}
-                      className="p-1 text-slate-400 hover:text-white"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  <p className="text-[11px] text-slate-400 leading-relaxed">
-                    Some free stream networks (like NTV) intentionally check for sandboxes and refuse to stream if blocked. Choose the mode that works best for your current match:
-                  </p>
-
-                  <div className="space-y-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAdShieldMode('off');
-                        setShowShieldDropdown(false);
-                        success('Direct Play Mode: Maximum stream compatibility enabled.');
-                      }}
-                      className={`w-full text-left p-2.5 rounded-xl transition flex flex-col gap-0.5 cursor-pointer ${
-                        adShieldMode === 'off'
-                          ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                      }`}
-                    >
-                      <span className="font-bold flex items-center justify-between text-xs">
-                        <span>▶️ Direct Play (Recommended for NTV)</span>
-                        {adShieldMode === 'off' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        Ensures video streams play smoothly without &quot;Embedding Not Allowed&quot; provider errors.
-                      </span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAdShieldMode('balanced');
-                        setShowShieldDropdown(false);
-                        info('Sandboxed Mode: Popups & redirects blocked.');
-                      }}
-                      className={`w-full text-left p-2.5 rounded-xl transition flex flex-col gap-0.5 cursor-pointer ${
-                        adShieldMode === 'balanced'
-                          ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/40'
-                          : 'bg-slate-800 hover:bg-slate-700 text-slate-300'
-                      }`}
-                    >
-                      <span className="font-bold flex items-center justify-between text-xs">
-                        <span>🛡️ Sandboxed Mode (Blocks Popups)</span>
-                        {adShieldMode === 'balanced' && <Check className="w-3.5 h-3.5 text-emerald-400" />}
-                      </span>
-                      <span className="text-[10px] text-slate-400">
-                        Restricts popups and redirects. (Note: May cause some free stream embeds to stop).
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Start / Stop Stream Toggle Button */}
-            <button
-              type="button"
-              onClick={() => {
-                const nextState = !isStreamPlaying;
-                setIsStreamPlaying(nextState);
-                if (nextState) {
-                  setIsStreamLoading(true);
-                  success('Live Stream Started');
-                } else {
-                  info('Live Stream Stopped');
-                }
-              }}
-              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-xs font-bold transition cursor-pointer active:scale-95 ${
-                isStreamPlaying
-                  ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 hover:bg-rose-500/30'
-                  : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30'
-              }`}
-              title={isStreamPlaying ? 'Stop live stream playback' : 'Start live stream'}
-            >
-              {isStreamPlaying ? (
-                <>
-                  <Square className="w-3.5 h-3.5 fill-current" />
-                  <span>Stop Stream</span>
-                </>
-              ) : (
-                <>
-                  <Play className="w-3.5 h-3.5 fill-current" />
-                  <span>Start Stream</span>
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={handleRefreshStream}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition cursor-pointer"
-              title="Refresh stream / Clear overlays"
-            >
-              <RotateCw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Refresh</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={handleCopyIframe}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition cursor-pointer"
-              title="Copy embed code"
-            >
-              {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{copiedLink ? 'Copied' : 'Share'}</span>
-            </button>
-
-            <a
-              href={activeStream.src}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold border border-slate-700 transition cursor-pointer"
-              title="Open stream in external tab"
-            >
-              <ExternalLink className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Pop-out</span>
-            </a>
-
-            <button
-              type="button"
-              onClick={handleToggleFullscreen}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer"
-              title="Fullscreen"
-            >
-              <Maximize2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('COMPLETED')}
+            className={`px-3.5 py-2 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              selectedCategory === 'COMPLETED'
+                ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-500/25'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            <Trophy className="w-3.5 h-3.5" />
+            <span>Completed Results ({completedCount})</span>
+          </button>
         </div>
 
-        {/* Video Player Canvas (16:9 Cinema Container) */}
-        <div className="relative w-full aspect-video bg-black flex items-center justify-center overflow-hidden">
-          {isStreamPlaying ? (
-            <>
-              {/* Buffering / Loading Overlay */}
-              {isStreamLoading && (
-                <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/80 backdrop-blur-sm space-y-3 pointer-events-none">
-                  <div className="w-12 h-12 border-4 border-rose-500/30 border-t-rose-500 rounded-full animate-spin" />
-                  <p className="text-xs sm:text-sm font-semibold text-slate-300">
-                    Connecting to live cricket stream...
-                  </p>
-                </div>
-              )}
-
-              {/* Embedded Live Iframe with Sandboxed Anti-Popup Ad Shield */}
-              <iframe
-                key={`${activeStream.id}-${refreshKey}-${adShieldMode}`}
-                ref={iframeRef}
-                src={activeStream.src}
-                title={activeStream.title}
-                className="w-full h-full border-0"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-                allowFullScreen
-                referrerPolicy="no-referrer"
-                sandbox={getSandboxString()}
-                onLoad={() => setIsStreamLoading(false)}
-              />
-            </>
-          ) : (
-            /* STREAM IN STANDBY (STOPPED) SCREEN */
-            <div className="flex flex-col items-center justify-center p-6 text-center space-y-4 max-w-md animate-in fade-in duration-200">
-              <div className="w-16 h-16 rounded-3xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-400 shadow-2xl">
-                <Play className="w-8 h-8 ml-1 text-emerald-400" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-base sm:text-lg font-extrabold text-white">
-                  Stream In Standby (Stopped)
-                </h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
-                  Video and audio playback are stopped to conserve bandwidth and reduce background resource usage. Click below to start playing anytime.
-                </p>
-              </div>
+        {/* Format Filter & Search */}
+        <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
+          {/* Format pills */}
+          <div className="flex items-center bg-slate-950/80 p-1 rounded-2xl border border-slate-800 text-[11px] font-bold">
+            {(['ALL', 'T20', 'ODI', 'TEST'] as const).map((fmt) => (
               <button
+                key={fmt}
                 type="button"
-                onClick={() => {
-                  setIsStreamPlaying(true);
-                  setIsStreamLoading(true);
-                  success('Live Stream Started');
-                }}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-emerald-600/30 transition-all cursor-pointer active:scale-95"
+                onClick={() => setSelectedFormat(fmt)}
+                className={`px-2.5 py-1.5 rounded-xl transition cursor-pointer ${
+                  selectedFormat === fmt
+                    ? 'bg-slate-800 text-brand-300 border border-brand-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-white'
+                }`}
               >
-                <Play className="w-4 h-4 fill-white" />
-                <span>Start Stream Live</span>
+                {fmt === 'ALL' ? 'All Formats' : fmt}
               </button>
-            </div>
+            ))}
+          </div>
+
+          {/* Search Box */}
+          <div className="relative flex-1 sm:w-64">
+            <Search className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search team, venue, series..."
+              className="w-full bg-slate-950/90 border border-slate-700/80 rounded-2xl pl-10 pr-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-brand-500 transition shadow-inner"
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* MATCH CARDS ARENA GRID */}
+      {isLoading ? (
+        <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
+          <RotateCw className="w-8 h-8 animate-spin text-brand-400" />
+          <p className="text-sm font-bold text-slate-300">Fetching live cricket scores & fixtures from CricketData.org...</p>
+          <p className="text-xs text-slate-500">Live ball-by-ball scorecards, schedules, and tournament tables</p>
+        </div>
+      ) : filteredMatches.length === 0 ? (
+        <div className="text-center py-16 px-4 bg-slate-900/60 rounded-3xl border border-slate-800/80 space-y-3">
+          <AlertCircle className="w-10 h-10 text-slate-500 mx-auto" />
+          <h3 className="text-lg font-bold text-white">No matches found</h3>
+          <p className="text-xs text-slate-400 max-w-md mx-auto">
+            {searchQuery
+              ? `No matches matching "${searchQuery}". Try searching for another team or clear filters.`
+              : 'There are currently no matches available in this selected filter.'}
+          </p>
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="px-4 py-2 rounded-xl bg-slate-800 text-brand-300 text-xs font-bold border border-slate-700 hover:bg-slate-750 transition cursor-pointer"
+            >
+              Clear Search
+            </button>
           )}
         </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filteredMatches.map((match) => {
+            const isLive = match.status === 'LIVE';
+            const isCompleted = match.status === 'COMPLETED';
+            const isUpcoming = match.status === 'UPCOMING';
 
-        {/* Player Footer Notification / Tips */}
-        <div className="px-4 sm:px-6 py-3 bg-slate-900/60 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>
-              <strong className="text-emerald-300">Live Stream Online:</strong> If an ad overlay appears, click once to dismiss the transparent overlay, then click play to watch.
-            </span>
-          </div>
+            const t1Abbr = match.team1.shortName || getTeamAbbr(match.team1.name);
+            const t2Abbr = match.team2.shortName || getTeamAbbr(match.team2.name);
+            const t1Style = getTeamBadgeStyle(match.team1.name);
+            const t2Style = getTeamBadgeStyle(match.team2.name);
 
-          <div className="flex items-center gap-3">
-            <span>Stream Source: <strong className="text-slate-300">{new URL(activeStream.src).hostname || 'Live Embed'}</strong></span>
-          </div>
-        </div>
-      </div>
-
-      {/* AD BLOCKING & STREAM VIEWING GUIDE */}
-      <div className="p-4 sm:p-5 rounded-3xl bg-slate-900/70 border border-slate-800/80 shadow-lg backdrop-blur-md space-y-3">
-        <div className="flex items-center gap-2 text-rose-300 font-bold text-xs sm:text-sm">
-          <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
-          <span>How to Block 100% of Ads on Free Cricket Streams</span>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs text-slate-300">
-          <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1.5">
-            <div className="font-bold text-white flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">1</span>
-              <span>Use uBlock Origin (Best Solution)</span>
-            </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Install the free <a href="https://ublockorigin.com" target="_blank" rel="noopener noreferrer" className="text-brand-400 underline font-semibold">uBlock Origin extension</a> for Chrome/Firefox/Edge. It blocks third-party ad networks at the network level so zero popups or banners appear while the match plays flawlessly.
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1.5">
-            <div className="font-bold text-white flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">2</span>
-              <span>Brave Browser / AdGuard DNS</span>
-            </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              If watching on mobile or desktop, opening the app in <strong className="text-white">Brave Browser</strong> blocks 100% of stream popups and video ads automatically with built-in Brave Shields.
-            </p>
-          </div>
-
-          <div className="p-3.5 rounded-2xl bg-slate-950/60 border border-slate-800 space-y-1.5">
-            <div className="font-bold text-white flex items-center gap-1.5">
-              <span className="w-5 h-5 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-[10px] font-bold">3</span>
-              <span>Two-Click Trap Dismissal</span>
-            </div>
-            <p className="text-[11px] text-slate-400 leading-relaxed">
-              Free stream embeds place a transparent overlay on the screen. Clicking once dismisses the invisible ad overlay. Then click the video play button to start audio and video.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* MODAL: ADD / PASTE NEW STREAM */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-fade-in overflow-y-auto">
-          <div className="relative w-full max-w-xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col my-6">
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/90">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 flex items-center justify-center">
-                  <Radio className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-white">
-                    Add Live Cricket Stream
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Paste an iframe tag or direct stream URL
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+            return (
+              <div
+                key={match.id}
+                onClick={() => setScorecardMatch(match)}
+                className={`group relative rounded-3xl p-5 transition-all duration-300 cursor-pointer border flex flex-col justify-between overflow-hidden ${
+                  isLive
+                    ? 'bg-gradient-to-b from-slate-900 via-slate-950 to-slate-950 border-rose-500/40 hover:border-rose-500 hover:shadow-2xl hover:shadow-rose-500/10'
+                    : isCompleted
+                    ? 'bg-gradient-to-b from-slate-900/80 via-slate-950 to-slate-950 border-slate-800/90 hover:border-slate-700 hover:shadow-xl'
+                    : 'bg-gradient-to-b from-slate-900/80 via-slate-950 to-slate-950 border-blue-500/30 hover:border-blue-500/60 hover:shadow-xl'
+                }`}
               >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
+                {/* Subtle Top Accent Glow */}
+                <div
+                  className={`absolute top-0 left-0 right-0 h-1 transition-all ${
+                    isLive
+                      ? 'bg-gradient-to-r from-rose-500 via-red-500 to-rose-500'
+                      : isCompleted
+                      ? 'bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500'
+                      : 'bg-gradient-to-r from-blue-500 via-cyan-500 to-blue-500'
+                  }`}
+                />
 
-            {/* Modal Body */}
-            <form onSubmit={handleStartStream} className="p-6 space-y-4">
-              {/* Iframe / URL Input */}
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-200">
-                    Iframe Code or Stream Link <span className="text-rose-400">*</span>
-                  </label>
+                {/* Card Top: Match Type, Status Badge, Venue */}
+                <div className="space-y-2 pb-3.5 border-b border-slate-800/80">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      {/* Format Badge */}
+                      <span className="px-2.5 py-0.5 rounded-lg bg-slate-800 text-brand-300 font-mono text-[10px] font-black uppercase tracking-wider border border-slate-700">
+                        {match.matchType?.toUpperCase() || 'MATCH'}
+                      </span>
+
+                      {/* Status Badge */}
+                      {isLive ? (
+                        <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/20 text-rose-300 font-black border border-rose-500/40 text-[10px] tracking-wider shadow-sm animate-pulse">
+                          <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping" />
+                          <span>LIVE NOW</span>
+                        </span>
+                      ) : isCompleted ? (
+                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-300 font-black border border-emerald-500/30 text-[10px] tracking-wider">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>FINAL RESULT</span>
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-300 font-black border border-blue-500/30 text-[10px] tracking-wider">
+                          <Clock className="w-3 h-3" />
+                          <span>UPCOMING</span>
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Scheduled time or date */}
+                    <span className="text-[11px] text-slate-400 font-medium">
+                      {formatMatchTime(match.dateTimeGMT)}
+                    </span>
+                  </div>
+
+                  {/* Series / Match Title */}
+                  <h3 className="text-xs font-bold text-slate-300 truncate" title={match.title}>
+                    {match.title}
+                  </h3>
+
+                  {match.venue && (
+                    <p className="text-[11px] text-slate-400 flex items-center gap-1 truncate">
+                      <MapPin className="w-3 h-3 text-slate-500 shrink-0" />
+                      <span className="truncate">{match.venue}</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Middle: Teams & Scores */}
+                <div className="py-4 space-y-3">
+                  {/* Team 1 */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${t1Style}`}
+                      >
+                        {t1Abbr.slice(0, 4)}
+                      </div>
+                      <span
+                        className={`text-sm font-black truncate ${
+                          match.team1.isBatting ? 'text-amber-300' : 'text-white'
+                        }`}
+                        title={match.team1.name}
+                      >
+                        {match.team1.name}
+                      </span>
+                    </div>
+
+                    <div className="text-right shrink-0 font-mono">
+                      {match.team1.score ? (
+                        <span className="text-sm sm:text-base font-black text-white flex items-center gap-1">
+                          <span>{match.team1.score}</span>
+                          {match.team1.isBatting && (
+                            <span className="text-rose-400 font-black text-xs animate-ping">*</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-500 font-medium">
+                          {isUpcoming ? 'Scheduled' : 'Yet to bat'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Team 2 */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-9 h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${t2Style}`}
+                      >
+                        {t2Abbr.slice(0, 4)}
+                      </div>
+                      <span
+                        className={`text-sm font-black truncate ${
+                          match.team2.isBatting ? 'text-amber-300' : 'text-white'
+                        }`}
+                        title={match.team2.name}
+                      >
+                        {match.team2.name}
+                      </span>
+                    </div>
+
+                    <div className="text-right shrink-0 font-mono">
+                      {match.team2.score ? (
+                        <span className="text-sm sm:text-base font-black text-white flex items-center gap-1">
+                          <span>{match.team2.score}</span>
+                          {match.team2.isBatting && (
+                            <span className="text-rose-400 font-black text-xs animate-ping">*</span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-slate-500 font-medium">
+                          {isUpcoming ? 'Scheduled' : 'Yet to bat'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Status Text Banner */}
+                <div className="mt-1 pt-3 border-t border-slate-800/80 space-y-3">
+                  <div
+                    className={`px-3 py-2 rounded-xl text-xs font-bold leading-snug flex items-center gap-2 ${
+                      isLive
+                        ? 'bg-rose-500/15 text-rose-200 border border-rose-500/30'
+                        : isCompleted
+                        ? 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/30'
+                        : 'bg-blue-500/15 text-blue-200 border border-blue-500/30'
+                    }`}
+                  >
+                    <span className="truncate">{match.statusText}</span>
+                  </div>
+
+                  {/* Action Button: View Full Scorecard */}
                   <button
                     type="button"
-                    onClick={handlePasteClipboard}
-                    className="text-[11px] text-brand-400 hover:text-brand-300 font-semibold flex items-center gap-1 cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setScorecardMatch(match);
+                    }}
+                    className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-800/90 group-hover:bg-brand-600 text-slate-200 group-hover:text-white border border-slate-700 group-hover:border-brand-500 text-xs font-extrabold transition-all duration-200 cursor-pointer shadow-sm active:scale-98"
                   >
-                    <Clipboard className="w-3 h-3" />
-                    <span>Paste from Clipboard</span>
+                    <span>{isUpcoming ? 'Match Preview & Details' : 'View Full Scorecard'}</span>
+                    <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                   </button>
                 </div>
-
-                <textarea
-                  rows={4}
-                  value={pasteInput}
-                  onChange={(e) => setPasteInput(e.target.value)}
-                  placeholder={`Example:\n<iframe src="https://ntv.cx/embed?t=..." width="800" height="450" allowfullscreen></iframe>\n\nOr direct link: https://ntv.cx/embed?...`}
-                  className="w-full bg-slate-950/90 border border-slate-700/80 rounded-2xl p-3.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition font-mono leading-relaxed resize-none"
-                  required
-                />
-                <p className="text-[11px] text-slate-500">
-                  We automatically extract the streaming embed URL from your iframe code.
-                </p>
               </div>
-
-              {/* Match Title */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-200">
-                  Match Title / Channel Name (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={customTitle}
-                  onChange={(e) => setCustomTitle(e.target.value)}
-                  placeholder="e.g. India vs Australia - Live Match 1"
-                  className="w-full bg-slate-950/80 border border-slate-700/80 rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition"
-                />
-              </div>
-
-              {/* Server / Provider Label */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-200">
-                  Server / Quality Tag (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={customServer}
-                  onChange={(e) => setCustomServer(e.target.value)}
-                  placeholder="e.g. Server 2 HD, English Audio, Hindi Commentary"
-                  className="w-full bg-slate-950/80 border border-slate-700/80 rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-rose-500 transition"
-                />
-              </div>
-
-              {/* Modal Actions */}
-              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-800">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 rounded-2xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-bold transition cursor-pointer"
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold shadow-lg shadow-rose-600/30 transition cursor-pointer"
-                >
-                  <Play className="w-3.5 h-3.5 fill-white" />
-                  <span>Start Streaming Live</span>
-                </button>
-              </div>
-            </form>
-          </div>
+            );
+          })}
         </div>
       )}
 
-      {/* IN-WEBSITE FULL SCORECARD MODAL */}
+      {/* FULL IN-WEBSITE SCORECARD MODAL */}
       <CricketScorecardModal
         match={scorecardMatch}
         onClose={() => setScorecardMatch(null)}
-        onPinToStream={setSelectedMatch}
-        isPinned={selectedMatch?.id === scorecardMatch?.id}
       />
     </div>
   );
 };
+export default CricketLivePage;

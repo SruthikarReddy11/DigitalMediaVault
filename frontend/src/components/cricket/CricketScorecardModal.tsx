@@ -298,22 +298,6 @@ export const CricketScorecardModal: React.FC<CricketScorecardModalProps> = ({
                 <RotateCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-brand-400' : ''}`} />
               </button>
 
-              {onPinToStream && (
-                <button
-                  type="button"
-                  onClick={() => onPinToStream(match)}
-                  className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold transition border cursor-pointer ${
-                    isPinned
-                      ? 'bg-brand-500/20 text-brand-300 border-brand-500/50'
-                      : 'bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white border-slate-700'
-                  }`}
-                  title="Pin this live score HUD directly above the stream player"
-                >
-                  <Pin className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{isPinned ? 'Pinned' : 'Pin to Video'}</span>
-                </button>
-              )}
-
               <button
                 type="button"
                 onClick={onClose}
@@ -517,6 +501,50 @@ export const CricketScorecardModal: React.FC<CricketScorecardModalProps> = ({
                       {scorecard?.status || match.statusText}
                     </span>
                   </div>
+                </div>
+              </div>
+            </div>
+          ) : match.status === 'UPCOMING' && (!currentInnings || (currentInnings.runs === 0 && currentInnings.wickets === 0)) ? (
+            <div className="p-8 sm:p-12 rounded-3xl bg-gradient-to-b from-slate-900 to-slate-950 border border-slate-800 text-center space-y-6">
+              <div className="w-16 h-16 rounded-3xl bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center mx-auto shadow-xl shadow-blue-500/10">
+                <Calendar className="w-8 h-8" />
+              </div>
+
+              <div className="space-y-2 max-w-md mx-auto">
+                <span className="px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-black uppercase tracking-wider border border-blue-500/30">
+                  Upcoming Match Fixture
+                </span>
+                <h3 className="text-xl sm:text-2xl font-black text-white">
+                  Match Has Not Started Yet
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
+                  The official ball-by-ball scorecard and real-time live commentary will be activated as soon as the toss is conducted and the first ball is bowled.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl mx-auto text-left">
+                <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+                  <div className="text-[11px] text-slate-500 font-bold uppercase">Scheduled Time</div>
+                  <div className="text-sm font-black text-white mt-1">
+                    {match.dateTimeGMT ? new Date(match.dateTimeGMT).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'TBD'}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">
+                    {match.dateTimeGMT ? new Date(match.dateTimeGMT).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' }) : ''}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+                  <div className="text-[11px] text-slate-500 font-bold uppercase">Toss Status</div>
+                  <div className="text-sm font-black text-amber-300 mt-1">Pending</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">30 mins prior to start</div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-slate-950/60 border border-slate-800/80">
+                  <div className="text-[11px] text-slate-500 font-bold uppercase">Venue / Pitch</div>
+                  <div className="text-sm font-black text-white mt-1 truncate" title={match.venue}>
+                    {match.venue || 'International Stadium'}
+                  </div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Pitch inspection clear</div>
                 </div>
               </div>
             </div>
@@ -797,7 +825,7 @@ export const CricketScorecardModal: React.FC<CricketScorecardModalProps> = ({
           <div className="text-slate-400 flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
             <span className="font-semibold text-slate-300">
-              ESPN / Cricbuzz Live Match Engine Active
+              CricketData.org (CricAPI) Engine Active
             </span>
           </div>
 

@@ -15,19 +15,26 @@ import { api } from '../../services/api';
 
 export interface CricketTeamScore {
   name: string;
+  shortName?: string;
+  img?: string;
   score: string;
+  overs?: string;
   isBatting: boolean;
 }
 
 export interface CricketMatch {
   id: string;
   title: string;
-  team1: CricketTeamScore;
-  team2: CricketTeamScore;
+  matchType?: string;
   status: 'LIVE' | 'COMPLETED' | 'UPCOMING';
   statusText: string;
-  cricinfoLink: string;
+  venue?: string;
+  dateTimeGMT?: string;
+  cricinfoLink?: string;
   pubDate?: string;
+  hasScorecard?: boolean;
+  team1: CricketTeamScore;
+  team2: CricketTeamScore;
 }
 
 interface CricketScoresBarProps {
@@ -160,7 +167,7 @@ export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
   const fetchScores = useCallback(async (manual = false) => {
     if (manual) setIsRefreshing(true);
     try {
-      const res = await api.get('/cricket/live-scores', { timeout: 6000 });
+      const res = await api.get('/cricket/matches', { params: { type: 'all' }, timeout: 8000 });
       if (res.data && Array.isArray(res.data.matches) && res.data.matches.length > 0) {
         setMatches(res.data.matches);
         setLastUpdatedTime(new Date());
@@ -170,7 +177,20 @@ export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
         return;
       }
     } catch {
-      // Backend failed, try fallback
+      // Try backwards compatible live-scores endpoint
+      try {
+        const res2 = await api.get('/cricket/live-scores', { timeout: 6000 });
+        if (res2.data && Array.isArray(res2.data.matches) && res2.data.matches.length > 0) {
+          setMatches(res2.data.matches);
+          setLastUpdatedTime(new Date());
+          setSecondsAgo(0);
+          setIsLoading(false);
+          setIsRefreshing(false);
+          return;
+        }
+      } catch {
+        // Fallback below
+      }
     }
 
     // 2. Client-side fallback via CORS proxy
@@ -264,6 +284,8 @@ export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
   });
 
   const liveCount = matches.filter((m) => m.status === 'LIVE').length;
+  const upcomingCount = matches.filter((m) => m.status === 'UPCOMING').length;
+  const completedCount = matches.filter((m) => m.status === 'COMPLETED').length;
 
   return (
     <div className="w-full bg-gradient-to-b from-slate-900/90 via-slate-950/95 to-slate-950 border border-slate-800/90 rounded-3xl p-4 sm:p-5 shadow-2xl backdrop-blur-xl space-y-4">
@@ -276,7 +298,7 @@ export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
           <div>
             <div className="flex items-center gap-2.5">
               <h3 className="text-sm sm:text-base font-black text-white tracking-tight flex items-center gap-2">
-                <span>Live Match Arena</span>
+                <span>Cricket Match Arena</span>
                 <span className="flex h-2.5 w-2.5 relative">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
@@ -289,9 +311,9 @@ export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
               )}
             </div>
             <p className="text-[11px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-              <span>Real-time ball-by-ball coverage</span>
+              <span>CricketData.org Powered</span>
               <span>•</span>
-              <span className="text-slate-500">Auto-refresh 30s</span>
+              <span className="text-slate-500">Live, Upcoming & Results</span>
             </p>
           </div>
         </div>
@@ -325,6 +347,17 @@ export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => setFilter('UPCOMING')}
+              className={`px-3 py-1.5 rounded-xl transition cursor-pointer ${
+                filter === 'UPCOMING'
+                  ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Upcoming ({upcomingCount})
+            </button>
+            <button
+              type="button"
               onClick={() => setFilter('COMPLETED')}
               className={`px-3 py-1.5 rounded-xl transition cursor-pointer ${
                 filter === 'COMPLETED'
@@ -332,7 +365,7 @@ export const CricketScoresBar: React.FC<CricketScoresBarProps> = ({
                   : 'text-slate-400 hover:text-white'
               }`}
             >
-              Results
+              Results ({completedCount})
             </button>
           </div>
 
