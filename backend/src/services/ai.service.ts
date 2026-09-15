@@ -43,10 +43,20 @@ export class AiService {
         return geminiResult;
       } catch (err: any) {
         console.error('Gemini processing failed, attempting local rule fallback:', err.message);
+        // If a specific local command matches (music, cricket, etc.), execute it locally
+        const localResult = await this.processPromptLocally(text, user);
+        if (localResult.action !== 'GENERAL_CHAT') {
+          return localResult;
+        }
+        // If casual conversation or non-rule prompt failed
+        return {
+          action: 'GENERAL_CHAT',
+          reply: `⚠️ I had trouble connecting to Gemini AI right now: ${err.message || 'Service temporarily unavailable'}. Please try again in a moment.`,
+        };
       }
     }
 
-    // 2. LOCAL RULE FALLBACK (used if GEMINI_API_KEY is not configured or during network error)
+    // 2. LOCAL RULE FALLBACK (used when GEMINI_API_KEY is not configured)
     return this.processPromptLocally(text, user);
   }
 
