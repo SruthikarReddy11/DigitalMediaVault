@@ -1,13 +1,12 @@
 import { prisma } from '../database/prisma';
 import { AuthUser } from '../types';
-import { FileService } from './file.service';
+import { config } from '../config';
+import { GeminiService } from './gemini.service';
 import { MusicService } from './music.service';
 import { CalendarService } from './calendar.service';
 import { FavoriteService } from './favorite.service';
 import { CricketService, CricketMatch } from './cricket.service';
 import { CalendarEventType, FileType } from '@prisma/client';
-import https from 'https';
-import http from 'http';
 
 export interface AiActionResult {
   action:
@@ -20,7 +19,6 @@ export interface AiActionResult {
     | 'PRODUCTS_RETRIEVED'
     | 'FAVORITE_UPDATED'
     | 'FAVORITES_LIST'
-    | 'IMAGE_GENERATED'
     | 'AUTH_REQUIRED';
   reply: string;
   data?: any;
@@ -28,103 +26,40 @@ export interface AiActionResult {
 
 export class AiService {
   /**
-   * Helper to download image buffer from a remote URL
-   */
-  public static async downloadImageBuffer(url: string): Promise<Buffer> {
-    return new Promise((resolve, reject) => {
-      const client = url.startsWith('https') ? https : http;
-      client
-        .get(url, (res) => {
-          if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-            return this.downloadImageBuffer(res.headers.location).then(resolve).catch(reject);
-          }
-          if (res.statusCode && res.statusCode >= 400) {
-            return reject(new Error(`Failed to download image: HTTP status ${res.statusCode}`));
-          }
-          const chunks: Buffer[] = [];
-          res.on('data', (chunk) => chunks.push(chunk));
-          res.on('end', () => resolve(Buffer.concat(chunks)));
-          res.on('error', reject);
-        })
-        .on('error', reject);
-    });
-  }
-
-  /**
-   * Generate an image from a text prompt using high-fidelity Flux/SDXL neural generator
-   */
-  public static async generateImage(prompt: string): Promise<{ imageUrl: string; prompt: string }> {
-    const cleanPrompt = prompt.trim();
-    const seed = Math.floor(Math.random() * 10000000);
-    const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-      cleanPrompt
-    )}?width=1024&height=1024&nologo=true&seed=${seed}&model=flux`;
-
-    return {
-      imageUrl,
-      prompt: cleanPrompt,
-    };
-  }
-
-  /**
-   * Save an AI-generated image into the user's personal media gallery
-   */
-  public static async saveGeneratedImage(user: AuthUser, imageUrl: string, promptText?: string) {
-    const buffer = await this.downloadImageBuffer(imageUrl);
-    const originalName = `ai-gen-${Date.now()}.png`;
-
-    const file = await FileService.uploadFile(user, {
-      buffer,
-      originalname: originalName,
-      mimetype: 'image/png',
-      size: buffer.length,
-    });
-
-    if (file && file.id) {
-      await prisma.file.update({
-        where: { id: file.id },
-        data: {
-          tags: ['ai-generated', ...(promptText ? [promptText.slice(0, 40)] : [])],
-        },
-      });
-    }
-
-    return file;
-  }
-
-  /**
-   * Process a natural language prompt and execute authorized database actions
+   * Process a natural language prompt using Google Gemini API
+   * with automatic fallback to local rule execution if the API key is not yet set.
    */
   public static async processPrompt(
     prompt: string,
-    user?: AuthUser | null
+    user?: AuthUser | null,
+    conversationHistory?: Array<{ role: 'user' | 'model'; text: string }>
   ): Promise<AiActionResult> {
     const text = prompt.trim();
-    const lower = text.toLowerCase();
 
-    // 1. IMAGE GENERATION INTENT
-    if (
-      lower.startsWith('generate image') ||
-      lower.startsWith('create image') ||
-      lower.startsWith('draw') ||
-      lower.startsWith('generate an image') ||
-      lower.startsWith('create an image') ||
-      lower.includes('generate a picture') ||
-      lower.includes('generate image of')
-    ) {
-      const cleanPrompt = text
-        .replace(/^(generate an image of|generate image of|create an image of|generate image|create image|draw an image of|draw a picture of|draw|make an image of)\s*/i, '')
-        .trim();
-
-      const imageResult = await this.generateImage(cleanPrompt || text);
-      return {
-        action: 'IMAGE_GENERATED',
-        reply: `Here is your generated image for: "${cleanPrompt || text}". You can preview it, download it, or save it directly to your gallery.`,
-        data: imageResult,
-      };
+    // 1. If Gemini API key is configured, let Gemini handle the prompt with tool calling & intelligent chat
+    if (config.geminiApiKey) {
+      try {
+        const geminiResult = await GeminiService.processWithGemini(text, user, conversationHistory);
+        return geminiResult;
+      } catch (err: any) {
+        console.error('Gemini processing failed, attempting local rule fallback:', err.message);
+      }
     }
 
-    // 2. CRICKET MATCHES & SCORECARD INTENT
+    // 2. LOCAL RULE FALLBACK (used if GEMINI_API_KEY is not configured or during network error)
+    return this.processPromptLocally(text, user);
+  }
+
+  /**
+   * Local rule-based fallback processor
+   */
+  private static async processPromptLocally(
+    text: string,
+    user?: AuthUser | null
+  ): Promise<AiActionResult> {
+    const lower = text.toLowerCase();
+
+    // 1. CRICKET MATCHES & SCORECARD INTENT
     const cricketKeywords = [
       'cricket',
       'scorecard',
@@ -192,7 +127,7 @@ export class AiService {
         return {
           action: 'CRICKET',
           reply: activeMatch
-            ? `Found international fixture: **${activeMatch.title}** (${activeMatch.statusText}). Here is the live status and scorecard breakdown:`
+            ? `Found international fixture: **${activeMatch.title}** (${activeMatch.statusText}). Live scorecard breakdown:`
             : `Here are the latest official international cricket fixtures from ESPN Cricinfo:`,
           data: {
             matches: matches.slice(0, 8),
@@ -208,7 +143,7 @@ export class AiService {
       }
     }
 
-    // 3. MUSIC PLAYBACK INTENT ("play DC songs", "play songs by ...", "play [song]")
+    // 2. MUSIC PLAYBACK INTENT
     if (
       lower.startsWith('play ') ||
       lower.includes('play song') ||
@@ -224,7 +159,7 @@ export class AiService {
         };
       }
 
-      let searchQuery = text
+      const searchQuery = text
         .replace(/^(play songs from|play songs by|play song|play songs|play music|play track|play|listen to songs from|listen to songs by|listen to)\s*/i, '')
         .replace(/\s*(songs|song|music|track|tracks)$/i, '')
         .trim();
@@ -266,7 +201,7 @@ export class AiService {
       }
     }
 
-    // 4. CALENDAR EVENT INTENT ("add event for 17-09-2026 as my birthday", "schedule meeting on ...")
+    // 3. CALENDAR EVENT INTENT
     if (
       lower.startsWith('add event') ||
       lower.startsWith('create event') ||
@@ -283,7 +218,7 @@ export class AiService {
       }
 
       let parsedDate: Date | null = null;
-      let dateMatch = text.match(/(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
+      const dateMatch = text.match(/(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})/);
       if (dateMatch) {
         const day = parseInt(dateMatch[1], 10);
         const month = parseInt(dateMatch[2], 10) - 1;
@@ -365,7 +300,7 @@ export class AiService {
       }
     }
 
-    // 5. CALENDAR VIEW INTENT ("show my events", "what's on my calendar")
+    // 4. CALENDAR VIEW INTENT
     if (lower.includes('my event') || lower.includes('my calendar') || lower.includes('upcoming events')) {
       if (!user) {
         return {
@@ -387,7 +322,7 @@ export class AiService {
       };
     }
 
-    // 6. PRODUCT RETRIEVAL INTENT ("retrieve products pricing from 500 to 2000", "retrieve products by Apple")
+    // 5. PRODUCT RETRIEVAL INTENT
     if (
       lower.includes('product') ||
       lower.includes('wishlist') ||
@@ -426,9 +361,7 @@ export class AiService {
         brandQuery = brandMatch[1].trim();
       }
 
-      const whereClause: any = {
-        userId: user.id,
-      };
+      const whereClause: any = { userId: user.id };
 
       if (minPrice !== undefined || maxPrice !== undefined) {
         whereClause.price = {};
@@ -449,33 +382,17 @@ export class AiService {
         orderBy: { price: 'asc' },
       });
 
-      const filterSummary = [
-        minPrice !== undefined || maxPrice !== undefined
-          ? `pricing ${minPrice !== undefined ? `from ₹${minPrice}` : ''} ${
-              maxPrice !== undefined ? `to ₹${maxPrice}` : ''
-            }`
-          : '',
-        brandQuery ? `by "${brandQuery}"` : '',
-      ]
-        .filter(Boolean)
-        .join(' ');
-
       return {
         action: 'PRODUCTS_RETRIEVED',
         reply:
           products.length > 0
-            ? `Found **${products.length}** saved product(s)${filterSummary ? ` matching ${filterSummary}` : ''} in your wishlist:`
-            : `No saved products found in your wishlist${filterSummary ? ` matching ${filterSummary}` : ''}. You can save items from Amazon, Flipkart, or any online store in the Products section.`,
-        data: {
-          products,
-          minPrice,
-          maxPrice,
-          brand: brandQuery,
-        },
+            ? `Found **${products.length}** saved product(s) in your wishlist:`
+            : `No saved products found in your wishlist.`,
+        data: { products, minPrice, maxPrice, brand: brandQuery },
       };
     }
 
-    // 7. FAVORITES INTENT ("add ... to favorites", "remove from favorites", "show my favorites")
+    // 6. FAVORITES INTENT
     if (lower.includes('favorite') || lower.includes('favourite')) {
       if (!user) {
         return {
@@ -505,30 +422,6 @@ export class AiService {
               action: 'FAVORITE_UPDATED',
               reply: `⭐ **${file.originalName}** has been added to your Favorites.`,
               data: { file, isFavorite: true },
-            };
-          }
-        }
-      } else if (lower.includes('remove') || lower.includes('unstar') || lower.includes('delete from favorite')) {
-        const fileQuery = text
-          .replace(/^(remove|delete)\s*/i, '')
-          .replace(/\s*(from|in)\s*(favorites|favourites|favorite|favourite).*$/i, '')
-          .trim();
-
-        if (fileQuery) {
-          const file = await prisma.file.findFirst({
-            where: {
-              userId: user.id,
-              deletedAt: null,
-              originalName: { contains: fileQuery, mode: 'insensitive' },
-            },
-          });
-
-          if (file) {
-            await FavoriteService.toggleFavorite(file.id, user);
-            return {
-              action: 'FAVORITE_UPDATED',
-              reply: `Removed **${file.originalName}** from your Favorites.`,
-              data: { file, isFavorite: false },
             };
           }
         }
@@ -562,7 +455,7 @@ export class AiService {
       };
     }
 
-    // 8. FILE RETRIEVAL INTENT (Images, Videos, PDFs, Docs, etc.)
+    // 7. FILE RETRIEVAL INTENT
     const fileKeywords = [
       'retrieve',
       'show my',
@@ -592,7 +485,6 @@ export class AiService {
       }
 
       let fileTypeFilter: FileType | undefined;
-
       if (lower.includes('pdf')) {
         fileTypeFilter = FileType.PDF;
       } else if (lower.includes('photo') || lower.includes('image') || lower.includes('picture')) {
@@ -603,7 +495,7 @@ export class AiService {
         fileTypeFilter = FileType.DOCUMENT;
       }
 
-      let searchName = text
+      const searchName = text
         .replace(/^(retrieve|show my|get my|find my|list my|search file|show|find|get)\s*/i, '')
         .replace(/\s*(files|file|documents|document|photos|photo|images|image|videos|video|pdfs|pdf)$/i, '')
         .trim();
@@ -656,19 +548,10 @@ export class AiService {
       };
     }
 
-    // 9. GENERAL CHAT / FALLBACK ASSISTANT
+    // 8. FALLBACK WHEN NO KEY AND NO RULE MATCHES
     return {
       action: 'GENERAL_CHAT',
-      reply: `Hello! I am your AI Assistant for your Personal Digital Library. Here are things you can ask me to do:
-- 🎶 **Play Music**: *"play DC songs"*, *"play Believer"*, *"play songs by Arijit Singh"*
-- 🏏 **Cricket Live**: *"IND vs AFG scorecard"*, *"current cricket matches"*
-- 🎨 **Image Generation**: *"generate image of a cyberpunk skyline at night"*
-- 📅 **Calendar**: *"add event for 17-09-2026 as my birthday"*, *"show my events"*
-- 📄 **Files & Media**: *"retrieve my pdf files"*, *"show my photos"*, *"find my videos"*
-- 🛍️ **Products**: *"retrieve products pricing from 500 to 2000"*, *"products by Apple"*
-- ⭐ **Favorites**: *"add project.pdf to favorites"*, *"show my favorites"*
-
-How can I help you today?`,
+      reply: `👋 Hello! I am your AI Assistant for VaultX.\n\nTo enable conversational chat, answer any questions, and perform newly asked tasks with Google Gemini, please configure your single \`GEMINI_API_KEY\` in \`backend/.env\`.\n\nPredefined tasks you can run right now:\n- 🎶 **Play Music**: *"play DC songs"*, *"play Believer"*\n- 🏏 **Cricket Live**: *"IND vs AFG scorecard"*, *"live matches"*\n- 📅 **Calendar**: *"add event for 17-09-2026 as my birthday"*\n- 📄 **Files & Media**: *"retrieve my pdf files"*, *"find my videos"*\n- 🛍️ **Products**: *"retrieve products pricing from 500 to 2000"*\n- ⭐ **Favorites**: *"show my favorites"*`,
     };
   }
 }

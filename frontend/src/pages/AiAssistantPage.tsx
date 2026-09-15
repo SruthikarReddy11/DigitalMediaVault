@@ -8,7 +8,6 @@ import {
   Music,
   Radio,
   Calendar as CalendarIcon,
-  FolderClosed,
   ShoppingBag,
   Heart,
   Play,
@@ -17,12 +16,8 @@ import {
   ExternalLink,
   RotateCw,
   CheckCircle2,
-  AlertCircle,
-  Maximize2,
-  X,
   FileText,
   Video,
-  Flame,
   ArrowRight,
 } from 'lucide-react';
 import { api, getMediaUrl } from '../services/api';
@@ -45,11 +40,10 @@ interface ChatMessage {
 const PROMPT_SUGGESTIONS = [
   { label: 'Play DC songs', icon: Music, prompt: 'play DC songs', color: 'from-pink-500 to-rose-500' },
   { label: 'IND vs AFG scorecard', icon: Radio, prompt: 'IND vs AFG scorecard', color: 'from-blue-500 to-indigo-500' },
-  { label: 'Generate futuristic city', icon: ImageIcon, prompt: 'generate an image of futuristic neon cyberpunk city with glowing skybridges 8k resolution', color: 'from-purple-500 to-indigo-600' },
   { label: 'Add birthday event', icon: CalendarIcon, prompt: 'add event for 17-09-2026 as my birthday', color: 'from-emerald-500 to-teal-500' },
+  { label: 'Upcoming schedule', icon: CalendarIcon, prompt: 'what are my upcoming calendar events?', color: 'from-purple-500 to-indigo-600' },
   { label: 'Products under ₹2000', icon: ShoppingBag, prompt: 'retrieve products pricing from 500 to 2000', color: 'from-amber-500 to-orange-500' },
   { label: 'Retrieve my PDF files', icon: FileText, prompt: 'retrieve my pdf files', color: 'from-sky-500 to-blue-500' },
-  { label: 'Show my photos', icon: ImageIcon, prompt: 'show my photos', color: 'from-violet-500 to-purple-500' },
   { label: 'Show my favorites', icon: Heart, prompt: 'show my favorites', color: 'from-rose-500 to-pink-500' },
 ];
 
@@ -58,18 +52,18 @@ export const AiAssistantPage: React.FC = () => {
     {
       id: 'welcome',
       sender: 'ai',
-      text: `👋 Welcome to your **AI Personal Assistant & Studio**!
+      text: `👋 Welcome to your **Gemini AI Vault Assistant**!
 
-I can help you navigate and control your entire library through natural language:
-- 🎶 **Play Music**: *"play DC songs"*, *"play songs by Arijit Singh"*, *"play [song name]"*
+I can help you navigate and control your entire library through natural conversation:
+- 🎶 **Play Music**: *"play DC songs"*, *"play songs by Arijit Singh"*, *"play Believer"*
 - 🏏 **Cricket Live**: *"IND vs AFG scorecard"*, *"current cricket matches"*
-- 🎨 **Image Generation**: *"generate an image of a cybernetic tiger in neon jungle"*
-- 📅 **Calendar**: *"add event for 17-09-2026 as my birthday"*, *"show my events"*
-- 📄 **Files & Media**: *"retrieve my pdf files"*, *"show my photos"*, *"find my videos"*
+- 📅 **Calendar**: *"add event for 17-09-2026 as my birthday"*, *"schedule meeting tomorrow at 3pm"*, *"show my events"*
+- 📄 **Files & Media**: *"retrieve my pdf files"*, *"find my videos"*, *"search documents"*
 - 🛍️ **Products**: *"retrieve products pricing from 500 to 2000"*, *"products by Apple"*
 - ⭐ **Favorites**: *"add [file] to favorites"*, *"show my favorites"*
+- 💡 **General Knowledge & Any Tasks**: Ask me anything, plan tasks, write text, or get explanations!
 
-What would you like to do?`,
+How can I help you today?`,
       timestamp: new Date(),
     },
   ]);
@@ -77,8 +71,6 @@ What would you like to do?`,
   const [inputPrompt, setInputPrompt] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [selectedScorecardMatch, setSelectedScorecardMatch] = useState<CricketMatch | null>(null);
-  const [lightboxImageUrl, setLightboxImageUrl] = useState<string | null>(null);
-  const [savingImageUrls, setSavingImageUrls] = useState<Record<string, boolean>>({});
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -95,7 +87,7 @@ What would you like to do?`,
     scrollToBottom();
   }, [messages, isLoading]);
 
-  // Handle message submission
+  // Handle message submission with conversation history
   const handleSendMessage = async (promptToSend?: string) => {
     const text = (promptToSend || inputPrompt).trim();
     if (!text || isLoading) return;
@@ -115,8 +107,20 @@ What would you like to do?`,
     setInputPrompt('');
     setIsLoading(true);
 
+    // Prepare recent conversation history for multi-turn Gemini reasoning
+    const history = messages
+      .filter((m) => m.id !== 'welcome' && m.id !== 'welcome-reset')
+      .slice(-6)
+      .map((m) => ({
+        role: m.sender === 'user' ? 'user' : 'model',
+        text: m.text,
+      }));
+
     try {
-      const res = await api.post('/ai/chat', { prompt: text });
+      const res = await api.post('/ai/chat', {
+        prompt: text,
+        history,
+      });
       const { action, reply, data } = res.data;
 
       // Handle Automatic Audio Playback if triggered
@@ -147,37 +151,13 @@ What would you like to do?`,
         {
           id: `ai-${Date.now()}`,
           sender: 'ai',
-          text: `⚠️ Error: ${err.message || 'Failed to process prompt. Please verify your connection or try again.'}`,
+          text: `⚠️ Error: ${err.response?.data?.error?.message || err.message || 'Failed to process prompt. Please verify your connection or try again.'}`,
           timestamp: new Date(),
         },
       ]);
-      showError(err.message || 'AI request failed');
+      showError(err.response?.data?.error?.message || err.message || 'AI request failed');
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  // Handle saving generated image to library
-  const handleSaveImageToGallery = async (imageUrl: string, promptText?: string) => {
-    if (savingImageUrls[imageUrl]) return;
-    setSavingImageUrls((prev) => ({ ...prev, [imageUrl]: true }));
-
-    try {
-      const res = await api.post('/ai/save-generated-image', {
-        imageUrl,
-        prompt: promptText,
-      });
-
-      if (res.data?.success) {
-        showSuccess('Image successfully saved to your Gallery & Files!', 'Saved');
-      } else {
-        showError('Failed to save image to gallery.');
-      }
-    } catch (err: any) {
-      console.error('Failed to save generated image:', err);
-      showError(err.message || 'Error saving image.');
-    } finally {
-      setSavingImageUrls((prev) => ({ ...prev, [imageUrl]: false }));
     }
   };
 
@@ -200,14 +180,14 @@ What would you like to do?`,
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-                AI Vault Assistant & Studio
+                AI Vault Assistant
               </h1>
               <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-extrabold tracking-wide uppercase border border-indigo-200 dark:border-indigo-800">
-                PRO AI
+                GEMINI AI
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-              Natural language music player, cricket scores, file retrieval, calendar events & neural image generator
+              Natural language music player, live cricket scores, calendar scheduling, file retrieval & conversational chat
             </p>
           </div>
         </div>
@@ -449,51 +429,36 @@ What would you like to do?`,
                   </div>
                 )}
 
-                {/* 4. EMBEDDED ACTION: GENERATED IMAGE */}
-                {msg.action === 'IMAGE_GENERATED' && msg.data?.imageUrl && (
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-lg space-y-3">
-                    <div className="relative rounded-2xl overflow-hidden group bg-slate-100 dark:bg-slate-800 aspect-square max-w-md mx-auto">
-                      <img
-                        src={msg.data.imageUrl}
-                        alt={msg.data.prompt}
-                        className="w-full h-full object-cover transition duration-300 group-hover:scale-105"
-                      />
-                      {/* Hover Zoom Button */}
-                      <button
-                        type="button"
-                        onClick={() => setLightboxImageUrl(msg.data.imageUrl)}
-                        className="absolute top-3 right-3 p-2 rounded-xl bg-black/60 hover:bg-black/80 text-white backdrop-blur-md opacity-0 group-hover:opacity-100 transition shadow-md"
-                        title="View Full Resolution"
-                      >
-                        <Maximize2 className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    <p className="text-xs text-slate-500 dark:text-slate-400 italic text-center">
-                      Prompt: "{msg.data.prompt}"
+                {/* 4. EMBEDDED ACTION: CALENDAR EVENTS LIST */}
+                {msg.action === 'CALENDAR_EVENTS_LIST' && Array.isArray(msg.data?.events) && (
+                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-4 shadow-sm space-y-2">
+                    <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                      Upcoming Calendar Schedule ({msg.data.events.length})
                     </p>
-
-                    <div className="flex items-center justify-center gap-3 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => handleSaveImageToGallery(msg.data.imageUrl, msg.data.prompt)}
-                        disabled={savingImageUrls[msg.data.imageUrl]}
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs transition shadow cursor-pointer active:scale-95"
-                      >
-                        <Sparkles className="w-4 h-4" />
-                        <span>{savingImageUrls[msg.data.imageUrl] ? 'Saving...' : 'Save to Gallery'}</span>
-                      </button>
-
-                      <a
-                        href={msg.data.imageUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        download="ai-generated.png"
-                        className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-white font-bold text-xs transition cursor-pointer active:scale-95"
-                      >
-                        <Download className="w-4 h-4" />
-                        <span>Download</span>
-                      </a>
+                    <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+                      {msg.data.events.map((ev: any) => (
+                        <div
+                          key={ev.id}
+                          className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-100 dark:border-slate-800"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-800 dark:text-white truncate">
+                              {ev.title}
+                            </p>
+                            <p className="text-[10px] text-slate-400">
+                              {new Date(ev.startTime).toLocaleDateString(undefined, {
+                                weekday: 'short',
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                              })}
+                            </p>
+                          </div>
+                          <span className="px-2 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 text-[10px] font-bold uppercase">
+                            {ev.type}
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -609,7 +574,7 @@ What would you like to do?`,
               <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.3s]"></span>
               <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce [animation-delay:-0.15s]"></span>
               <span className="w-2 h-2 rounded-full bg-indigo-500 animate-bounce"></span>
-              <span className="text-xs text-slate-500 font-medium ml-1">AI Assistant is thinking...</span>
+              <span className="text-xs text-slate-500 font-medium ml-1">Gemini AI is thinking...</span>
             </div>
           </div>
         )}
@@ -642,7 +607,7 @@ What would you like to do?`,
           value={inputPrompt}
           onChange={(e) => setInputPrompt(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Ask AI anything: 'play DC songs', 'IND vs AFG scorecard', 'generate an image of...', 'add event for 17-09-2026'..."
+          placeholder="Ask AI anything: 'play Believer', 'IND vs AFG scorecard', 'schedule meeting tomorrow at 3pm', 'what is quantum computing?'..."
           rows={1}
           className="flex-1 bg-transparent border-0 resize-none text-xs sm:text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-0 max-h-28 py-1.5 px-2"
         />
@@ -664,28 +629,6 @@ What would you like to do?`,
           match={selectedScorecardMatch}
           onClose={() => setSelectedScorecardMatch(null)}
         />
-      )}
-
-      {/* LIGHTBOX FOR FULL IMAGE PREVIEW */}
-      {lightboxImageUrl && (
-        <div
-          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
-          onClick={() => setLightboxImageUrl(null)}
-        >
-          <div
-            className="relative max-w-4xl max-h-[90vh] bg-slate-950 rounded-3xl overflow-hidden shadow-2xl border border-white/20"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => setLightboxImageUrl(null)}
-              className="absolute top-4 right-4 p-2 rounded-full bg-black/60 text-white hover:bg-black/90 transition z-10"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <img src={lightboxImageUrl} alt="Full view" className="w-full h-auto max-h-[85vh] object-contain" />
-          </div>
-        </div>
       )}
     </div>
   );
