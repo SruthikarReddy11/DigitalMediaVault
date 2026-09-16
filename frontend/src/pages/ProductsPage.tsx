@@ -10,6 +10,7 @@ import { CreateSectionModal } from '../components/products/CreateSectionModal';
 import { UnlockSectionModal } from '../components/products/UnlockSectionModal';
 import { AddProductsToSectionModal } from '../components/products/AddProductsToSectionModal';
 import { AddToSectionDialog } from '../components/products/AddToSectionDialog';
+import { ExtensionInstallModal } from '../components/products/ExtensionInstallModal';
 import { SavedProduct, ProductFilterOptions, ProductSection } from '../types/product';
 import { productsApi } from '../services/productsApi';
 import { useToast } from '../contexts/ToastContext';
@@ -63,6 +64,7 @@ export const ProductsPage: React.FC = () => {
   const [saveModalInitialSectionId, setSaveModalInitialSectionId] = useState<string | null>(null);
   const [productToShare, setProductToShare] = useState<SavedProduct | null>(null);
   const [refreshingId, setRefreshingId] = useState<string | null>(null);
+  const [isExtensionModalOpen, setIsExtensionModalOpen] = useState(false);
 
   const handleOpenSaveModal = (sectionId?: string | null) => {
     setSaveModalInitialSectionId(sectionId !== undefined ? sectionId : selectedSectionId);
@@ -272,6 +274,7 @@ export const ProductsPage: React.FC = () => {
       {/* Header with Search, Filter Pills & Summary Metrics */}
       <ProductsHeader
         onNewProduct={() => handleOpenSaveModal(selectedSectionId)}
+        onOpenExtensionModal={() => setIsExtensionModalOpen(true)}
         searchTerm={searchTerm}
         onSearchChange={setSearchTerm}
         selectedStore={selectedStore}
@@ -504,6 +507,12 @@ export const ProductsPage: React.FC = () => {
           section={sectionToShare}
         />
       )}
+
+      {/* Chrome Extension Download & Install Guide Modal */}
+      <ExtensionInstallModal
+        isOpen={isExtensionModalOpen}
+        onClose={() => setIsExtensionModalOpen(false)}
+      />
     </div>
   );
 };

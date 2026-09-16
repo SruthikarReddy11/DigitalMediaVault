@@ -11,10 +11,12 @@ import {
   DollarSign,
   TrendingDown,
   CheckCircle2,
+  Chrome,
 } from 'lucide-react';
 
 interface ProductsHeaderProps {
   onNewProduct: () => void;
+  onOpenExtensionModal?: () => void;
   searchTerm: string;
   onSearchChange: (val: string) => void;
   selectedStore: string;
@@ -59,6 +61,7 @@ const CATEGORIES = [
 
 export const ProductsHeader: React.FC<ProductsHeaderProps> = ({
   onNewProduct,
+  onOpenExtensionModal,
   searchTerm,
   onSearchChange,
   selectedStore,
@@ -107,15 +110,32 @@ export const ProductsHeader: React.FC<ProductsHeaderProps> = ({
           </div>
         </div>
 
-        {/* Action Button */}
-        <button
-          type="button"
-          onClick={onNewProduct}
-          className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-500 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-brand-500/25 active:scale-95 transition shrink-0"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Save Product Link</span>
-        </button>
+        {/* Action Buttons */}
+        <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+          {onOpenExtensionModal && (
+            <button
+              type="button"
+              onClick={onOpenExtensionModal}
+              className="flex items-center justify-center gap-2 px-3.5 py-2.5 bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 hover:text-white border border-slate-700/80 hover:border-indigo-500/40 text-xs font-bold rounded-xl shadow-md active:scale-95 transition"
+              title="Install VaultXMedia Chrome Extension for 1-click product saving"
+            >
+              <Chrome className="w-4 h-4 text-indigo-400" />
+              <span>Chrome Extension</span>
+              <span className="px-1.5 py-0.5 text-[9px] font-extrabold rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                1-Click
+              </span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={onNewProduct}
+            className="flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-brand-600 via-indigo-600 to-brand-500 hover:from-brand-500 hover:to-indigo-500 text-white text-xs font-bold rounded-xl shadow-lg shadow-brand-500/25 active:scale-95 transition shrink-0"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Save Product Link</span>
+          </button>
+        </div>
       </div>
 
       {/* View Mode Toggle: Wishlist vs Purchased vs All */}
