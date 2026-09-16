@@ -128,7 +128,11 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     if (origin && config.isProduction) {
       const allowedOrigins = parseAllowedOrigins();
 
-      if (!allowedOrigins.includes(origin) && !origin.endsWith('.vercel.app')) {
+      if (
+        !allowedOrigins.includes(origin) &&
+        !origin.endsWith('.vercel.app') &&
+        !origin.startsWith('chrome-extension://')
+      ) {
         res.status(403).json({
           success: false,
           error: {
