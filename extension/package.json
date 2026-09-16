@@ -1,0 +1,19 @@
+{
+  "name": "vaultxmedia-chrome-extension",
+  "version": "1.0.0",
+  "description": "VaultXMedia 1-Click Product Wishlist Chrome Extension",
+  "type": "module",
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js --watch"
+  },
+  "keywords": [
+    "chrome-extension",
+    "manifest-v3",
+    "wishlist",
+    "ecommerce",
+    "vaultxmedia"
+  ],
+  "author": "VaultXMedia",
+  "license": "MIT"
+}

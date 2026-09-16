@@ -94,6 +94,7 @@ app.use(
       if (
         allowedOrigins.includes(origin) ||
         origin.endsWith('.vercel.app') ||
+        origin.startsWith('chrome-extension://') ||
         !config.isProduction
       ) {
         return callback(null, true);

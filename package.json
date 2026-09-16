@@ -8,6 +8,7 @@
     "dev:frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
     "build:backend": "npm --prefix backend run build",
+    "build:extension": "npm --prefix extension run build",
     "test:backend": "npm --prefix backend test",
     "seed:backend": "npm --prefix backend run prisma:seed"
   },

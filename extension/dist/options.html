@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VaultXMedia Wishlist Saver - Settings</title>
+  <link rel="stylesheet" href="options.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header class="header">
+      <div class="logo-box">
+        <svg class="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z"/>
+          <path d="M12 11v6"/>
+          <path d="M9 14h6"/>
+        </svg>
+        <div>
+          <h1>VaultXMedia Wishlist</h1>
+          <p class="subtitle">1-Click Chrome Extension Settings & Account</p>
+        </div>
+      </div>
+      <div id="status-badge" class="badge badge-disconnected">Checking Auth...</div>
+    </header>
+
+    <!-- Alert / Banner -->
+    <div id="alert-banner" class="alert hidden"></div>
+
+    <main class="grid">
+      <!-- Account / Authentication Card -->
+      <section class="card">
+        <h2 class="card-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          Vault Account
+        </h2>
+
+        <!-- State 1: Authenticated User View -->
+        <div id="auth-view-connected" class="hidden">
+          <div class="user-profile">
+            <div class="user-avatar" id="user-avatar">U</div>
+            <div class="user-info">
+              <h3 id="user-name">Username</h3>
+              <p id="user-email" class="text-dim">user@example.com</p>
+              <span class="user-role-badge" id="user-role">USER</span>
+            </div>
+          </div>
+          <div class="btn-group">
+            <a id="btn-open-vault" href="#" target="_blank" class="btn btn-secondary">
+              Open Wishlist in Browser &nearr;
+            </a>
+            <button id="btn-logout" class="btn btn-danger">Sign Out</button>
+          </div>
+        </div>
+
+        <!-- State 2: Login Form -->
+        <div id="auth-view-login">
+          <p class="card-desc">
+            Sign in with your VaultXMedia account credentials to save products directly to your personal wishlist.
+          </p>
+          <form id="form-login" class="form">
+            <div class="form-group">
+              <label for="login-identifier">Username or Email</label>
+              <input type="text" id="login-identifier" class="input" placeholder="e.g. john@example.com" required autocomplete="username">
+            </div>
+            <div class="form-group">
+              <label for="login-password">Password</label>
+              <input type="password" id="login-password" class="input" placeholder="Enter your password" required autocomplete="current-password">
+            </div>
+            <div class="btn-group">
+              <button type="submit" id="btn-login" class="btn btn-primary">Sign In to VaultXMedia</button>
+              <button type="button" id="btn-auto-sync" class="btn btn-secondary" title="Import active login session from VaultXMedia web app tab">
+                Auto-Sync Active Session
+              </button>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <!-- Server & API Settings Card -->
+      <section class="card">
+        <h2 class="card-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+            <line x1="6" y1="6" x2="6.01" y2="6"></line>
+            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+          </svg>
+          Backend Connection
+        </h2>
+        <p class="card-desc">
+          Configure the VaultXMedia backend API endpoint used for product extraction and saving.
+        </p>
+
+        <!-- Presets -->
+        <div class="presets">
+          <span class="preset-label">Quick Presets:</span>
+          <button type="button" id="preset-local" class="preset-pill">Localhost (Dev)</button>
+          <button type="button" id="preset-prod" class="preset-pill">Cloud (Render)</button>
+        </div>
+
+        <form id="form-settings" class="form">
+          <div class="form-group">
+            <label for="setting-api-url">Backend API URL</label>
+            <input type="url" id="setting-api-url" class="input" placeholder="http://localhost:5000/api" required>
+            <span class="helper-text">Endpoint where POST /api/products and /api/auth reside.</span>
+          </div>
+
+          <div class="form-group">
+            <label for="setting-web-url">Web Dashboard URL</label>
+            <input type="url" id="setting-web-url" class="input" placeholder="http://localhost:5173" required>
+            <span class="helper-text">Your frontend wishlist URL for opening saved items.</span>
+          </div>
+
+          <div class="form-check">
+            <input type="checkbox" id="setting-floating-btn" checked>
+            <label for="setting-floating-btn">Show floating "Save to VaultXMedia" button on shopping websites</label>
+          </div>
+
+          <button type="submit" id="btn-save-settings" class="btn btn-primary">Save Settings</button>
+        </form>
+      </section>
+
+      <!-- How It Works Card -->
+      <section class="card full-width">
+        <h2 class="card-title">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="16" x2="12" y2="12"></line>
+            <line x1="12" y1="8" x2="12.01" y2="8"></line>
+          </svg>
+          How to Save Products
+        </h2>
+        <div class="features-grid">
+          <div class="feature-item">
+            <div class="feature-icon">1</div>
+            <div>
+              <h4>1-Click Toolbar Icon</h4>
+              <p>Click the VaultXMedia icon in your Chrome toolbar on any product page. It instantly extracts and saves the product directly into your Vault without any popup or modal.</p>
+            </div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon">2</div>
+            <div>
+              <h4>In-Page Floating Button</h4>
+              <p>When browsing Amazon, Flipkart, Myntra, Ajio, Meesho, or Nykaa, a discreet floating button appears at the bottom-right corner. Click it to save with an instant confirmation toast.</p>
+            </div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-icon">3</div>
+            <div>
+              <h4>Right-Click Context Menu</h4>
+              <p>Right-click any link or product image across the web and select <em>"Save to VaultXMedia Wishlist"</em>.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="options.js"></script>
+</body>
+</html>
