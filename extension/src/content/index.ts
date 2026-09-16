@@ -188,6 +188,11 @@ function injectSaveButton() {
       } else {
         btn.classList.add('vaultx-error');
         btn.querySelector('.vaultx-btn-text')!.textContent = 'Failed';
+        showToast({
+          title: 'Failed to Save',
+          message: response?.error || 'Could not save product to VaultXMedia.',
+          isError: true,
+        });
 
         setTimeout(() => {
           btn.classList.remove('vaultx-error');
@@ -198,6 +203,11 @@ function injectSaveButton() {
       btn.classList.remove('vaultx-loading');
       btn.classList.add('vaultx-error');
       btn.querySelector('.vaultx-btn-text')!.textContent = 'Failed';
+      showToast({
+        title: 'Failed to Save',
+        message: err.message || 'Error communicating with extension worker.',
+        isError: true,
+      });
 
       setTimeout(() => {
         btn.classList.remove('vaultx-error');
