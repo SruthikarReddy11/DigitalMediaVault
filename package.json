@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Production-grade Full-Stack Personal Digital Library & Media Gallery",
   "scripts": {
+    "build": "npm --prefix frontend run build",
     "dev:backend": "npm --prefix backend run dev",
     "dev:frontend": "npm --prefix frontend run dev",
     "build:frontend": "npm --prefix frontend run build",
