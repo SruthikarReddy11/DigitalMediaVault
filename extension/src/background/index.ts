@@ -65,31 +65,30 @@ async function saveProductToVault(
   setBadge('...', '#8b5cf6'); // Purple loading badge
 
   const settings = await storage.getSettings();
-  let token = settings.token;
+  const token = settings.token;
 
-  // If no token stored, attempt cookie sync
-  if (!token) {
-    token = await autoSyncSessionFromCookies(settings.webUrl, settings.apiUrl);
-  }
-
-  if (!token) {
+  // Strictly enforce authentication in the extension. Never silently grab cookies behind user's back.
+  if (!token || !token.trim()) {
     setBadge('AUTH', '#ef4444', 4000);
-    // Notify tab content script
+
+    const authErrorMsg =
+      'Authentication required: Please open extension settings and log into your VaultXMedia account before saving.';
+
     if (tabId) {
       chrome.tabs.sendMessage(tabId, {
         action: 'SHOW_TOAST',
         title: 'Authentication Required',
-        message: 'Please click the extension options to log into VaultXMedia first.',
+        message: authErrorMsg,
         isError: true,
       }).catch(() => {});
     }
 
-    // Open options page so user can log in once
+    // Open options page so user can log in
     chrome.runtime.openOptionsPage();
 
     return {
       success: false,
-      error: 'Not authenticated. Please log in to VaultXMedia first.',
+      error: authErrorMsg,
     };
   }
 

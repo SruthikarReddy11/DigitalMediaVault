@@ -22,14 +22,23 @@ export const vaultApi = {
     token: string,
     apiUrl: string
   ): Promise<SavedProduct> {
+    if (!token || !token.trim()) {
+      throw new VaultApiError(
+        'Authentication required. Please log into VaultXMedia first.',
+        'UNAUTHORIZED',
+        401
+      );
+    }
+
     const cleanBase = apiUrl.replace(/\/+$/, '');
     const endpoint = `${cleanBase}/products`;
 
     const response = await fetch(endpoint, {
       method: 'POST',
+      credentials: 'omit',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${token.trim()}`,
       },
       body: JSON.stringify({ url: url.trim() }),
     });
@@ -54,14 +63,23 @@ export const vaultApi = {
     token: string,
     apiUrl: string
   ): Promise<ProductExtractResult> {
+    if (!token || !token.trim()) {
+      throw new VaultApiError(
+        'Authentication required. Please log into VaultXMedia first.',
+        'UNAUTHORIZED',
+        401
+      );
+    }
+
     const cleanBase = apiUrl.replace(/\/+$/, '');
     const endpoint = `${cleanBase}/products/extract`;
 
     const response = await fetch(endpoint, {
       method: 'POST',
+      credentials: 'omit',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${token.trim()}`,
       },
       body: JSON.stringify({ url: url.trim() }),
     });
