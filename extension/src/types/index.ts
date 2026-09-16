@@ -54,8 +54,20 @@ export interface ExtensionSettings {
   showFloatingButton: boolean;
 }
 
+export interface SaveProductResponse {
+  product: SavedProduct;
+  alreadyExists: boolean;
+  message?: string;
+}
+
+export interface CheckProductExistsResponse {
+  exists: boolean;
+  product?: SavedProduct | null;
+}
+
 export type ExtensionMessage =
   | { action: 'SAVE_CURRENT_PRODUCT'; url: string }
+  | { action: 'CHECK_PRODUCT_EXISTS'; url: string }
   | { action: 'CHECK_AUTH' }
   | { action: 'SYNC_SESSION' }
   | {
@@ -67,5 +79,6 @@ export type ExtensionMessage =
       imageUrl?: string;
       url?: string;
       isError?: boolean;
+      alreadyExists?: boolean;
       message?: string;
     };

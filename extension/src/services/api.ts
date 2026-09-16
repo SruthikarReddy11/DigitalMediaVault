@@ -1,4 +1,4 @@
-import { AuthUser, SavedProduct, ProductExtractResult } from '../types';
+import { AuthUser, SavedProduct, ProductExtractResult, SaveProductResponse, CheckProductExistsResponse } from '../types';
 
 export class VaultApiError extends Error {
   public code?: string;
@@ -14,14 +14,49 @@ export class VaultApiError extends Error {
 
 export const vaultApi = {
   /**
+   * Check if a product URL already exists in user's wishlist
+   */
+  async checkProductExists(
+    url: string,
+    token: string,
+    apiUrl: string
+  ): Promise<CheckProductExistsResponse> {
+    if (!token || !token.trim()) {
+      return { exists: false, product: null };
+    }
+
+    const cleanBase = apiUrl.replace(/\/+$/, '');
+    const endpoint = `${cleanBase}/products/check?url=${encodeURIComponent(url.trim())}`;
+
+    try {
+      const response = await fetch(endpoint, {
+        method: 'GET',
+        credentials: 'omit',
+        headers: {
+          Authorization: `Bearer ${token.trim()}`,
+        },
+      });
+
+      const json = await response.json().catch(() => null);
+      if (response.ok && json?.success && json.data) {
+        return json.data as CheckProductExistsResponse;
+      }
+    } catch {
+      // Non-blocking check fallback
+    }
+
+    return { exists: false, product: null };
+  },
+
+  /**
    * Save a product directly to the user's Vault wishlist by URL
-   * Backend handles scraping and extraction automatically.
+   * Backend handles scraping, deduplication, and extraction automatically.
    */
   async saveProduct(
     url: string,
     token: string,
     apiUrl: string
-  ): Promise<SavedProduct> {
+  ): Promise<SaveProductResponse> {
     if (!token || !token.trim()) {
       throw new VaultApiError(
         'Authentication required. Please log into VaultXMedia first.',
@@ -52,7 +87,11 @@ export const vaultApi = {
       throw new VaultApiError(message, json?.error?.code, response.status);
     }
 
-    return json.data as SavedProduct;
+    return {
+      product: json.data as SavedProduct,
+      alreadyExists: !!json.alreadyExists,
+      message: json.message,
+    };
   },
 
   /**

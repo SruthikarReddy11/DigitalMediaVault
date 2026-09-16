@@ -68,6 +68,47 @@ export class ProductController {
   }
 
   /**
+   * Check if a product URL already exists in user's wishlist
+   */
+  public static async check(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const { url } = req.query;
+
+      if (!url || typeof url !== 'string' || !url.trim()) {
+        return res.status(400).json({
+          success: false,
+          error: { message: 'A valid product URL is required' },
+        });
+      }
+
+      const result = await ProductService.checkProductExists(userId, url.trim());
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
+   * Deduplicate wishlist: keeps one product per URL/title and purges duplicate copies
+   */
+  public static async deduplicate(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const userId = req.user!.id;
+      const removedCount = await ProductService.deduplicateWishlist(userId);
+      res.json({
+        success: true,
+        data: { removedCount },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  /**
    * Save a new product
    */
   public static async create(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -82,9 +123,15 @@ export class ProductController {
         });
       }
 
-      const product = await ProductService.saveProduct(userId, req.body);
-      res.status(201).json({
+      const product: any = await ProductService.saveProduct(userId, req.body);
+      const alreadyExists = !!product.alreadyExists;
+
+      res.status(alreadyExists ? 200 : 201).json({
         success: true,
+        alreadyExists,
+        message: alreadyExists
+          ? 'Product is already in your wishlist.'
+          : 'Product saved successfully.',
         data: product,
       });
     } catch (err) {

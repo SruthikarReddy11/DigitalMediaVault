@@ -137,11 +137,63 @@ function showToast(options: {
 /**
  * Inject floating "Save to VaultXMedia" button on supported product pages
  */
+let currentSavedProduct: any = null;
+
+/**
+ * Set button appearance to "Already in Wishlist"
+ */
+function setButtonAlreadyInWishlist(btn: HTMLElement, product?: any) {
+  currentSavedProduct = product || currentSavedProduct;
+  btn.classList.remove('vaultx-loading', 'vaultx-error', 'vaultx-saved');
+  btn.classList.add('vaultx-already-saved');
+  btn.setAttribute('title', 'This product is already in your VaultXMedia Wishlist (Click to view)');
+
+  const iconSpan = btn.querySelector('.vaultx-btn-icon');
+  const textSpan = btn.querySelector('.vaultx-btn-text');
+
+  if (iconSpan) {
+    iconSpan.innerHTML = `
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    `;
+  }
+  if (textSpan) {
+    textSpan.textContent = 'Already in Wishlist';
+  }
+}
+
+/**
+ * Check if the current page product is already in the wishlist
+ */
+async function checkCurrentProductStatus(btn: HTMLElement) {
+  try {
+    const res: any = await chrome.runtime.sendMessage({
+      action: 'CHECK_PRODUCT_EXISTS',
+      url: window.location.href,
+    });
+    if (res && res.exists) {
+      setButtonAlreadyInWishlist(btn, res.product);
+    }
+  } catch {
+    // Non-blocking
+  }
+}
+
+/**
+ * Inject floating "Save to VaultXMedia" button on supported product pages
+ */
 function injectSaveButton() {
-  if (document.getElementById(VAULT_BUTTON_ID)) return;
+  let btn = document.getElementById(VAULT_BUTTON_ID);
+
+  if (btn) {
+    checkCurrentProductStatus(btn);
+    return;
+  }
+
   if (!isProductPage()) return;
 
-  const btn = document.createElement('button');
+  btn = document.createElement('button');
   btn.id = VAULT_BUTTON_ID;
   btn.className = 'vaultx-floating-btn';
   btn.setAttribute('type', 'button');
@@ -158,16 +210,36 @@ function injectSaveButton() {
     <span class="vaultx-btn-text">Save to VaultXMedia</span>
   `;
 
+  // Asynchronously check if this product is already in wishlist
+  checkCurrentProductStatus(btn);
+
   btn.addEventListener('click', async (e) => {
     e.preventDefault();
     e.stopPropagation();
 
     if (btn.classList.contains('vaultx-loading')) return;
 
+    // If already saved, show quick toast confirmation with direct link
+    if (btn.classList.contains('vaultx-already-saved')) {
+      showToast({
+        title: currentSavedProduct?.title || 'Product in Wishlist',
+        store: currentSavedProduct?.store,
+        price: currentSavedProduct?.price ?? undefined,
+        currencySymbol: currentSavedProduct?.currencySymbol,
+        imageUrl: currentSavedProduct?.imageUrl ?? undefined,
+        message: '✓ This product is already in your VaultXMedia Wishlist',
+        url: 'https://digital-media-vault.vercel.app/products',
+        isError: false,
+        alreadyExists: true,
+      });
+      return;
+    }
+
     // Loading state
     btn.classList.add('vaultx-loading');
-    const originalText = btn.querySelector('.vaultx-btn-text')!.textContent;
-    btn.querySelector('.vaultx-btn-text')!.textContent = 'Saving...';
+    const textSpan = btn.querySelector('.vaultx-btn-text')!;
+    const originalText = textSpan.textContent;
+    textSpan.textContent = 'Saving...';
 
     try {
       const response: any = await chrome.runtime.sendMessage({
@@ -178,16 +250,33 @@ function injectSaveButton() {
       btn.classList.remove('vaultx-loading');
 
       if (response && response.success) {
-        btn.classList.add('vaultx-saved');
-        btn.querySelector('.vaultx-btn-text')!.textContent = '✓ Saved to Vault!';
+        currentSavedProduct = response.product;
+        const isDuplicate = !!response.alreadyExists;
 
-        setTimeout(() => {
-          btn.classList.remove('vaultx-saved');
-          btn.querySelector('.vaultx-btn-text')!.textContent = originalText;
-        }, 3500);
+        if (isDuplicate) {
+          setButtonAlreadyInWishlist(btn, response.product);
+          showToast({
+            title: response.product?.title || 'Product in Wishlist',
+            store: response.product?.store,
+            price: response.product?.price ?? undefined,
+            currencySymbol: response.product?.currencySymbol,
+            imageUrl: response.product?.imageUrl ?? undefined,
+            message: '✓ This product is already in your Wishlist',
+            url: 'https://digital-media-vault.vercel.app/products',
+            isError: false,
+            alreadyExists: true,
+          });
+        } else {
+          btn.classList.add('vaultx-saved');
+          textSpan.textContent = '✓ Saved to Vault!';
+
+          setTimeout(() => {
+            setButtonAlreadyInWishlist(btn, response.product);
+          }, 2500);
+        }
       } else {
         btn.classList.add('vaultx-error');
-        btn.querySelector('.vaultx-btn-text')!.textContent = 'Failed';
+        textSpan.textContent = 'Failed';
         showToast({
           title: 'Failed to Save',
           message: response?.error || 'Could not save product to VaultXMedia.',
@@ -196,13 +285,13 @@ function injectSaveButton() {
 
         setTimeout(() => {
           btn.classList.remove('vaultx-error');
-          btn.querySelector('.vaultx-btn-text')!.textContent = originalText;
+          textSpan.textContent = originalText;
         }, 3500);
       }
     } catch (err: any) {
       btn.classList.remove('vaultx-loading');
       btn.classList.add('vaultx-error');
-      btn.querySelector('.vaultx-btn-text')!.textContent = 'Failed';
+      textSpan.textContent = 'Failed';
       showToast({
         title: 'Failed to Save',
         message: err.message || 'Error communicating with extension worker.',
@@ -211,7 +300,7 @@ function injectSaveButton() {
 
       setTimeout(() => {
         btn.classList.remove('vaultx-error');
-        btn.querySelector('.vaultx-btn-text')!.textContent = originalText;
+        textSpan.textContent = originalText;
       }, 3500);
     }
   });

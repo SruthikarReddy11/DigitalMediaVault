@@ -64,6 +64,189 @@ export interface ProductListFilters {
 
 export class ProductService {
   /**
+   * Helper to normalize e-commerce product URLs for deduplication
+   */
+  public static normalizeUrl(rawUrl: string): string {
+    try {
+      let clean = rawUrl.trim();
+      if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+        clean = `https://${clean}`;
+      }
+      const parsed = new URL(clean);
+      const host = parsed.hostname.toLowerCase().replace(/^www\./, '');
+
+      // 1. Amazon: /dp/<ASIN> or /gp/product/<ASIN>
+      if (host.includes('amazon.')) {
+        const asinMatch = parsed.pathname.match(/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i);
+        if (asinMatch) {
+          return `https://${host}/dp/${asinMatch[1].toUpperCase()}`;
+        }
+      }
+
+      // 2. Flipkart: match /p/<id> or ?pid=<id>
+      if (host.includes('flipkart.com')) {
+        const pid = parsed.searchParams.get('pid');
+        const pMatch = parsed.pathname.match(/\/p\/(itm[a-zA-Z0-9]+)/i);
+        if (pid) {
+          return `https://${host}${parsed.pathname}?pid=${pid}`;
+        }
+        if (pMatch) {
+          return `https://${host}/p/${pMatch[1]}`;
+        }
+      }
+
+      // 3. Myntra: product id
+      if (host.includes('myntra.com')) {
+        const idMatch =
+          parsed.pathname.match(/\/(\d+)(?:\/buy|\/|$)/i) || parsed.pathname.match(/\/(\d+)/);
+        if (idMatch) {
+          return `https://${host}/${idMatch[1]}/buy`;
+        }
+      }
+
+      // 4. Ajio: /p/<id>
+      if (host.includes('ajio.com')) {
+        const pMatch = parsed.pathname.match(/\/p\/([a-zA-Z0-9_]+)/i);
+        if (pMatch) {
+          return `https://${host}/p/${pMatch[1]}`;
+        }
+      }
+
+      // 5. Meesho: /p/<id> or /s/p/<id>
+      if (host.includes('meesho.com')) {
+        const pMatch = parsed.pathname.match(/\/(?:s\/p|p)\/([a-zA-Z0-9]+)/i);
+        if (pMatch) {
+          return `https://${host}/s/p/${pMatch[1]}`;
+        }
+      }
+
+      // Strip common query tracking parameters
+      const trackingParams = [
+        'ref',
+        'ref_',
+        'tag',
+        'utm_source',
+        'utm_medium',
+        'utm_campaign',
+        'utm_term',
+        'utm_content',
+        'qid',
+        'sr',
+        'sprefix',
+        'keywords',
+        'crid',
+        'pd_rd_w',
+        'pd_rd_wg',
+        'pd_rd_r',
+        'pf_rd_p',
+        'pf_rd_r',
+        'psc',
+        'smid',
+        'fbclid',
+        'gclid',
+        '_ga',
+      ];
+      for (const param of trackingParams) {
+        parsed.searchParams.delete(param);
+      }
+
+      return parsed.toString().replace(/\/+$/, '');
+    } catch {
+      return rawUrl.trim().replace(/\/+$/, '');
+    }
+  }
+
+  /**
+   * Check if a product URL already exists in user's wishlist.
+   * If any duplicates exist, automatically removes extras and keeps only one!
+   */
+  public static async checkProductExists(userId: string, targetUrl: string) {
+    const rawUrl = targetUrl.trim();
+    const normalized = ProductService.normalizeUrl(rawUrl);
+
+    // Find matches by raw or normalized URL
+    const existing = await prisma.savedProduct.findMany({
+      where: {
+        userId,
+        OR: [
+          { url: rawUrl },
+          { url: normalized },
+          ...(normalized !== rawUrl ? [{ url: { contains: normalized } }] : []),
+        ],
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (existing.length > 0) {
+      // If duplicates are found, remove extra copies
+      if (existing.length > 1) {
+        const duplicateIds = existing.slice(1).map((p) => p.id);
+        await prisma.productSectionItem.deleteMany({
+          where: { productId: { in: duplicateIds } },
+        });
+        await prisma.savedProduct.deleteMany({
+          where: { id: { in: duplicateIds } },
+        });
+      }
+
+      return {
+        exists: true,
+        product: existing[0],
+      };
+    }
+
+    return {
+      exists: false,
+      product: null,
+    };
+  }
+
+  /**
+   * Deduplicate all products in user's wishlist: scans all products, removes any duplicates, and keeps one
+   */
+  public static async deduplicateWishlist(userId: string): Promise<number> {
+    try {
+      const allProducts = await prisma.savedProduct.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' }, // latest first
+      });
+
+      const seenUrls = new Set<string>();
+      const seenTitles = new Set<string>();
+      const duplicateIds: string[] = [];
+
+      for (const p of allProducts) {
+        const normUrl = ProductService.normalizeUrl(p.url);
+        const titleKey = `${(p.store || '').toLowerCase()}:::${p.title.trim().toLowerCase()}`;
+
+        if (seenUrls.has(normUrl) || (p.title && seenTitles.has(titleKey))) {
+          duplicateIds.push(p.id);
+        } else {
+          seenUrls.add(normUrl);
+          if (p.title) seenTitles.add(titleKey);
+        }
+      }
+
+      if (duplicateIds.length > 0) {
+        await prisma.productSectionItem.deleteMany({
+          where: { productId: { in: duplicateIds } },
+        });
+        await prisma.savedProduct.deleteMany({
+          where: { id: { in: duplicateIds } },
+        });
+        console.log(
+          `[ProductService] Deduplicated ${duplicateIds.length} duplicate products for user ${userId}`
+        );
+      }
+
+      return duplicateIds.length;
+    } catch (err) {
+      console.warn('[ProductService] Error in deduplicateWishlist:', err);
+      return 0;
+    }
+  }
+
+  /**
    * Extract product details from URL without saving
    */
   public static async extractFromUrl(url: string): Promise<ProductExtractedData> {
@@ -74,7 +257,19 @@ export class ProductService {
    * Save a product to the user's vault
    */
   public static async saveProduct(userId: string, input: SaveProductInput) {
-    let finalData = { ...input };
+    const rawUrl = input.url.trim();
+    const normalizedUrl = ProductService.normalizeUrl(rawUrl);
+
+    // 1. Check if product already exists before extracting or creating
+    const existingCheck = await ProductService.checkProductExists(userId, rawUrl);
+    if (existingCheck.exists && existingCheck.product) {
+      return {
+        ...existingCheck.product,
+        alreadyExists: true,
+      };
+    }
+
+    let finalData = { ...input, url: normalizedUrl };
 
     // If title or price or image is missing, attempt auto-extraction
     if (!finalData.title || finalData.price === undefined || !finalData.imageUrl) {
@@ -83,9 +278,11 @@ export class ProductService {
         finalData = {
           ...extracted,
           ...input,
+          url: normalizedUrl,
           title: input.title || extracted.title,
           price: input.price !== undefined ? input.price : extracted.price,
-          originalPrice: input.originalPrice !== undefined ? input.originalPrice : extracted.originalPrice,
+          originalPrice:
+            input.originalPrice !== undefined ? input.originalPrice : extracted.originalPrice,
           imageUrl: input.imageUrl || extracted.imageUrl,
           store: input.store || extracted.store,
           category: input.category || extracted.category,
@@ -100,6 +297,35 @@ export class ProductService {
     }
 
     const { store, currency, currencySymbol } = ProductExtractorService.detectStore(input.url);
+
+    // 2. Secondary check: after extraction, check if a product with the same store & title already exists
+    if (finalData.title) {
+      const matchByTitle = await prisma.savedProduct.findMany({
+        where: {
+          userId,
+          store: finalData.store || store,
+          title: finalData.title,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (matchByTitle.length > 0) {
+        if (matchByTitle.length > 1) {
+          const duplicateIds = matchByTitle.slice(1).map((p) => p.id);
+          await prisma.productSectionItem.deleteMany({
+            where: { productId: { in: duplicateIds } },
+          });
+          await prisma.savedProduct.deleteMany({
+            where: { id: { in: duplicateIds } },
+          });
+        }
+
+        return {
+          ...matchByTitle[0],
+          alreadyExists: true,
+        };
+      }
+    }
 
     // Collect target section IDs if provided
     const targetSectionIds: string[] = [];
@@ -127,7 +353,7 @@ export class ProductService {
       validSectionIds = ownedSections.map((s) => s.id);
     }
 
-    return await prisma.savedProduct.create({
+    const newProduct = await prisma.savedProduct.create({
       data: {
         userId,
         url: finalData.url,
@@ -162,12 +388,20 @@ export class ProductService {
           : {}),
       },
     });
+
+    return {
+      ...newProduct,
+      alreadyExists: false,
+    };
   }
 
   /**
    * List saved products with filtering and sorting
    */
   public static async listProducts(userId: string, filters: ProductListFilters = {}) {
+    // Automatically clean up any existing duplicates for this user
+    await ProductService.deduplicateWishlist(userId).catch(() => 0);
+
     const where: any = { userId };
 
     if (filters.store && filters.store !== 'ALL') {

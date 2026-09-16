@@ -8,6 +8,12 @@ const router = Router();
 // All product vault endpoints require an authenticated user
 router.use(requireAuth);
 
+// Check if URL already exists in wishlist
+router.get('/check', ProductController.check);
+
+// Deduplicate wishlist products (removes extra copies)
+router.post('/deduplicate', ProductController.deduplicate);
+
 // Extract metadata from any e-commerce product URL
 router.post('/extract', ProductController.extract);
 

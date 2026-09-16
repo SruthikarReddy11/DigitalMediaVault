@@ -94,22 +94,30 @@ async function saveProductToVault(
 
   try {
     // Call existing VaultXMedia backend extraction & save endpoint
-    const product = await vaultApi.saveProduct(targetUrl, token, settings.apiUrl);
+    const result = await vaultApi.saveProduct(targetUrl, token, settings.apiUrl);
+    const product = result.product;
+    const isDuplicate = !!result.alreadyExists;
 
-    // Success badge
-    setBadge('✓', '#10b981', 3500);
+    // Badge: SAVED (purple) if already in wishlist, ✓ (green) if newly added
+    setBadge(isDuplicate ? 'SAVED' : '✓', isDuplicate ? '#8b5cf6' : '#10b981', 3500);
+
+    const toastSub = isDuplicate
+      ? '✓ Product is already in your Wishlist'
+      : '✓ Saved to your Wishlist';
 
     // Notify tab content script with rich product details
     if (tabId) {
       chrome.tabs.sendMessage(tabId, {
         action: 'SHOW_TOAST',
-        title: product.title || 'Product saved!',
+        title: product.title || 'Product in Wishlist',
         store: product.store,
         price: product.price ?? undefined,
         currencySymbol: product.currencySymbol,
         imageUrl: product.imageUrl ?? undefined,
         url: `${settings.webUrl}/products`,
         isError: false,
+        alreadyExists: isDuplicate,
+        message: toastSub,
       }).catch(() => {});
     }
 
@@ -118,15 +126,17 @@ async function saveProductToVault(
       chrome.notifications.create({
         type: 'basic',
         iconUrl: 'icons/icon128.png',
-        title: 'Saved to VaultXMedia Wishlist',
-        message: `${product.title || 'Product'} has been saved to your Vault.`,
+        title: isDuplicate
+          ? 'Already in VaultXMedia Wishlist'
+          : 'Saved to VaultXMedia Wishlist',
+        message: `${product.title || 'Product'} is in your Vault.`,
         priority: 1,
       });
     } catch {
       // Notification permission optional
     }
 
-    return { success: true, product };
+    return { success: true, product, alreadyExists: isDuplicate };
   } catch (err: any) {
     console.error('Save product error:', err);
     setBadge('ERR', '#ef4444', 4000);
@@ -191,6 +201,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     const url = message.url || sender.tab?.url;
     saveProductToVault(url, sender.tab?.id).then(sendResponse);
     return true; // async sendResponse
+  }
+
+  if (message.action === 'CHECK_PRODUCT_EXISTS') {
+    const url = message.url || sender.tab?.url;
+    if (!url) {
+      sendResponse({ exists: false, product: null });
+      return true;
+    }
+    storage.getSettings().then(async (settings) => {
+      if (!settings.token) {
+        sendResponse({ exists: false, product: null });
+        return;
+      }
+      const checkRes = await vaultApi.checkProductExists(url, settings.token, settings.apiUrl);
+      sendResponse(checkRes);
+    });
+    return true;
   }
 
   if (message.action === 'CHECK_AUTH') {
