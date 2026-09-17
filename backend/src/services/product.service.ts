@@ -207,6 +207,43 @@ export class ProductService {
    */
   public static async deduplicateWishlist(userId: string): Promise<number> {
     try {
+      // Auto-repair any products that got saved with "Access Denied"
+      try {
+        const brokenProducts = await prisma.savedProduct.findMany({
+          where: {
+            userId,
+            title: { contains: 'Access Denied', mode: 'insensitive' },
+          },
+        });
+
+        for (const bp of brokenProducts) {
+          let fixedTitle = '';
+          let fixedBrand = bp.brand;
+          const ajioMatch = bp.url.match(/ajio\.com\/([^/]+)\/p\/([^/?#]+)/i);
+          if (ajioMatch && ajioMatch[1]) {
+            const words = ajioMatch[1].split('-').filter(Boolean);
+            if (words.length > 0) {
+              const capitalized = words.map((w) => w.charAt(0).toUpperCase() + w.slice(1));
+              fixedBrand = fixedBrand || capitalized[0];
+              fixedTitle = capitalized.join(' ');
+            }
+          }
+          if (!fixedTitle) {
+            fixedTitle = `Product from ${bp.store || 'Wishlist'}`;
+          }
+
+          await prisma.savedProduct.update({
+            where: { id: bp.id },
+            data: {
+              title: fixedTitle,
+              brand: fixedBrand,
+            },
+          });
+        }
+      } catch (repairErr) {
+        console.warn('[ProductService] Auto-repair notice:', repairErr);
+      }
+
       const allProducts = await prisma.savedProduct.findMany({
         where: { userId },
         orderBy: { createdAt: 'desc' }, // latest first
@@ -333,15 +370,20 @@ export class ProductService {
 
     let finalData = { ...input, url: normalizedUrl };
 
-    // If title or price or image is missing, attempt auto-extraction
-    if (!finalData.title || finalData.price === undefined || !finalData.imageUrl) {
+    // If title or price or image is missing, or if title contains "Access Denied", attempt auto-extraction
+    if (!finalData.title || finalData.price === undefined || !finalData.imageUrl || finalData.title.toLowerCase().includes('access denied')) {
       try {
         const extracted = await ProductExtractorService.extract(input.url);
         finalData = {
           ...extracted,
           ...input,
           url: normalizedUrl,
-          title: input.title || extracted.title,
+          title:
+            input.title && !input.title.toLowerCase().includes('access denied')
+              ? input.title
+              : extracted.title && !extracted.title.toLowerCase().includes('access denied')
+              ? extracted.title
+              : '',
           price: input.price !== undefined ? input.price : extracted.price,
           originalPrice:
             input.originalPrice !== undefined ? input.originalPrice : extracted.originalPrice,
@@ -359,6 +401,22 @@ export class ProductService {
     }
 
     const { store, currency, currencySymbol } = ProductExtractorService.detectStore(input.url);
+
+    // Final safeguard: Ensure title never contains "Access Denied" or is blank
+    if (!finalData.title || finalData.title.toLowerCase().includes('access denied')) {
+      const ajioMatch = input.url.match(/ajio\.com\/([^/]+)\/p\/([^/?#]+)/i);
+      if (ajioMatch && ajioMatch[1]) {
+        const words = ajioMatch[1].split('-').filter(Boolean);
+        if (words.length > 0) {
+          finalData.title = words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+          if (!finalData.brand) {
+            finalData.brand = words[0].charAt(0).toUpperCase() + words[0].slice(1);
+          }
+        }
+      } else {
+        finalData.title = `Product from ${finalData.store || store}`;
+      }
+    }
 
     // 2. Secondary check: after extraction, check if a product with the same store & title already exists
     if (finalData.title) {

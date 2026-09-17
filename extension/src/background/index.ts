@@ -140,16 +140,25 @@ export function classifyUrl(rawUrl: string): UrlClassification {
  */
 async function saveProductToVault(
   targetUrl: string,
-  tabId?: number
+  tabId?: number,
+  preExtractedData?: any
 ): Promise<{ success: boolean; product?: SavedProduct; error?: string; alreadyExists?: boolean }> {
   if (!targetUrl || (!targetUrl.startsWith('http://') && !targetUrl.startsWith('https://'))) {
     return { success: false, error: 'Cannot save a non-web URL.' };
   }
 
-  setBadge('...', '#8b5cf6'); // Purple loading badge
+  setBadge('...', '#8b5cf6');
 
-  const settings = await storage.getSettings();
-  const token = settings.token;
+  let settings = await storage.getSettings();
+  let token = settings.token;
+
+  if (!token || !token.trim()) {
+    const synced = await autoSyncSessionFromCookies(settings.webUrl, settings.apiUrl);
+    if (synced) {
+      token = synced;
+      settings = await storage.getSettings();
+    }
+  }
 
   // Strictly enforce authentication in the extension
   if (!token || !token.trim()) {
@@ -170,8 +179,19 @@ async function saveProductToVault(
     return { success: false, error: authErrorMsg };
   }
 
+  // If no productData was passed, ask content script in tabId to extract it directly from DOM
+  let productData = preExtractedData;
+  if (!productData && tabId) {
+    try {
+      const extractedRes: any = await chrome.tabs.sendMessage(tabId, { action: 'EXTRACT_PAGE_PRODUCT' });
+      if (extractedRes && extractedRes.success && extractedRes.data) {
+        productData = extractedRes.data;
+      }
+    } catch {}
+  }
+
   try {
-    const result = await vaultApi.saveProduct(targetUrl, token, settings.apiUrl);
+    const result = await vaultApi.saveProduct(targetUrl, token, settings.apiUrl, productData);
     const product = result.product;
     const isDuplicate = !!result.alreadyExists;
 
@@ -379,13 +399,14 @@ async function openSecretVaultModal(tabId: number, targetUrl: string, title?: st
 async function smartSaveUrl(
   targetUrl: string,
   title?: string,
-  tabId?: number
+  tabId?: number,
+  productData?: any
 ): Promise<{ success: boolean; product?: SavedProduct; error?: string; alreadyExists?: boolean; isSecretVault?: boolean }> {
   if (!targetUrl) return { success: false, error: 'No URL provided' };
   const classification = classifyUrl(targetUrl);
 
   if (classification === 'PRODUCT') {
-    return await saveProductToVault(targetUrl, tabId);
+    return await saveProductToVault(targetUrl, tabId, productData);
   } else if (classification === 'YOUTUBE') {
     return await saveVideoToVault(targetUrl, title, tabId);
   } else {
@@ -430,7 +451,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'SAVE_CURRENT_PRODUCT') {
     const url = message.url || sender.tab?.url;
-    smartSaveUrl(url, message.title || sender.tab?.title, sender.tab?.id).then(sendResponse);
+    smartSaveUrl(url, message.title || sender.tab?.title, sender.tab?.id, message.productData).then(sendResponse);
     return true; // async sendResponse
   }
 

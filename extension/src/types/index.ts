@@ -103,7 +103,9 @@ export interface CheckProductExistsResponse {
 }
 
 export type ExtensionMessage =
-  | { action: 'SAVE_CURRENT_PRODUCT'; url: string }
+  | { action: 'SAVE_CURRENT_PRODUCT'; url: string; title?: string; productData?: any }
+  | { action: 'EXTRACT_PAGE_PRODUCT' }
+  | { action: 'LOGIN'; identifier: string; password: string }
   | { action: 'CHECK_PRODUCT_EXISTS'; url: string }
   | { action: 'CHECK_AUTH' }
   | { action: 'SYNC_SESSION' }
@@ -114,7 +116,7 @@ export type ExtensionMessage =
   | { action: 'UNLOCK_VAULT_FOLDER'; folderId: string; password: string }
   | { action: 'CREATE_VAULT_CELL'; folderId: string; data: { url: string; title?: string; notes?: string } }
   | { action: 'CREATE_VAULT_FOLDER'; data: { name: string; password: string; color?: string; description?: string } }
-  | { action: 'OPEN_VAULT_SAVE_MODAL'; url: string; title: string }
+  | { action: 'OPEN_VAULT_SAVE_MODAL'; url: string; title: string; webUrl?: string; isAuthenticated?: boolean }
   | {
       action: 'SHOW_TOAST';
       title: string;

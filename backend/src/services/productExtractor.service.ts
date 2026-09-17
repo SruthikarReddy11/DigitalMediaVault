@@ -133,7 +133,24 @@ export class ProductExtractorService {
 
       clearTimeout(timeoutId);
       finalUrl = response.url || targetUrl;
-      html = await response.text();
+
+      if (!response.ok || response.status === 403 || response.status === 401) {
+        console.warn(`[ProductExtractor] HTTP ${response.status} from ${targetUrl} (anti-bot protected)`);
+      } else {
+        const rawText = await response.text();
+        const isBotBlocked =
+          rawText.includes('<title>Access Denied</title>') ||
+          rawText.includes('Robot Check') ||
+          rawText.includes('Enable JavaScript and cookies to continue') ||
+          rawText.includes('ShieldSquare Captcha') ||
+          rawText.includes('Attention Required! | Cloudflare');
+
+        if (isBotBlocked) {
+          console.warn(`[ProductExtractor] Anti-bot challenge detected for ${targetUrl}`);
+        } else {
+          html = rawText;
+        }
+      }
     } catch (err: any) {
       console.warn(`[ProductExtractor] Network fetch notice for ${targetUrl}:`, err.message);
     }
@@ -146,7 +163,7 @@ export class ProductExtractorService {
       description: undefined,
       brand: undefined,
       store,
-      category: 'General',
+      category: store === 'Ajio' || store === 'Myntra' ? 'Fashion' : 'General',
       price: undefined,
       originalPrice: undefined,
       currency: defaultCurrency,
@@ -161,8 +178,22 @@ export class ProductExtractorService {
     };
 
     if (!html) {
-      // Return basic inferred data if network was restricted
-      result.title = `Product from ${store}`;
+      // Fallback to URL slug parsing (especially useful for Ajio where edge-servers block Node.js scrapers)
+      if (store === 'Ajio') {
+        const ajioMatch = targetUrl.match(/ajio\.com\/([^/]+)\/p\/([^/?#]+)/i);
+        if (ajioMatch && ajioMatch[1]) {
+          const words = ajioMatch[1].split('-').filter(Boolean);
+          if (words.length > 0) {
+            const capitalized = words.map((w) => w.charAt(0).toUpperCase() + w.slice(1));
+            result.brand = capitalized[0];
+            result.title = capitalized.join(' ');
+          }
+        }
+      }
+
+      if (!result.title || result.title.toLowerCase().includes('access denied')) {
+        result.title = `Product from ${store}`;
+      }
       return result;
     }
 
@@ -400,7 +431,20 @@ export class ProductExtractorService {
 
     // 5. Clean up title
     result.title = this.cleanTitle(result.title, store);
-    if (!result.title) {
+    if (!result.title || result.title.toLowerCase().includes('access denied')) {
+      if (store === 'Ajio') {
+        const ajioMatch = targetUrl.match(/ajio\.com\/([^/]+)\/p\/([^/?#]+)/i);
+        if (ajioMatch && ajioMatch[1]) {
+          const words = ajioMatch[1].split('-').filter(Boolean);
+          if (words.length > 0) {
+            const capitalized = words.map((w) => w.charAt(0).toUpperCase() + w.slice(1));
+            if (!result.brand) result.brand = capitalized[0];
+            result.title = capitalized.join(' ');
+          }
+        }
+      }
+    }
+    if (!result.title || result.title.toLowerCase().includes('access denied')) {
       result.title = `Product from ${store}`;
     }
 

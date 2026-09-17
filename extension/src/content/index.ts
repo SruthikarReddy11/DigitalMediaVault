@@ -199,6 +199,276 @@ async function checkCurrentProductStatus(btn: HTMLElement) {
   } catch {}
 }
 
+/**
+ * Robust in-browser DOM product extractor.
+ * Bypasses server-side anti-bot protections (e.g. Akamai, Cloudflare) by directly
+ * reading the already-rendered DOM, JSON-LD, and meta tags from the user's active session.
+ */
+function extractInPageProductData(): any {
+  const url = window.location.href;
+  const host = window.location.hostname.toLowerCase();
+
+  let title = '';
+  let brand = '';
+  let price: number | undefined = undefined;
+  let originalPrice: number | undefined = undefined;
+  let imageUrl = '';
+  let category = 'General';
+  let inStock = true;
+  let store = '';
+  let currency = 'INR';
+  let currencySymbol = '₹';
+
+  // Determine store
+  if (host.includes('amazon.')) store = 'Amazon';
+  else if (host.includes('flipkart.com')) store = 'Flipkart';
+  else if (host.includes('myntra.com')) store = 'Myntra';
+  else if (host.includes('ajio.com')) store = 'Ajio';
+  else if (host.includes('meesho.com')) store = 'Meesho';
+  else if (host.includes('nykaa.com')) store = 'Nykaa';
+  else if (host.includes('tatacliq.com')) store = 'Tata CLiQ';
+  else if (host.includes('croma.com')) store = 'Croma';
+  else if (host.includes('reliancedigital.in')) store = 'Reliance Digital';
+  else {
+    const cleanName = host.replace(/^www\./, '').split('.')[0];
+    store = cleanName.charAt(0).toUpperCase() + cleanName.slice(1) || 'Other';
+  }
+
+  const parseNumber = (str: any): number | undefined => {
+    if (typeof str === 'number' && !isNaN(str)) return str;
+    if (!str || typeof str !== 'string') return undefined;
+    const clean = str.replace(/[^\d.]/g, '').trim();
+    const val = parseFloat(clean);
+    return isNaN(val) || val <= 0 ? undefined : val;
+  };
+
+  // 1. JSON-LD structured data extraction
+  const jsonLdScripts = document.querySelectorAll('script[type="application/ld+json"]');
+  jsonLdScripts.forEach((el) => {
+    try {
+      const text = el.textContent;
+      if (!text) return;
+      const parsed = JSON.parse(text);
+      const items = Array.isArray(parsed) ? parsed : parsed['@graph'] ? parsed['@graph'] : [parsed];
+
+      for (const item of items) {
+        if (
+          item['@type'] === 'Product' ||
+          item['@type'] === 'IndividualProduct' ||
+          item['@type'] === 'ProductModel'
+        ) {
+          if (!title && item.name) title = String(item.name).trim();
+          if (!brand) {
+            if (typeof item.brand === 'string') brand = item.brand.trim();
+            else if (item.brand?.name) brand = String(item.brand.name).trim();
+          }
+          if (!imageUrl) {
+            if (typeof item.image === 'string') {
+              imageUrl = item.image;
+            } else if (Array.isArray(item.image) && item.image.length > 0) {
+              const first = item.image[0];
+              imageUrl = typeof first === 'string' ? first : first?.url || '';
+            } else if (item.image?.url) {
+              imageUrl = item.image.url;
+            }
+          }
+          const offers = Array.isArray(item.offers) ? item.offers[0] : item.offers;
+          if (offers) {
+            if (price === undefined) {
+              const p = parseNumber(offers.price || offers.lowPrice);
+              if (p) price = p;
+            }
+            if (offers.priceCurrency) {
+              currency = offers.priceCurrency;
+              currencySymbol = currency === 'INR' ? '₹' : currency === 'USD' ? '$' : currency;
+            }
+            if (offers.availability) {
+              const av = String(offers.availability).toLowerCase();
+              inStock = !av.includes('outofstock');
+            }
+          }
+        }
+      }
+    } catch {}
+  });
+
+  // 2. Platform-Specific DOM Selectors
+  if (store === 'Ajio') {
+    category = 'Fashion';
+    const b =
+      document.querySelector('.brand-name')?.textContent ||
+      document.querySelector('h2.brand-name')?.textContent ||
+      document.querySelector('.prod-brand')?.textContent;
+    if (b && b.trim()) brand = b.trim();
+
+    const t =
+      document.querySelector('.prod-name')?.textContent ||
+      document.querySelector('h1.prod-title')?.textContent;
+    if (t && t.trim()) {
+      title = brand && !t.trim().toLowerCase().startsWith(brand.toLowerCase())
+        ? `${brand} ${t.trim()}`
+        : t.trim();
+    }
+
+    if (price === undefined) {
+      const sp =
+        document.querySelector('.prod-sp')?.textContent ||
+        document.querySelector('.price-value')?.textContent;
+      const p = parseNumber(sp);
+      if (p) price = p;
+    }
+
+    if (originalPrice === undefined) {
+      const cp =
+        document.querySelector('.prod-cp')?.textContent ||
+        document.querySelector('.original-price')?.textContent;
+      const mrp = parseNumber(cp);
+      if (mrp) originalPrice = mrp;
+    }
+
+    if (!imageUrl) {
+      const ajioImgs = Array.from(document.querySelectorAll('img')).filter((img) => {
+        const src = img.getAttribute('src') || '';
+        return src.includes('assets.ajio.com') && (src.includes('medias') || src.includes('root') || src.includes('images'));
+      });
+      if (ajioImgs.length > 0) {
+        imageUrl = (ajioImgs[0] as HTMLImageElement).src || ajioImgs[0].getAttribute('src') || '';
+      }
+    }
+  } else if (store === 'Myntra') {
+    category = 'Fashion';
+    const b = document.querySelector('.pdp-title')?.textContent;
+    if (b && b.trim()) brand = b.trim();
+    const t = document.querySelector('.pdp-name')?.textContent;
+    if (t && t.trim()) {
+      title = brand && !t.trim().toLowerCase().startsWith(brand.toLowerCase())
+        ? `${brand} ${t.trim()}`
+        : t.trim();
+    }
+    if (price === undefined) {
+      const p = parseNumber(document.querySelector('.pdp-price strong')?.textContent || document.querySelector('.pdp-price')?.textContent);
+      if (p) price = p;
+    }
+    if (originalPrice === undefined) {
+      const mrp = parseNumber(document.querySelector('.pdp-mrp s')?.textContent || document.querySelector('.pdp-mrp')?.textContent);
+      if (mrp) originalPrice = mrp;
+    }
+    if (!imageUrl) {
+      const img = document.querySelector('.image-grid-image') || document.querySelector('img[src*="assets.myntassets.com"]');
+      if (img) imageUrl = (img as HTMLImageElement).src || img.getAttribute('src') || '';
+    }
+  } else if (store === 'Flipkart') {
+    const fkTitle =
+      document.querySelector('span.B_NuCI')?.textContent ||
+      document.querySelector('h1.yhB1nd')?.textContent ||
+      document.querySelector('span._35KyD6')?.textContent;
+    if (fkTitle && fkTitle.trim()) title = fkTitle.trim();
+    if (price === undefined) {
+      const fkPrice =
+        document.querySelector('div._30jeq3._16Jk6d')?.textContent ||
+        document.querySelector('div._30jeq3')?.textContent ||
+        document.querySelector('div.Nx9bqj.CxhGGd')?.textContent;
+      const p = parseNumber(fkPrice);
+      if (p) price = p;
+    }
+    if (originalPrice === undefined) {
+      const fkMrp =
+        document.querySelector('div._3I9_wc._2p6lqe')?.textContent ||
+        document.querySelector('div._3I9_wc')?.textContent ||
+        document.querySelector('div.yRaY8j.A68aAq')?.textContent;
+      const mrp = parseNumber(fkMrp);
+      if (mrp) originalPrice = mrp;
+    }
+    if (!imageUrl) {
+      const img = document.querySelector('img._396cs4') || document.querySelector('img.DByuf4') || document.querySelector('img._2r_T1I');
+      if (img) imageUrl = (img as HTMLImageElement).src || img.getAttribute('src') || '';
+    }
+  } else if (store === 'Amazon') {
+    const azTitle = document.querySelector('#productTitle')?.textContent || document.querySelector('span#title')?.textContent;
+    if (azTitle && azTitle.trim()) title = azTitle.trim();
+    if (price === undefined) {
+      const azPrice =
+        document.querySelector('.a-price .a-offscreen')?.textContent ||
+        document.querySelector('#priceblock_ourprice')?.textContent ||
+        document.querySelector('#corePrice_desktop .a-offscreen')?.textContent;
+      const p = parseNumber(azPrice);
+      if (p) price = p;
+    }
+    if (originalPrice === undefined) {
+      const azMrp =
+        document.querySelector('.a-text-price span.a-offscreen')?.textContent ||
+        document.querySelector('#listPrice')?.textContent;
+      const mrp = parseNumber(azMrp);
+      if (mrp) originalPrice = mrp;
+    }
+    if (!imageUrl) {
+      const img = document.querySelector('#landingImage') || document.querySelector('#imgBlkFront');
+      if (img) imageUrl = (img as HTMLImageElement).src || img.getAttribute('data-old-hires') || img.getAttribute('src') || '';
+    }
+  }
+
+  // 3. OpenGraph & Meta tag fallbacks
+  if (!title) {
+    title =
+      (document.querySelector('meta[property="og:title"]') as HTMLMetaElement)?.content ||
+      (document.querySelector('meta[name="twitter:title"]') as HTMLMetaElement)?.content ||
+      document.title ||
+      '';
+  }
+  if (!imageUrl) {
+    imageUrl =
+      (document.querySelector('meta[property="og:image"]') as HTMLMetaElement)?.content ||
+      (document.querySelector('meta[property="og:image:secure_url"]') as HTMLMetaElement)?.content ||
+      (document.querySelector('meta[name="twitter:image"]') as HTMLMetaElement)?.content ||
+      '';
+  }
+
+  // 4. URL slug fallback for Ajio if title is missing or contains Access Denied
+  if (store === 'Ajio' && (!title || title.toLowerCase().includes('access denied'))) {
+    try {
+      const parsedUrl = new URL(url);
+      const match = parsedUrl.pathname.match(/\/([^/]+)\/p\/([^/?#]+)/i);
+      if (match && match[1]) {
+        const slugWords = match[1].split('-').filter(Boolean);
+        if (slugWords.length > 0) {
+          const capitalizedWords = slugWords.map((w) => w.charAt(0).toUpperCase() + w.slice(1));
+          brand = brand || capitalizedWords[0];
+          title = capitalizedWords.join(' ');
+        }
+      }
+    } catch {}
+  }
+
+  // Clean title
+  title = title
+    .replace(/\s*\|\s*Flipkart\.com$/i, '')
+    .replace(/\s*:\s*Buy Online at Best Price in India - Amazon\.in$/i, '')
+    .replace(/\s*:\s*Amazon\.in:.*$/i, '')
+    .replace(/\s*Buy Online at Ajio\.com$/i, '')
+    .replace(/\s*-\s*Ajio$/i, '')
+    .replace(/\s*Buy.*Online at Myntra$/i, '')
+    .replace(/\s*\|\s*Myntra$/i, '')
+    .trim();
+
+  if (!title || title.toLowerCase().includes('access denied')) {
+    title = `Product from ${store}`;
+  }
+
+  return {
+    url,
+    title,
+    brand: brand || undefined,
+    store,
+    category,
+    price,
+    originalPrice,
+    currency,
+    currencySymbol,
+    imageUrl: imageUrl || undefined,
+    inStock,
+  };
+}
+
 function injectProductSaveButton() {
   let btn = document.getElementById(VAULT_BUTTON_ID);
 
@@ -253,10 +523,15 @@ function injectProductSaveButton() {
     const originalText = textSpan.textContent;
     textSpan.textContent = 'Saving...';
 
+    // Extract product details directly from the active DOM session
+    const productData = extractInPageProductData();
+
     try {
       const response: any = await chrome.runtime.sendMessage({
         action: 'SAVE_CURRENT_PRODUCT',
         url: window.location.href,
+        title: productData?.title || document.title,
+        productData,
       });
 
       btn.classList.remove('vaultx-loading');
@@ -1023,8 +1298,16 @@ function openSecretVaultModal(
  * MESSAGE DISPATCHER & INJECTION SYSTEM
  * ============================================================================
  */
-chrome.runtime.onMessage.addListener((message) => {
-  if (message.action === 'SHOW_TOAST') {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message.action === 'EXTRACT_PAGE_PRODUCT') {
+    try {
+      const data = extractInPageProductData();
+      sendResponse({ success: true, data });
+    } catch (err: any) {
+      sendResponse({ success: false, error: err.message });
+    }
+    return true;
+  } else if (message.action === 'SHOW_TOAST') {
     showToast(message);
   } else if (message.action === 'OPEN_VAULT_SAVE_MODAL') {
     openSecretVaultModal(

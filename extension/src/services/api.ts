@@ -65,7 +65,8 @@ export const vaultApi = {
   async saveProduct(
     url: string,
     token: string,
-    apiUrl: string
+    apiUrl: string,
+    productData?: any
   ): Promise<SaveProductResponse> {
     if (!token || !token.trim()) {
       throw new VaultApiError(
@@ -78,6 +79,20 @@ export const vaultApi = {
     const cleanBase = apiUrl.replace(/\/+$/, '');
     const endpoint = `${cleanBase}/products`;
 
+    const payload: any = { url: url.trim() };
+    if (productData && typeof productData === 'object') {
+      if (productData.title) payload.title = productData.title;
+      if (productData.price !== undefined) payload.price = productData.price;
+      if (productData.originalPrice !== undefined) payload.originalPrice = productData.originalPrice;
+      if (productData.imageUrl) payload.imageUrl = productData.imageUrl;
+      if (productData.brand) payload.brand = productData.brand;
+      if (productData.store) payload.store = productData.store;
+      if (productData.category) payload.category = productData.category;
+      if (productData.currency) payload.currency = productData.currency;
+      if (productData.currencySymbol) payload.currencySymbol = productData.currencySymbol;
+      if (productData.inStock !== undefined) payload.inStock = productData.inStock;
+    }
+
     const response = await fetch(endpoint, {
       method: 'POST',
       credentials: 'omit',
@@ -85,7 +100,7 @@ export const vaultApi = {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${token.trim()}`,
       },
-      body: JSON.stringify({ url: url.trim() }),
+      body: JSON.stringify(payload),
     });
 
     const json = await response.json().catch(() => null);
