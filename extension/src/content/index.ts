@@ -410,7 +410,11 @@ function injectYouTubeSaveButton() {
  * INTERACTIVE SECRET VAULT SAVE MODAL
  * ============================================================================
  */
-function openSecretVaultModal(targetUrl: string, pageTitle: string) {
+function openSecretVaultModal(
+  targetUrl: string,
+  pageTitle: string,
+  webUrl = 'https://digital-media-vault.vercel.app'
+) {
   // Remove existing modal if already open
   const existing = document.getElementById(VAULT_MODAL_ID);
   if (existing) existing.remove();
@@ -483,8 +487,8 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
 
   const stepContainer = modal.querySelector('#vaultx-dynamic-step-container') as HTMLElement;
 
-  // Step Controllers
-  const renderError = (msg: string, showLogin = false) => {
+  // Generic Error Handler
+  const renderError = (msg: string, showRetry = true) => {
     stepContainer.innerHTML = `
       <div class="vaultx-modal-error">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -496,24 +500,131 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
       </div>
       <div class="vaultx-modal-actions">
         <button type="button" class="vaultx-btn-secondary" id="vaultx-err-cancel">Cancel</button>
-        ${
-          showLogin
-            ? '<button type="button" class="vaultx-btn-primary" id="vaultx-err-login">Open Settings / Login</button>'
-            : '<button type="button" class="vaultx-btn-primary" id="vaultx-err-retry">Retry</button>'
-        }
+        ${showRetry ? '<button type="button" class="vaultx-btn-primary" id="vaultx-err-retry">Retry</button>' : ''}
       </div>
     `;
     stepContainer.querySelector('#vaultx-err-cancel')?.addEventListener('click', closeModal);
-    stepContainer.querySelector('#vaultx-err-login')?.addEventListener('click', () => {
-      chrome.runtime.sendMessage({ action: 'CHECK_AUTH' });
-      closeModal();
-    });
     stepContainer.querySelector('#vaultx-err-retry')?.addEventListener('click', initFlow);
   };
 
-  /**
-   * STEP 1: Secret Vault Gate (2FA verification if enabled)
-   */
+  // STEP 0: Inline Authorization / Login View
+  const renderAuthorizeView = (initialError?: string) => {
+    stepContainer.innerHTML = `
+      <div style="text-align:center; margin-bottom:14px;">
+        <div style="font-size:13.5px; font-weight:700; color:#f1f5f9; margin-bottom:4px;">
+          Authorize Secret Vault
+        </div>
+        <div style="font-size:11.5px; color:#94a3b8; line-height:1.4;">
+          Please authorize your VaultXMedia account to access and save into your Secret Vault folders.
+        </div>
+      </div>
+
+      <div id="vaultx-auth-error-box">
+        ${initialError ? `<div class="vaultx-modal-error">${initialError}</div>` : ''}
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <button type="button" class="vaultx-btn-secondary" id="vaultx-auth-autosync" style="width:100%; display:flex; align-items:center; justify-content:center; gap:6px; background:#1e293b; border-color:rgba(99,102,241,0.3);">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+          <span style="color:#c7d2fe; font-weight:600;">Auto-Detect Active Web Session</span>
+        </button>
+      </div>
+
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+        <div style="flex:1; height:1px; background:rgba(255,255,255,0.1);"></div>
+        <span style="font-size:10px; text-transform:uppercase; color:#64748b; letter-spacing:0.5px; font-weight:600;">Or Sign In</span>
+        <div style="flex:1; height:1px; background:rgba(255,255,255,0.1);"></div>
+      </div>
+
+      <form id="vaultx-inline-login-form">
+        <div style="margin-bottom:10px;">
+          <label class="vaultx-label">Username or Email</label>
+          <input type="text" id="vaultx-auth-id" class="vaultx-input" placeholder="e.g. user@vault.com" required autocomplete="username" />
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="vaultx-label">Password</label>
+          <input type="password" id="vaultx-auth-pw" class="vaultx-input" placeholder="Your password" required autocomplete="current-password" />
+        </div>
+
+        <div class="vaultx-modal-actions">
+          <button type="button" class="vaultx-btn-secondary" id="vaultx-auth-cancel">Cancel</button>
+          <button type="submit" class="vaultx-btn-primary" id="vaultx-auth-submit">
+            Authorize & Unlock &rarr;
+          </button>
+        </div>
+      </form>
+    `;
+
+    const errBox = stepContainer.querySelector('#vaultx-auth-error-box') as HTMLElement;
+    const syncBtn = stepContainer.querySelector('#vaultx-auth-autosync') as HTMLButtonElement;
+    const loginForm = stepContainer.querySelector('#vaultx-inline-login-form') as HTMLFormElement;
+    const idInput = stepContainer.querySelector('#vaultx-auth-id') as HTMLInputElement;
+    const pwInput = stepContainer.querySelector('#vaultx-auth-pw') as HTMLInputElement;
+    const submitBtn = stepContainer.querySelector('#vaultx-auth-submit') as HTMLButtonElement;
+
+    stepContainer.querySelector('#vaultx-auth-cancel')?.addEventListener('click', closeModal);
+
+    // 1-Click Auto-Detect Session
+    syncBtn.addEventListener('click', async () => {
+      syncBtn.disabled = true;
+      syncBtn.innerHTML = `<span>Detecting browser session...</span>`;
+      errBox.innerHTML = '';
+
+      try {
+        const res: any = await chrome.runtime.sendMessage({ action: 'SYNC_SESSION' });
+        if (res && res.success) {
+          initFlow();
+        } else {
+          syncBtn.disabled = false;
+          syncBtn.innerHTML = `<span>Auto-Detect Active Web Session</span>`;
+          errBox.innerHTML = `<div class="vaultx-modal-error">No active web session found. Please sign in below.</div>`;
+          idInput.focus();
+        }
+      } catch (err: any) {
+        syncBtn.disabled = false;
+        syncBtn.innerHTML = `<span>Auto-Detect Active Web Session</span>`;
+        errBox.innerHTML = `<div class="vaultx-modal-error">${err.message || 'Auto-detection failed.'}</div>`;
+      }
+    });
+
+    // Inline Sign In Form
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const identifier = idInput.value.trim();
+      const password = pwInput.value;
+
+      if (!identifier || !password) return;
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Authorizing...';
+      errBox.innerHTML = '';
+
+      try {
+        const res: any = await chrome.runtime.sendMessage({
+          action: 'LOGIN',
+          identifier,
+          password,
+        });
+
+        if (res && res.success) {
+          initFlow();
+        } else {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Authorize & Unlock →';
+          errBox.innerHTML = `<div class="vaultx-modal-error">${res?.error || 'Invalid credentials.'}</div>`;
+        }
+      } catch (err: any) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Authorize & Unlock →';
+        errBox.innerHTML = `<div class="vaultx-modal-error">${err.message || 'Authorization failed.'}</div>`;
+      }
+    });
+  };
+
+  // STEP 1: Secret Vault Gate (2FA verification if enabled)
   const renderStep1_2FA = () => {
     stepContainer.innerHTML = `
       <form id="vaultx-2fa-form">
@@ -564,9 +675,7 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
       e.preventDefault();
       const code = input.value.trim();
       if (code.length !== 6) {
-        errorBox.innerHTML = `
-          <div class="vaultx-modal-error">Please enter all 6 digits.</div>
-        `;
+        errorBox.innerHTML = `<div class="vaultx-modal-error">Please enter all 6 digits.</div>`;
         return;
       }
 
@@ -584,25 +693,19 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
         } else {
           submitBtn.disabled = false;
           submitBtn.textContent = 'Unlock Vault →';
-          errorBox.innerHTML = `
-            <div class="vaultx-modal-error">${res?.error || 'Invalid 6-digit code. Please check your app.'}</div>
-          `;
+          errorBox.innerHTML = `<div class="vaultx-modal-error">${res?.error || 'Invalid 6-digit code. Please check your app.'}</div>`;
           input.value = '';
           input.focus();
         }
       } catch (err: any) {
         submitBtn.disabled = false;
         submitBtn.textContent = 'Unlock Vault →';
-        errorBox.innerHTML = `
-          <div class="vaultx-modal-error">${err.message || 'Error communicating with extension.'}</div>
-        `;
+        errorBox.innerHTML = `<div class="vaultx-modal-error">${err.message || 'Error communicating with extension.'}</div>`;
       }
     });
   };
 
-  /**
-   * STEP 2: Select a Secret Vault Folder
-   */
+  // STEP 2: Select a Secret Vault Folder
   const renderStep2_SelectFolder = async () => {
     stepContainer.innerHTML = `
       <div style="text-align:center; padding: 20px 0; color: #94a3b8; font-size: 13px;">
@@ -614,14 +717,18 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
     try {
       const res: any = await chrome.runtime.sendMessage({ action: 'LIST_VAULT_FOLDERS' });
       if (!res || !res.success) {
-        renderError(res?.error || 'Failed to fetch vault folders.');
+        if (res?.needAuth) {
+          renderAuthorizeView(res.error);
+        } else {
+          renderError(res?.error || 'Failed to fetch vault folders.');
+        }
         return;
       }
 
       const folders = res.data || [];
 
       if (folders.length === 0) {
-        // No folders, prompt creation
+        // No folders yet, prompt creation
         renderCreateFolderView();
         return;
       }
@@ -665,7 +772,6 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
       stepContainer.querySelector('#vaultx-step2-cancel')?.addEventListener('click', closeModal);
       stepContainer.querySelector('#vaultx-new-folder-btn')?.addEventListener('click', renderCreateFolderView);
 
-      // Folder selection click
       stepContainer.querySelectorAll('.vaultx-folder-item').forEach((item) => {
         item.addEventListener('click', () => {
           const folderId = item.getAttribute('data-folder-id')!;
@@ -679,16 +785,14 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
     }
   };
 
-  /**
-   * INLINE FOLDER CREATOR (if user has no folders or wants a new one)
-   */
+  // INLINE FOLDER CREATOR
   const renderCreateFolderView = () => {
     stepContainer.innerHTML = `
       <form id="vaultx-create-folder-form">
         <label class="vaultx-label">Folder Name</label>
-        <input type="text" id="vaultx-new-folder-name" class="vaultx-input" placeholder="e.g. Work Bookmarks, Crypto, Personal" required style="margin-bottom:12px;" />
+        <input type="text" id="vaultx-new-folder-name" class="vaultx-input" placeholder="e.g. Work, Crypto, Bookmarks" required style="margin-bottom:12px;" />
 
-        <label class="vaultx-label">Folder Password (min 4 chars)</label>
+        <label class="vaultx-label">Folder Password (min 4 characters)</label>
         <input type="password" id="vaultx-new-folder-pw" class="vaultx-input" placeholder="Create password for this folder..." minlength="4" required style="margin-bottom:14px;" />
 
         <div id="vaultx-create-folder-error"></div>
@@ -743,9 +847,7 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
     });
   };
 
-  /**
-   * STEP 3: Unlock Folder with Password & Save Link
-   */
+  // STEP 3: Unlock Folder & Save Link
   const renderStep3_UnlockAndSave = (
     folderId: string,
     folderName: string,
@@ -754,7 +856,7 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
   ) => {
     stepContainer.innerHTML = `
       <form id="vaultx-save-cell-form">
-        <!-- Target Folder Pill -->
+        <!-- Target Folder Indicator -->
         <div style="display:flex; align-items:center; gap:8px; background:#1e293b; border-radius:10px; padding:8px 12px; margin-bottom:14px;">
           <div class="vaultx-folder-dot" style="background-color:${folderColor};"></div>
           <span style="font-size:12px; font-weight:700; color:#f1f5f9;">Destination: ${folderName}</span>
@@ -792,7 +894,7 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
             type="text"
             id="vaultx-cell-notes-input"
             class="vaultx-input"
-            placeholder="Add secret notes..."
+            placeholder="Add private notes..."
           />
         </div>
 
@@ -865,7 +967,7 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
           showToast({
             title,
             message: `✓ Saved in Secret Vault / ${folderName}`,
-            url: 'https://digital-media-vault.vercel.app/vault',
+            url: `${webUrl}/vault`,
             isError: false,
           });
         } else {
@@ -881,14 +983,25 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
     });
   };
 
-  /**
-   * INITIALIZE FLOW: Check 2FA
-   */
+  // INITIALIZE FLOW: Check session & 2FA
   const initFlow = async () => {
     try {
+      const authRes: any = await chrome.runtime.sendMessage({ action: 'CHECK_AUTH' });
+      if (!authRes || !authRes.isAuthenticated) {
+        const syncRes: any = await chrome.runtime.sendMessage({ action: 'SYNC_SESSION' });
+        if (!syncRes || !syncRes.success) {
+          renderAuthorizeView();
+          return;
+        }
+      }
+
       const res: any = await chrome.runtime.sendMessage({ action: 'GET_2FA_STATUS' });
       if (!res || !res.success) {
-        renderError(res?.error || 'Please log into VaultXMedia before saving.', true);
+        if (res?.needAuth) {
+          renderAuthorizeView(res.error);
+        } else {
+          renderError(res?.error || 'Failed to connect to Secret Vault.');
+        }
         return;
       }
 
@@ -898,7 +1011,7 @@ function openSecretVaultModal(targetUrl: string, pageTitle: string) {
         renderStep2_SelectFolder();
       }
     } catch (err: any) {
-      renderError(err.message || 'Failed to connect to extension.', true);
+      renderError(err.message || 'Failed to connect to extension.');
     }
   };
 
@@ -914,7 +1027,11 @@ chrome.runtime.onMessage.addListener((message) => {
   if (message.action === 'SHOW_TOAST') {
     showToast(message);
   } else if (message.action === 'OPEN_VAULT_SAVE_MODAL') {
-    openSecretVaultModal(message.url || window.location.href, message.title || document.title);
+    openSecretVaultModal(
+      message.url || window.location.href,
+      message.title || document.title,
+      message.webUrl
+    );
   }
 });
 

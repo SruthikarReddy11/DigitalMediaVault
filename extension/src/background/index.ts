@@ -24,24 +24,41 @@ function setBadge(text: string, color: string, autoClearMs?: number) {
  */
 async function autoSyncSessionFromCookies(webUrl: string, apiUrl: string): Promise<string | null> {
   try {
-    const parsedWeb = new URL(webUrl);
-    const parsedApi = new URL(apiUrl);
+    const candidates = [
+      {
+        domain: 'digital-media-vault.vercel.app',
+        api: 'https://digital-media-vault-api.onrender.com/api',
+        web: 'https://digital-media-vault.vercel.app',
+      },
+      {
+        domain: 'localhost',
+        api: 'http://localhost:5000/api',
+        web: 'http://localhost:5173',
+      },
+    ];
 
-    const domains = [parsedWeb.hostname, parsedApi.hostname, 'localhost', 'digital-media-vault.vercel.app'];
-    const uniqueDomains = Array.from(new Set(domains.filter(Boolean)));
+    if (webUrl) {
+      try {
+        const parsed = new URL(webUrl);
+        if (!candidates.some((c) => c.domain === parsed.hostname)) {
+          candidates.unshift({ domain: parsed.hostname, api: apiUrl, web: webUrl });
+        }
+      } catch {}
+    }
 
-    for (const domain of uniqueDomains) {
-      const cookies = await chrome.cookies.getAll({ domain });
+    for (const cand of candidates) {
+      const cookies = await chrome.cookies.getAll({ domain: cand.domain });
       const sessionCookie = cookies.find(
         (c) => c.name === 'pdl_session' || c.name === 'vaultx_session' || c.name === 'token'
       );
       if (sessionCookie && sessionCookie.value) {
         try {
-          const user = await vaultApi.getMe(sessionCookie.value, apiUrl);
+          const user = await vaultApi.getMe(sessionCookie.value, cand.api);
           await storage.saveSession(sessionCookie.value, user);
+          await storage.updateSettings({ apiUrl: cand.api, webUrl: cand.web });
           return sessionCookie.value;
         } catch {
-          // Cookie expired or invalid, continue checking
+          // Cookie expired or candidate didn't match, continue
         }
       }
     }
@@ -305,20 +322,33 @@ async function saveVideoToVault(
 /**
  * Open Secret Vault interactive save modal on the active tab
  */
+/**
+ * Open Secret Vault interactive save modal on the active tab
+ */
 async function openSecretVaultModal(tabId: number, targetUrl: string, title?: string) {
-  const settings = await storage.getSettings();
-  if (!settings.token || !settings.token.trim()) {
-    setBadge('AUTH', '#ef4444', 4000);
-    chrome.runtime.openOptionsPage();
-    return;
+  let settings = await storage.getSettings();
+  let token = settings.token;
+
+  if (!token || !token.trim()) {
+    const syncedToken = await autoSyncSessionFromCookies(settings.webUrl, settings.apiUrl);
+    if (syncedToken) {
+      token = syncedToken;
+      settings = await storage.getSettings();
+    }
   }
 
-  try {
-    await chrome.tabs.sendMessage(tabId, {
+  const dispatchModal = async () => {
+    return chrome.tabs.sendMessage(tabId, {
       action: 'OPEN_VAULT_SAVE_MODAL',
       url: targetUrl,
       title: title || '',
+      webUrl: settings.webUrl,
+      isAuthenticated: !!token,
     });
+  };
+
+  try {
+    await dispatchModal();
   } catch {
     // If content script was not injected on tab, inject it on-demand
     try {
@@ -331,12 +361,8 @@ async function openSecretVaultModal(tabId: number, targetUrl: string, title?: st
         files: ['content.js'],
       });
       setTimeout(() => {
-        chrome.tabs.sendMessage(tabId, {
-          action: 'OPEN_VAULT_SAVE_MODAL',
-          url: targetUrl,
-          title: title || '',
-        }).catch((e) => console.warn('Could not dispatch modal trigger:', e));
-      }, 250);
+        dispatchModal().catch((e) => console.warn('Could not dispatch modal trigger:', e));
+      }, 200);
     } catch (injectErr) {
       console.error('Failed to inject content script:', injectErr);
     }
@@ -404,7 +430,6 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'SAVE_CURRENT_PRODUCT') {
     const url = message.url || sender.tab?.url;
-    // Route smartly even if content script called SAVE_CURRENT_PRODUCT!
     smartSaveUrl(url, message.title || sender.tab?.title, sender.tab?.id).then(sendResponse);
     return true; // async sendResponse
   }
@@ -415,11 +440,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.action === 'LOGIN') {
+    storage.getSettings().then(async (s) => {
+      try {
+        const { identifier, password } = message;
+        if (!identifier || !password) throw new Error('Username/Email and password are required.');
+        const result = await vaultApi.login(identifier, password, s.apiUrl);
+        await storage.saveSession(result.token, result.user);
+        sendResponse({ success: true, user: result.user, token: result.token });
+      } catch (err: any) {
+        sendResponse({ success: false, error: err.message || 'Login failed.' });
+      }
+    });
+    return true;
+  }
+
   if (message.action === 'GET_2FA_STATUS') {
     storage.getSettings().then(async (s) => {
       try {
-        if (!s.token) throw new Error('Not logged into VaultXMedia.');
-        const res = await vaultApi.get2FAStatus(s.token, s.apiUrl);
+        let token = s.token;
+        if (!token) {
+          token = await autoSyncSessionFromCookies(s.webUrl, s.apiUrl);
+        }
+        if (!token) {
+          return sendResponse({
+            success: false,
+            error: 'Authentication required. Please authorize your account.',
+            needAuth: true,
+          });
+        }
+        const res = await vaultApi.get2FAStatus(token, s.apiUrl);
         sendResponse({ success: true, data: res });
       } catch (err: any) {
         sendResponse({ success: false, error: err.message });
@@ -431,8 +481,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'VERIFY_2FA') {
     storage.getSettings().then(async (s) => {
       try {
-        if (!s.token) throw new Error('Not logged into VaultXMedia.');
-        const res = await vaultApi.verify2FA(message.code, s.token, s.apiUrl);
+        let token = s.token;
+        if (!token) {
+          token = await autoSyncSessionFromCookies(s.webUrl, s.apiUrl);
+        }
+        if (!token) throw new Error('Not logged into VaultXMedia.');
+        const res = await vaultApi.verify2FA(message.code, token, s.apiUrl);
         sendResponse({ success: true, data: res });
       } catch (err: any) {
         sendResponse({ success: false, error: err.message });
@@ -444,8 +498,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'LIST_VAULT_FOLDERS') {
     storage.getSettings().then(async (s) => {
       try {
-        if (!s.token) throw new Error('Not logged into VaultXMedia.');
-        const res = await vaultApi.listVaultFolders(s.token, s.apiUrl);
+        let token = s.token;
+        if (!token) {
+          token = await autoSyncSessionFromCookies(s.webUrl, s.apiUrl);
+        }
+        if (!token) {
+          return sendResponse({
+            success: false,
+            error: 'Authentication required. Please authorize your account.',
+            needAuth: true,
+          });
+        }
+        const res = await vaultApi.listVaultFolders(token, s.apiUrl);
         sendResponse({ success: true, data: res });
       } catch (err: any) {
         sendResponse({ success: false, error: err.message });
@@ -457,8 +521,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'UNLOCK_VAULT_FOLDER') {
     storage.getSettings().then(async (s) => {
       try {
-        if (!s.token) throw new Error('Not logged into VaultXMedia.');
-        const res = await vaultApi.unlockVaultFolder(message.folderId, message.password, s.token, s.apiUrl);
+        let token = s.token;
+        if (!token) {
+          token = await autoSyncSessionFromCookies(s.webUrl, s.apiUrl);
+        }
+        if (!token) throw new Error('Not logged into VaultXMedia.');
+        const res = await vaultApi.unlockVaultFolder(message.folderId, message.password, token, s.apiUrl);
         sendResponse({ success: true, data: res });
       } catch (err: any) {
         sendResponse({ success: false, error: err.message });
@@ -470,8 +538,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'CREATE_VAULT_CELL') {
     storage.getSettings().then(async (s) => {
       try {
-        if (!s.token) throw new Error('Not logged into VaultXMedia.');
-        const res = await vaultApi.createVaultCell(message.folderId, message.data, s.token, s.apiUrl);
+        let token = s.token;
+        if (!token) {
+          token = await autoSyncSessionFromCookies(s.webUrl, s.apiUrl);
+        }
+        if (!token) throw new Error('Not logged into VaultXMedia.');
+        const res = await vaultApi.createVaultCell(message.folderId, message.data, token, s.apiUrl);
         sendResponse({ success: true, data: res });
       } catch (err: any) {
         sendResponse({ success: false, error: err.message });
@@ -483,8 +555,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'CREATE_VAULT_FOLDER') {
     storage.getSettings().then(async (s) => {
       try {
-        if (!s.token) throw new Error('Not logged into VaultXMedia.');
-        const res = await vaultApi.createVaultFolder(message.data, s.token, s.apiUrl);
+        let token = s.token;
+        if (!token) {
+          token = await autoSyncSessionFromCookies(s.webUrl, s.apiUrl);
+        }
+        if (!token) throw new Error('Not logged into VaultXMedia.');
+        const res = await vaultApi.createVaultFolder(message.data, token, s.apiUrl);
         sendResponse({ success: true, data: res });
       } catch (err: any) {
         sendResponse({ success: false, error: err.message });
