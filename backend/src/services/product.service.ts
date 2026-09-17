@@ -1,6 +1,7 @@
 import { prisma } from '../database/prisma';
 import QRCode from 'qrcode';
 import { ProductExtractorService, ProductExtractedData } from './productExtractor.service';
+import { FileService } from './file.service';
 
 export interface SaveProductInput {
   url: string;
@@ -227,6 +228,35 @@ export class ProductService {
         }
       }
 
+      // Automatically purge and migrate any video links (YouTube/Vimeo) from saved products
+      const videoProducts = await prisma.savedProduct.findMany({
+        where: {
+          userId,
+          OR: [
+            { url: { contains: 'youtube.com' } },
+            { url: { contains: 'youtu.be' } },
+            { url: { contains: 'vimeo.com' } },
+          ],
+        },
+      });
+
+      if (videoProducts.length > 0) {
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        for (const vp of videoProducts) {
+          if (user) {
+            try {
+              await FileService.importLink(user as any, {
+                url: vp.url,
+                title: vp.title,
+              });
+            } catch {}
+          }
+        }
+        const vpIds = videoProducts.map((p) => p.id);
+        await prisma.productSectionItem.deleteMany({ where: { productId: { in: vpIds } } });
+        await prisma.savedProduct.deleteMany({ where: { id: { in: vpIds } } });
+      }
+
       if (duplicateIds.length > 0) {
         await prisma.productSectionItem.deleteMany({
           where: { productId: { in: duplicateIds } },
@@ -258,6 +288,38 @@ export class ProductService {
    */
   public static async saveProduct(userId: string, input: SaveProductInput) {
     const rawUrl = input.url.trim();
+
+    // 0. Auto-redirect video links (YouTube, Vimeo, streams) directly to Videos section!
+    const isVideoUrl =
+      /(?:youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com)/i.test(rawUrl) ||
+      /\.(mp4|webm|m3u8|mov|mkv)(\?|$)/i.test(rawUrl);
+
+    if (isVideoUrl) {
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user) {
+        const video = await FileService.importLink(user as any, {
+          url: rawUrl,
+          title: input.title,
+        });
+        return {
+          id: video.id,
+          userId,
+          url: rawUrl,
+          title: video.originalName,
+          store: 'YouTube',
+          category: 'Video',
+          price: null,
+          currency: 'INR',
+          currencySymbol: '₹',
+          inStock: true,
+          createdAt: new Date().toISOString(),
+          isVideo: true,
+          alreadyExists: false,
+          message: 'Saved to Videos / Vault Theater',
+        };
+      }
+    }
+
     const normalizedUrl = ProductService.normalizeUrl(rawUrl);
 
     // 1. Check if product already exists before extracting or creating

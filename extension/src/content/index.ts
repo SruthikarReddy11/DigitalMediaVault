@@ -12,6 +12,16 @@ function isProductPage(): boolean {
   const url = window.location.href.toLowerCase();
   const host = window.location.hostname.toLowerCase();
 
+  // NEVER treat video platforms as ecommerce products!
+  if (
+    host.includes('youtube.com') ||
+    host.includes('youtu.be') ||
+    host.includes('vimeo.com') ||
+    host.includes('dailymotion.com')
+  ) {
+    return false;
+  }
+
   // Amazon
   if (host.includes('amazon.')) {
     return url.includes('/dp/') || url.includes('/gp/product/') || url.includes('/d/');
@@ -57,12 +67,6 @@ function isProductPage(): boolean {
     return url.includes('/p/');
   }
 
-  // Generic fallback: check if schema.org Product is in DOM
-  const hasProductSchema = document.querySelector('script[type="application/ld+json"]');
-  if (hasProductSchema && hasProductSchema.textContent?.includes('"Product"')) {
-    return true;
-  }
-
   return false;
 }
 
@@ -73,7 +77,14 @@ function isYouTubeWatchPage(): boolean {
   const host = window.location.hostname.toLowerCase();
   const url = window.location.href.toLowerCase();
   if (host.includes('youtube.com') || host.includes('youtu.be')) {
-    return url.includes('/watch') || url.includes('/shorts/') || host.includes('youtu.be');
+    return (
+      url.includes('/watch') ||
+      url.includes('/shorts/') ||
+      url.includes('/live/') ||
+      url.includes('/embed/') ||
+      url.includes('/clip/') ||
+      host.includes('youtu.be')
+    );
   }
   return false;
 }
@@ -908,10 +919,19 @@ chrome.runtime.onMessage.addListener((message) => {
 });
 
 function evaluatePageInjections() {
-  if (isProductPage()) {
-    injectProductSaveButton();
-  } else if (isYouTubeWatchPage()) {
+  if (isYouTubeWatchPage()) {
+    const prodBtn = document.getElementById(VAULT_BUTTON_ID);
+    if (prodBtn) prodBtn.remove();
     injectYouTubeSaveButton();
+  } else if (isProductPage()) {
+    const ytBtn = document.getElementById(VAULT_YT_BUTTON_ID);
+    if (ytBtn) ytBtn.remove();
+    injectProductSaveButton();
+  } else {
+    const prodBtn = document.getElementById(VAULT_BUTTON_ID);
+    if (prodBtn) prodBtn.remove();
+    const ytBtn = document.getElementById(VAULT_YT_BUTTON_ID);
+    if (ytBtn) ytBtn.remove();
   }
 }
 

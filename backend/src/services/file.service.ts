@@ -194,12 +194,12 @@ export class FileService {
     data: { url: string; title?: string; quality?: string; folderId?: string | null }
   ) {
     const rawUrl = data.url.trim();
-    const isYouTube = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i.test(rawUrl);
+    const isYouTube = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/|live\/)|youtu\.be\/)([^"&?/\s]{11})/i.test(rawUrl);
 
     let originalName = data.title?.trim();
     if (!originalName) {
       if (isYouTube) {
-        const match = rawUrl.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i);
+        const match = rawUrl.match(/(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=|shorts\/|live\/)|youtu\.be\/)([^"&?/\s]{11})/i);
         const videoId = match ? match[1] : '';
         originalName = `YouTube Video - ${videoId}`;
       } else {

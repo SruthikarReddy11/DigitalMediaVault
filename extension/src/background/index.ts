@@ -56,11 +56,27 @@ async function autoSyncSessionFromCookies(webUrl: string, apiUrl: string): Promi
  */
 export function classifyUrl(rawUrl: string): UrlClassification {
   if (!rawUrl || typeof rawUrl !== 'string') return 'GENERIC';
-  const url = rawUrl.toLowerCase();
+  const url = rawUrl.toLowerCase().trim();
 
-  // 1. YouTube & video stream platforms
-  const isYouTube = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i.test(rawUrl);
-  if (isYouTube || url.includes('vimeo.com') || url.includes('dailymotion.com')) {
+  let host = '';
+  try {
+    host = new URL(rawUrl).hostname.toLowerCase();
+  } catch {
+    // If protocol missing
+    try {
+      host = new URL(`https://${rawUrl}`).hostname.toLowerCase();
+    } catch {}
+  }
+
+  // 1. YouTube & video stream platforms (ANY YouTube URL is ALWAYS a Video!)
+  if (
+    host.includes('youtube.com') ||
+    host.includes('youtu.be') ||
+    url.includes('youtube.com') ||
+    url.includes('youtu.be') ||
+    host.includes('vimeo.com') ||
+    host.includes('dailymotion.com')
+  ) {
     return 'YOUTUBE';
   }
 
@@ -78,7 +94,10 @@ export function classifyUrl(rawUrl: string): UrlClassification {
   // 2. Ecommerce websites
   const ecommerceHosts = [
     'amazon.',
+    'amzn.to',
+    'amzn.eu',
     'flipkart.com',
+    'fkrt.it',
     'myntra.com',
     'ajio.com',
     'meesho.com',
@@ -86,20 +105,13 @@ export function classifyUrl(rawUrl: string): UrlClassification {
     'tatacliq.com',
     'croma.com',
     'reliancedigital.in',
+    'ebay.',
+    'walmart.com',
   ];
 
-  try {
-    const host = new URL(rawUrl).hostname.toLowerCase();
-    for (const d of ecommerceHosts) {
-      if (host.includes(d)) {
-        return 'PRODUCT';
-      }
-    }
-  } catch {
-    for (const d of ecommerceHosts) {
-      if (url.includes(d)) {
-        return 'PRODUCT';
-      }
+  for (const d of ecommerceHosts) {
+    if (host ? host.includes(d) : url.includes(d)) {
+      return 'PRODUCT';
     }
   }
 
@@ -332,23 +344,38 @@ async function openSecretVaultModal(tabId: number, targetUrl: string, title?: st
 }
 
 /**
- * Smart Extension Click Handler:
- * Routes automatically depending on URL:
+ * Smart Universal Save Dispatcher:
+ * Evaluates the URL and routes to the correct destination:
  * 1. Product -> Wishlist
- * 2. YouTube / Video -> Videos
- * 3. Other website -> Secret Vault (opens interactive unlock & folder modal)
+ * 2. YouTube / Video -> Videos / Lossless Theater
+ * 3. Other website -> Secret Vault (opens interactive modal)
+ */
+async function smartSaveUrl(
+  targetUrl: string,
+  title?: string,
+  tabId?: number
+): Promise<{ success: boolean; product?: SavedProduct; error?: string; alreadyExists?: boolean; isSecretVault?: boolean }> {
+  if (!targetUrl) return { success: false, error: 'No URL provided' };
+  const classification = classifyUrl(targetUrl);
+
+  if (classification === 'PRODUCT') {
+    return await saveProductToVault(targetUrl, tabId);
+  } else if (classification === 'YOUTUBE') {
+    return await saveVideoToVault(targetUrl, title, tabId);
+  } else {
+    if (tabId) {
+      await openSecretVaultModal(tabId, targetUrl, title);
+    }
+    return { success: true, isSecretVault: true };
+  }
+}
+
+/**
+ * Extension Toolbar Click Handler
  */
 chrome.action.onClicked.addListener(async (tab) => {
   if (!tab.url || !tab.id) return;
-  const classification = classifyUrl(tab.url);
-
-  if (classification === 'PRODUCT') {
-    await saveProductToVault(tab.url, tab.id);
-  } else if (classification === 'YOUTUBE') {
-    await saveVideoToVault(tab.url, tab.title, tab.id);
-  } else {
-    await openSecretVaultModal(tab.id, tab.url, tab.title);
-  }
+  await smartSaveUrl(tab.url, tab.title, tab.id);
 });
 
 /**
@@ -366,14 +393,7 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'save-to-vaultxmedia') {
     const targetUrl = info.linkUrl || info.pageUrl || tab?.url;
     if (targetUrl && tab?.id) {
-      const classification = classifyUrl(targetUrl);
-      if (classification === 'PRODUCT') {
-        await saveProductToVault(targetUrl, tab.id);
-      } else if (classification === 'YOUTUBE') {
-        await saveVideoToVault(targetUrl, tab.title, tab.id);
-      } else {
-        await openSecretVaultModal(tab.id, targetUrl, tab.title);
-      }
+      await smartSaveUrl(targetUrl, tab.title, tab.id);
     }
   }
 });
@@ -384,7 +404,8 @@ chrome.contextMenus.onClicked.addListener(async (info, tab) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === 'SAVE_CURRENT_PRODUCT') {
     const url = message.url || sender.tab?.url;
-    saveProductToVault(url, sender.tab?.id).then(sendResponse);
+    // Route smartly even if content script called SAVE_CURRENT_PRODUCT!
+    smartSaveUrl(url, message.title || sender.tab?.title, sender.tab?.id).then(sendResponse);
     return true; // async sendResponse
   }
 
