@@ -7,6 +7,8 @@ export interface AuthUser {
   avatarUrl?: string | null;
 }
 
+export type UrlClassification = 'PRODUCT' | 'YOUTUBE' | 'GENERIC';
+
 export interface ProductExtractResult {
   url: string;
   canonicalUrl?: string;
@@ -46,6 +48,41 @@ export interface SavedProduct {
   createdAt: string;
 }
 
+export interface VaultFolder {
+  id: string;
+  name: string;
+  description?: string | null;
+  color?: string;
+  icon?: string;
+  cellCount: number;
+  fileCount: number;
+  isLocked: boolean;
+}
+
+export interface VaultCell {
+  id: string;
+  folderId: string;
+  userId: string;
+  url: string;
+  title: string;
+  notes?: string | null;
+  createdAt: string;
+}
+
+export interface TwoFactorStatus {
+  enabled: boolean;
+}
+
+export interface VideoImportResult {
+  id: string;
+  originalName: string;
+  storageKey: string;
+  mimeType: string;
+  fileType: string;
+  tags?: string[];
+  createdAt: string;
+}
+
 export interface ExtensionSettings {
   apiUrl: string;
   webUrl: string;
@@ -70,6 +107,14 @@ export type ExtensionMessage =
   | { action: 'CHECK_PRODUCT_EXISTS'; url: string }
   | { action: 'CHECK_AUTH' }
   | { action: 'SYNC_SESSION' }
+  | { action: 'SAVE_VIDEO'; url: string; title?: string }
+  | { action: 'GET_2FA_STATUS' }
+  | { action: 'VERIFY_2FA'; code: string }
+  | { action: 'LIST_VAULT_FOLDERS' }
+  | { action: 'UNLOCK_VAULT_FOLDER'; folderId: string; password: string }
+  | { action: 'CREATE_VAULT_CELL'; folderId: string; data: { url: string; title?: string; notes?: string } }
+  | { action: 'CREATE_VAULT_FOLDER'; data: { name: string; password: string; color?: string; description?: string } }
+  | { action: 'OPEN_VAULT_SAVE_MODAL'; url: string; title: string }
   | {
       action: 'SHOW_TOAST';
       title: string;

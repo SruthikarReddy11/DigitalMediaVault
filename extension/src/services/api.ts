@@ -1,4 +1,14 @@
-import { AuthUser, SavedProduct, ProductExtractResult, SaveProductResponse, CheckProductExistsResponse } from '../types';
+import {
+  AuthUser,
+  SavedProduct,
+  ProductExtractResult,
+  SaveProductResponse,
+  CheckProductExistsResponse,
+  VaultFolder,
+  VaultCell,
+  TwoFactorStatus,
+  VideoImportResult,
+} from '../types';
 
 export class VaultApiError extends Error {
   public code?: string;
@@ -196,5 +206,263 @@ export const vaultApi = {
     }
 
     return json.data.user as AuthUser;
+  },
+
+  /**
+   * Save a YouTube video or stream link to Vault Videos / Theater
+   */
+  async importVideo(
+    url: string,
+    title: string | undefined,
+    token: string,
+    apiUrl: string
+  ): Promise<VideoImportResult> {
+    if (!token || !token.trim()) {
+      throw new VaultApiError(
+        'Authentication required. Please log into VaultXMedia first.',
+        'UNAUTHORIZED',
+        401
+      );
+    }
+
+    const cleanBase = apiUrl.replace(/\/+$/, '');
+    const endpoint = `${cleanBase}/files/import-link`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token.trim()}`,
+      },
+      body: JSON.stringify({
+        url: url.trim(),
+        title: title ? title.trim() : undefined,
+        quality: '1080p Full HD',
+      }),
+    });
+
+    const json = await response.json().catch(() => null);
+
+    if (!response.ok || !json?.success) {
+      const message =
+        json?.error?.message ||
+        `Failed to save video to Vault (${response.status})`;
+      throw new VaultApiError(message, json?.error?.code, response.status);
+    }
+
+    return json.data as VideoImportResult;
+  },
+
+  /**
+   * Check Secret Vault 2FA Status
+   */
+  async get2FAStatus(token: string, apiUrl: string): Promise<TwoFactorStatus> {
+    if (!token || !token.trim()) {
+      throw new VaultApiError('Authentication required.', 'UNAUTHORIZED', 401);
+    }
+
+    const cleanBase = apiUrl.replace(/\/+$/, '');
+    const endpoint = `${cleanBase}/vault/2fa/status`;
+
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      credentials: 'omit',
+      headers: {
+        Authorization: `Bearer ${token.trim()}`,
+      },
+    });
+
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success) {
+      throw new VaultApiError(
+        json?.error?.message || 'Failed to check Secret Vault 2FA status',
+        json?.error?.code,
+        response.status
+      );
+    }
+
+    return json.data as TwoFactorStatus;
+  },
+
+  /**
+   * Verify Google Authenticator 2FA code to unlock Secret Vault
+   */
+  async verify2FA(
+    code: string,
+    token: string,
+    apiUrl: string
+  ): Promise<{ verified: boolean; vaultSessionToken: string }> {
+    if (!token || !token.trim()) {
+      throw new VaultApiError('Authentication required.', 'UNAUTHORIZED', 401);
+    }
+
+    const cleanBase = apiUrl.replace(/\/+$/, '');
+    const endpoint = `${cleanBase}/vault/2fa/verify`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token.trim()}`,
+      },
+      body: JSON.stringify({ token: code.trim() }),
+    });
+
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success) {
+      throw new VaultApiError(
+        json?.error?.message || 'Invalid 6-digit Authenticator code',
+        json?.error?.code,
+        response.status
+      );
+    }
+
+    return json.data;
+  },
+
+  /**
+   * List Secret Vault Folders
+   */
+  async listVaultFolders(token: string, apiUrl: string): Promise<VaultFolder[]> {
+    if (!token || !token.trim()) {
+      throw new VaultApiError('Authentication required.', 'UNAUTHORIZED', 401);
+    }
+
+    const cleanBase = apiUrl.replace(/\/+$/, '');
+    const endpoint = `${cleanBase}/vault/folders`;
+
+    const response = await fetch(endpoint, {
+      method: 'GET',
+      credentials: 'omit',
+      headers: {
+        Authorization: `Bearer ${token.trim()}`,
+      },
+    });
+
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success) {
+      throw new VaultApiError(
+        json?.error?.message || 'Failed to list Secret Vault folders',
+        json?.error?.code,
+        response.status
+      );
+    }
+
+    return json.data as VaultFolder[];
+  },
+
+  /**
+   * Unlock a specific folder using its password
+   */
+  async unlockVaultFolder(
+    folderId: string,
+    password: string,
+    token: string,
+    apiUrl: string
+  ): Promise<any> {
+    if (!token || !token.trim()) {
+      throw new VaultApiError('Authentication required.', 'UNAUTHORIZED', 401);
+    }
+
+    const cleanBase = apiUrl.replace(/\/+$/, '');
+    const endpoint = `${cleanBase}/vault/folders/${folderId}/unlock`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token.trim()}`,
+      },
+      body: JSON.stringify({ password }),
+    });
+
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success) {
+      throw new VaultApiError(
+        json?.error?.message || 'Incorrect folder password',
+        json?.error?.code,
+        response.status
+      );
+    }
+
+    return json.data;
+  },
+
+  /**
+   * Save a link cell in a Secret Vault folder
+   */
+  async createVaultCell(
+    folderId: string,
+    data: { url: string; title?: string; notes?: string },
+    token: string,
+    apiUrl: string
+  ): Promise<VaultCell> {
+    if (!token || !token.trim()) {
+      throw new VaultApiError('Authentication required.', 'UNAUTHORIZED', 401);
+    }
+
+    const cleanBase = apiUrl.replace(/\/+$/, '');
+    const endpoint = `${cleanBase}/vault/folders/${folderId}/cells`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token.trim()}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success) {
+      throw new VaultApiError(
+        json?.error?.message || 'Failed to save link to Secret Vault folder',
+        json?.error?.code,
+        response.status
+      );
+    }
+
+    return json.data as VaultCell;
+  },
+
+  /**
+   * Create a new folder in Secret Vault
+   */
+  async createVaultFolder(
+    data: { name: string; password: string; color?: string; description?: string },
+    token: string,
+    apiUrl: string
+  ): Promise<VaultFolder> {
+    if (!token || !token.trim()) {
+      throw new VaultApiError('Authentication required.', 'UNAUTHORIZED', 401);
+    }
+
+    const cleanBase = apiUrl.replace(/\/+$/, '');
+    const endpoint = `${cleanBase}/vault/folders`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token.trim()}`,
+      },
+      body: JSON.stringify(data),
+    });
+
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success) {
+      throw new VaultApiError(
+        json?.error?.message || 'Failed to create Secret Vault folder',
+        json?.error?.code,
+        response.status
+      );
+    }
+
+    return json.data as VaultFolder;
   },
 };
