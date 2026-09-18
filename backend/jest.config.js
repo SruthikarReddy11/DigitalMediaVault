@@ -14,5 +14,8 @@ module.exports = {
     }]
   },
   verbose: true,
+  moduleNameMapper: {
+    '^archiver$': '<rootDir>/src/__mocks__/archiver.js',
+  },
   testTimeout: 30000
 };

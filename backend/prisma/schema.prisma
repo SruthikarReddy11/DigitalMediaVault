@@ -64,6 +64,7 @@ model User {
   secureContacts    SecureContact[]
   savedProducts     SavedProduct[]
   productSections   ProductSection[]
+  expenses          Expense[]
 
   @@index([email])
   @@index([username])
@@ -589,4 +590,34 @@ model ProductSectionItem {
   @@index([sectionId])
   @@index([productId])
   @@map("product_section_items")
+}
+
+enum ExpenseType {
+  EXPENSE
+  INCOME
+}
+
+model Expense {
+  id            String      @id @default(uuid())
+  userId        String
+  type          ExpenseType @default(EXPENSE)
+  amount        Float
+  currency      String      @default("INR")
+  date          DateTime
+  person        String
+  category      String
+  reason        String
+  paymentMethod String      @default("UPI")
+  receiptUrl    String?
+  tags          String[]    @default([])
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, date])
+  @@index([userId, type])
+  @@index([userId, category])
+  @@map("expenses")
 }
