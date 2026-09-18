@@ -152,15 +152,15 @@ export class ExpenseController {
   }
 
   /**
-   * Seed realistic sample data
+   * Clear any test or sample data
    */
-  public static async seedSample(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  public static async clearSample(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user!.id;
-      const result = await ExpenseService.seedSampleExpenses(userId);
+      const result = await ExpenseService.clearSampleExpenses(userId);
       res.json({
         success: true,
-        message: `Successfully seeded ${result.count} sample expense transactions across 5 months`,
+        message: `Cleared ${result.deleted} sample records`,
         data: result,
       });
     } catch (err) {

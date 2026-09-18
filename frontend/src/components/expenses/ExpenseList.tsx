@@ -199,30 +199,35 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-bold text-sm text-white">
-                        {item.person}
-                      </span>
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/5">
                         {item.category}
                       </span>
-                      {item.paymentMethod && (
-                        <span className="text-[10px] text-slate-400">
-                          via {item.paymentMethod}
+                      {item.person && (
+                        <span className="text-xs text-slate-300 font-medium">
+                          • {item.person}
                         </span>
                       )}
+                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/5">
+                        {item.paymentMethod || 'UPI'}
+                      </span>
                     </div>
 
-                    <p className="text-xs text-slate-300 mt-0.5">
-                      {item.reason}
-                    </p>
+                    {(item.description || item.reason) && (
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        {item.description || item.reason}
+                      </p>
+                    )}
+
+                    {item.notes && (
+                      <p className="text-[11px] text-slate-400 mt-0.5 italic">
+                        Note: {item.notes}
+                      </p>
+                    )}
 
                     <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-1">
                       <span className="flex items-center gap-1">
                         <Calendar className="w-3 h-3" />
                         {dateFormatted} at {timeFormatted}
                       </span>
-                      {item.tags && item.tags.length > 0 && (
-                        <span>• {item.tags.join(', ')}</span>
-                      )}
                     </div>
                   </div>
                 </div>

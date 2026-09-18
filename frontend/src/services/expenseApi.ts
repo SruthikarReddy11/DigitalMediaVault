@@ -2,6 +2,42 @@ import { api } from './api';
 
 export type ExpenseType = 'EXPENSE' | 'INCOME';
 
+export const PREDEFINED_EXPENSE_CATEGORIES = [
+  'Food',
+  'Groceries',
+  'Transport',
+  'Rent',
+  'Utilities',
+  'Shopping',
+  'Education',
+  'Healthcare',
+  'Entertainment',
+  'Travel',
+  'Subscriptions',
+  'EMI/Loans',
+  'Other',
+] as const;
+
+export const PREDEFINED_INCOME_CATEGORIES = [
+  'Salary',
+  'Freelance',
+  'Business',
+  'Investments',
+  'Rental Income',
+  'Gifts',
+  'Other',
+] as const;
+
+export const PREDEFINED_PAYMENT_METHODS = [
+  'UPI',
+  'Credit Card',
+  'Debit Card',
+  'Cash',
+  'Net Banking',
+  'Bank Transfer',
+  'Other',
+] as const;
+
 export interface Expense {
   id: string;
   userId: string;
@@ -9,10 +45,12 @@ export interface Expense {
   amount: number;
   currency: string;
   date: string;
-  person: string;
   category: string;
-  reason: string;
   paymentMethod: string;
+  description?: string | null;
+  notes?: string | null;
+  person?: string | null;
+  reason?: string | null;
   receiptUrl?: string | null;
   tags: string[];
   createdAt: string;
@@ -22,26 +60,26 @@ export interface Expense {
 export interface CreateExpensePayload {
   type: ExpenseType;
   amount: number;
-  currency?: string;
-  date: string;
-  person: string;
   category: string;
-  reason: string;
-  paymentMethod?: string;
-  receiptUrl?: string | null;
+  date: string;
+  paymentMethod: string;
+  description?: string;
+  notes?: string;
+  person?: string;
+  currency?: string;
   tags?: string[];
 }
 
 export interface UpdateExpensePayload {
   type?: ExpenseType;
   amount?: number;
-  currency?: string;
-  date?: string;
-  person?: string;
   category?: string;
-  reason?: string;
+  date?: string;
   paymentMethod?: string;
-  receiptUrl?: string | null;
+  description?: string;
+  notes?: string;
+  person?: string;
+  currency?: string;
   tags?: string[];
 }
 
@@ -49,33 +87,26 @@ export interface ExpenseFilters {
   search?: string;
   type?: ExpenseType;
   category?: string;
-  person?: string;
   startDate?: string;
   endDate?: string;
   minAmount?: number;
   maxAmount?: number;
-  sortBy?: 'date' | 'amount' | 'createdAt' | 'person' | 'category';
+  sortBy?: 'date' | 'amount' | 'createdAt' | 'category';
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
 }
 
-export interface CategoryBreakdownItem {
+export interface CategorySpendingItem {
   category: string;
   totalAmount: number;
   count: number;
   percentageOfTotal: number;
   averagePerTx: number;
+  color: string;
 }
 
-export interface PersonBreakdownItem {
-  person: string;
-  totalAmount: number;
-  count: number;
-  percentage: number;
-}
-
-export interface MonthlyDataItem {
+export interface MonthlySpendingItem {
   key: string;
   year: number;
   month: number;
@@ -87,53 +118,22 @@ export interface MonthlyDataItem {
   savingsRate: number;
   transactionCount: number;
   momExpenseChangePct: number | null;
-  largestExpense: {
-    id: string;
-    amount: number;
-    person: string;
-    reason: string;
-    category: string;
-    date: string;
-  } | null;
   topCategory: { name: string; amount: number } | null;
-  topPerson: { name: string; amount: number } | null;
   categorySpends: Record<string, number>;
 }
 
-export interface PeakMonthDriverCategory {
-  category: string;
-  peakSpend: number;
-  baselineSpend: number;
-  surplus: number;
-  percentageSurplus: number;
-  contributionToExcessPct: number;
+export interface SpendingTrendPoint {
+  date: string;
+  expense: number;
+  income: number;
+  cumulativeExpense: number;
 }
 
-export interface PeakMonthAnalysis {
-  peakMonthKey: string;
-  peakMonthName: string;
-  shortMonth: string;
-  totalExpense: number;
-  totalIncome: number;
-  netCashFlow: number;
-  meanMonthlyExpense: number;
-  stdDevMonthlyExpense: number;
-  excessOverAverage: number;
-  percentAboveAverage: number;
-  isSignificantSpike: boolean;
-  topDriverCategories: PeakMonthDriverCategory[];
-  largestExpense: {
-    id: string;
-    amount: number;
-    person: string;
-    reason: string;
-    category: string;
-    date: string;
-  } | null;
-  topPerson: { name: string; amount: number } | null;
-  spendDriverStyle: 'HIGH_TICKET_PURCHASES' | 'HIGH_TRANSACTION_VOLUME' | 'BALANCED';
-  spendDriverExplanation: string;
-  diagnosticInsights: string[];
+export interface PaymentMethodItem {
+  method: string;
+  amount: number;
+  count: number;
+  percentage: number;
 }
 
 export interface ExpenseAnalytics {
@@ -142,23 +142,49 @@ export interface ExpenseAnalytics {
   summary: {
     totalIncome: number;
     totalExpense: number;
-    netBalance: number;
+    savings: number;
     savingsRate: number;
     totalTransactions: number;
     expenseCount: number;
     incomeCount: number;
     averageMonthlyExpense: number;
   };
-  monthlyData: MonthlyDataItem[];
+  monthlyData: MonthlySpendingItem[];
+  monthlySpending: MonthlySpendingItem[];
+  categoryWiseSpending: CategorySpendingItem[];
   categoryBreakdown: {
-    outgoing: CategoryBreakdownItem[];
-    incoming: CategoryBreakdownItem[];
+    outgoing: CategorySpendingItem[];
+    incoming: CategorySpendingItem[];
   };
-  personBreakdown: {
-    topPayees: PersonBreakdownItem[];
-    topPayers: PersonBreakdownItem[];
-  };
-  peakMonthAnalysis: PeakMonthAnalysis | null;
+  paymentMethodBreakdown: PaymentMethodItem[];
+  spendingTrends: SpendingTrendPoint[];
+  peakMonthAnalysis: {
+    peakMonthKey: string;
+    peakMonthName: string;
+    shortMonth: string;
+    totalExpense: number;
+    totalIncome: number;
+    netCashFlow: number;
+    meanMonthlyExpense: number;
+    excessOverAverage: number;
+    percentAboveAverage: number;
+    topDriverCategories: Array<{
+      category: string;
+      peakSpend: number;
+      baselineSpend: number;
+      surplus: number;
+      percentageSurplus: number;
+      contributionToExcessPct: number;
+    }>;
+    largestExpense: {
+      id: string;
+      amount: number;
+      description: string;
+      category: string;
+      date: string;
+    } | null;
+    diagnosticInsights: string[];
+  } | null;
 }
 
 export const expenseApi = {
@@ -206,7 +232,7 @@ export const expenseApi = {
   },
 
   /**
-   * Get analytics & peak month diagnosis
+   * Get analytics
    */
   async getExpenseAnalytics(): Promise<ExpenseAnalytics> {
     const res = await api.get('/expenses/analytics');
@@ -214,10 +240,10 @@ export const expenseApi = {
   },
 
   /**
-   * Seed realistic sample data
+   * Clear sample/demo data if any
    */
-  async seedSampleExpenses(): Promise<{ count: number }> {
-    const res = await api.post('/expenses/seed-sample');
+  async clearSampleExpenses(): Promise<{ deleted: number }> {
+    const res = await api.post('/expenses/clear-sample');
     return res.data.data;
   },
 

@@ -604,9 +604,11 @@ model Expense {
   amount        Float
   currency      String      @default("INR")
   date          DateTime
-  person        String
+  person        String?
   category      String
-  reason        String
+  description   String?
+  reason        String?
+  notes         String?
   paymentMethod String      @default("UPI")
   receiptUrl    String?
   tags          String[]    @default([])

@@ -6,10 +6,12 @@ export interface CreateExpenseDTO {
   amount: number;
   currency?: string;
   date: string | Date;
-  person: string;
   category: string;
-  reason: string;
   paymentMethod?: string;
+  description?: string;
+  notes?: string;
+  person?: string;
+  reason?: string;
   receiptUrl?: string;
   tags?: string[];
 }
@@ -19,10 +21,12 @@ export interface UpdateExpenseDTO {
   amount?: number;
   currency?: string;
   date?: string | Date;
-  person?: string;
   category?: string;
-  reason?: string;
   paymentMethod?: string;
+  description?: string;
+  notes?: string;
+  person?: string;
+  reason?: string;
   receiptUrl?: string | null;
   tags?: string[];
 }
@@ -36,7 +40,7 @@ export interface ExpenseFilterDTO {
   endDate?: string;
   minAmount?: number;
   maxAmount?: number;
-  sortBy?: 'date' | 'amount' | 'createdAt' | 'person' | 'category';
+  sortBy?: 'date' | 'amount' | 'createdAt' | 'category';
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
@@ -57,13 +61,12 @@ export interface MonthlyBucket {
   largestExpense: {
     id: string;
     amount: number;
-    person: string;
-    reason: string;
+    description: string;
+    person?: string | null;
     category: string;
     date: Date;
   } | null;
   categorySpends: Record<string, number>;
-  personSpends: Record<string, number>;
 }
 
 export class ExpenseService {
@@ -74,18 +77,15 @@ export class ExpenseService {
     if (!data.amount || isNaN(Number(data.amount)) || Number(data.amount) <= 0) {
       throw new Error('A valid positive amount is required');
     }
-    if (!data.person || !data.person.trim()) {
-      throw new Error('Person name is required');
-    }
     if (!data.category || !data.category.trim()) {
-      throw new Error('Category/reason category is required');
-    }
-    if (!data.reason || !data.reason.trim()) {
-      throw new Error('Specific reason or description is required');
+      throw new Error('Category is required');
     }
 
     const type = data.type === 'INCOME' ? ExpenseType.INCOME : ExpenseType.EXPENSE;
     const date = data.date ? new Date(data.date) : new Date();
+    const desc = data.description?.trim() || data.reason?.trim() || '';
+    const notes = data.notes?.trim() || '';
+    const person = data.person?.trim() || '';
 
     return await prisma.expense.create({
       data: {
@@ -94,9 +94,11 @@ export class ExpenseService {
         amount: Number(data.amount),
         currency: data.currency || 'INR',
         date,
-        person: data.person.trim(),
         category: data.category.trim(),
-        reason: data.reason.trim(),
+        description: desc || null,
+        reason: desc || data.category.trim(),
+        notes: notes || null,
+        person: person || null,
         paymentMethod: data.paymentMethod?.trim() || 'UPI',
         receiptUrl: data.receiptUrl?.trim() || null,
         tags: Array.isArray(data.tags) ? data.tags.map((t) => t.trim()).filter(Boolean) : [],
@@ -129,7 +131,6 @@ export class ExpenseService {
       }
       if (filters.endDate) {
         const end = new Date(filters.endDate);
-        // Include full end date
         end.setHours(23, 59, 59, 999);
         where.date.lte = end;
       }
@@ -144,9 +145,11 @@ export class ExpenseService {
     if (filters.search && filters.search.trim()) {
       const q = filters.search.trim();
       where.OR = [
-        { person: { contains: q, mode: 'insensitive' } },
-        { reason: { contains: q, mode: 'insensitive' } },
         { category: { contains: q, mode: 'insensitive' } },
+        { description: { contains: q, mode: 'insensitive' } },
+        { reason: { contains: q, mode: 'insensitive' } },
+        { notes: { contains: q, mode: 'insensitive' } },
+        { person: { contains: q, mode: 'insensitive' } },
         { paymentMethod: { contains: q, mode: 'insensitive' } },
       ];
     }
@@ -187,7 +190,7 @@ export class ExpenseService {
       where: { id, userId },
     });
     if (!item) {
-      throw new Error('Expense transaction not found');
+      throw new Error('Expense record not found');
     }
     return item;
   }
@@ -200,7 +203,7 @@ export class ExpenseService {
       where: { id, userId },
     });
     if (!existing) {
-      throw new Error('Expense transaction not found');
+      throw new Error('Expense record not found');
     }
 
     const updateData: any = {};
@@ -214,10 +217,18 @@ export class ExpenseService {
     }
     if (data.currency !== undefined) updateData.currency = data.currency;
     if (data.date !== undefined) updateData.date = new Date(data.date);
-    if (data.person !== undefined) updateData.person = data.person.trim();
     if (data.category !== undefined) updateData.category = data.category.trim();
-    if (data.reason !== undefined) updateData.reason = data.reason.trim();
     if (data.paymentMethod !== undefined) updateData.paymentMethod = data.paymentMethod.trim();
+    if (data.description !== undefined) {
+      updateData.description = data.description.trim() || null;
+      updateData.reason = data.description.trim() || updateData.category || existing.category;
+    }
+    if (data.reason !== undefined && data.description === undefined) {
+      updateData.reason = data.reason.trim();
+      updateData.description = data.reason.trim() || null;
+    }
+    if (data.notes !== undefined) updateData.notes = data.notes.trim() || null;
+    if (data.person !== undefined) updateData.person = data.person.trim() || null;
     if (data.receiptUrl !== undefined) updateData.receiptUrl = data.receiptUrl;
     if (data.tags !== undefined) {
       updateData.tags = Array.isArray(data.tags) ? data.tags.map((t) => t.trim()).filter(Boolean) : [];
@@ -237,111 +248,47 @@ export class ExpenseService {
       where: { id, userId },
     });
     if (!existing) {
-      throw new Error('Expense transaction not found');
+      throw new Error('Expense record not found');
     }
     return await prisma.expense.delete({ where: { id } });
   }
 
   /**
-   * Seed realistic sample data across several months to test analytics & algorithms
+   * Clear any sample/demo expenses for user
    */
-  public static async seedSampleExpenses(userId: string) {
-    // Current date
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth(); // 0-indexed
-
-    // Sample dataset covering the last 5 months
-    const sampleItems = [
-      // 4 months ago: Normal month
-      { type: ExpenseType.INCOME, amount: 75000, person: 'TechCorp Pvt Ltd', category: 'Salary', reason: 'Monthly Salary Credit', monthsAgo: 4, day: 1 },
-      { type: ExpenseType.EXPENSE, amount: 18000, person: 'Suresh Landlord', category: 'Rent & Housing', reason: 'Apartment Monthly Rent', monthsAgo: 4, day: 3 },
-      { type: ExpenseType.EXPENSE, amount: 6400, person: 'BigBasket', category: 'Groceries', reason: 'Monthly pantry & vegetable supply', monthsAgo: 4, day: 5 },
-      { type: ExpenseType.EXPENSE, amount: 2500, person: 'Electricity Board', category: 'Utilities & Bills', reason: 'Power & Water bill', monthsAgo: 4, day: 8 },
-      { type: ExpenseType.EXPENSE, amount: 3200, person: 'Swiggy / Zomato', category: 'Food & Dining', reason: 'Weekend family dinner', monthsAgo: 4, day: 15 },
-      { type: ExpenseType.EXPENSE, amount: 1500, person: 'Airtel Broadband', category: 'Utilities & Bills', reason: 'Fiber internet bill', monthsAgo: 4, day: 20 },
-
-      // 3 months ago: Normal month with slight savings
-      { type: ExpenseType.INCOME, amount: 75000, person: 'TechCorp Pvt Ltd', category: 'Salary', reason: 'Monthly Salary Credit', monthsAgo: 3, day: 1 },
-      { type: ExpenseType.INCOME, amount: 12000, person: 'Apex Client', category: 'Freelance', reason: 'UI/UX Design Contract milestone', monthsAgo: 3, day: 14 },
-      { type: ExpenseType.EXPENSE, amount: 18000, person: 'Suresh Landlord', category: 'Rent & Housing', reason: 'Apartment Monthly Rent', monthsAgo: 3, day: 3 },
-      { type: ExpenseType.EXPENSE, amount: 5800, person: 'Nature Basket', category: 'Groceries', reason: 'Organic veggies & groceries', monthsAgo: 3, day: 6 },
-      { type: ExpenseType.EXPENSE, amount: 2800, person: 'Swiggy', category: 'Food & Dining', reason: 'Office lunches and meals', monthsAgo: 3, day: 12 },
-      { type: ExpenseType.EXPENSE, amount: 4500, person: 'Zara / Myntra', category: 'Shopping', reason: 'Formal shirts & casuals', monthsAgo: 3, day: 18 },
-      { type: ExpenseType.EXPENSE, amount: 1600, person: 'Fuel Station', category: 'Travel & Transport', reason: 'Monthly petrol refuel', monthsAgo: 3, day: 22 },
-
-      // 2 months ago: PEAK EXPENSE MONTH! (Heavy travel, electronics purchase, vacation dining)
-      { type: ExpenseType.INCOME, amount: 75000, person: 'TechCorp Pvt Ltd', category: 'Salary', reason: 'Monthly Salary Credit', monthsAgo: 2, day: 1 },
-      { type: ExpenseType.EXPENSE, amount: 18000, person: 'Suresh Landlord', category: 'Rent & Housing', reason: 'Apartment Monthly Rent', monthsAgo: 2, day: 2 },
-      { type: ExpenseType.EXPENSE, amount: 28500, person: 'MakeMyTrip / Indigo', category: 'Travel & Transport', reason: 'Flight tickets & Goa Resort booking for annual vacation', monthsAgo: 2, day: 5 },
-      { type: ExpenseType.EXPENSE, amount: 34999, person: 'Croma Electronics', category: 'Electronics & Gadgets', reason: 'New Tablet & Noise Cancelling Headphones', monthsAgo: 2, day: 10 },
-      { type: ExpenseType.EXPENSE, amount: 9800, person: 'Fisherman Wharf & Beach Shacks', category: 'Food & Dining', reason: 'Vacation dining & seafood dinners', monthsAgo: 2, day: 14 },
-      { type: ExpenseType.EXPENSE, amount: 7200, person: 'Supermarket Goa', category: 'Groceries', reason: 'Vacation supplies and snacks', monthsAgo: 2, day: 15 },
-      { type: ExpenseType.EXPENSE, amount: 4200, person: 'Goa Car Rentals', category: 'Travel & Transport', reason: 'Self-drive Thar rental for 4 days', monthsAgo: 2, day: 16 },
-      { type: ExpenseType.EXPENSE, amount: 3100, person: 'Electricity Board', category: 'Utilities & Bills', reason: 'Power & AC bill', monthsAgo: 2, day: 25 },
-
-      // 1 month ago: Post-vacation recovery month
-      { type: ExpenseType.INCOME, amount: 75000, person: 'TechCorp Pvt Ltd', category: 'Salary', reason: 'Monthly Salary Credit', monthsAgo: 1, day: 1 },
-      { type: ExpenseType.EXPENSE, amount: 18000, person: 'Suresh Landlord', category: 'Rent & Housing', reason: 'Apartment Monthly Rent', monthsAgo: 1, day: 3 },
-      { type: ExpenseType.EXPENSE, amount: 6100, person: 'Blinkit / Zepto', category: 'Groceries', reason: 'Daily staples & household items', monthsAgo: 1, day: 7 },
-      { type: ExpenseType.EXPENSE, amount: 3400, person: 'Zomato', category: 'Food & Dining', reason: 'Team lunch celebration', monthsAgo: 1, day: 14 },
-      { type: ExpenseType.EXPENSE, amount: 2200, person: 'Apollo Pharmacy', category: 'Healthcare', reason: 'Annual health checkup & supplements', monthsAgo: 1, day: 19 },
-      { type: ExpenseType.EXPENSE, amount: 2000, person: 'Fuel Station', category: 'Travel & Transport', reason: 'City commute fuel', monthsAgo: 1, day: 26 },
-
-      // Current month: Active spend
-      { type: ExpenseType.INCOME, amount: 75000, person: 'TechCorp Pvt Ltd', category: 'Salary', reason: 'Monthly Salary Credit', monthsAgo: 0, day: 1 },
-      { type: ExpenseType.INCOME, amount: 8500, person: 'Rahul Sharma', category: 'Gifts & Reimbursements', reason: 'Shared trip split reimbursement', monthsAgo: 0, day: 4 },
-      { type: ExpenseType.EXPENSE, amount: 18000, person: 'Suresh Landlord', category: 'Rent & Housing', reason: 'Apartment Monthly Rent', monthsAgo: 0, day: 2 },
-      { type: ExpenseType.EXPENSE, amount: 5400, person: 'Instamart', category: 'Groceries', reason: 'Fresh veggies & fruits', monthsAgo: 0, day: 5 },
-      { type: ExpenseType.EXPENSE, amount: 2900, person: 'Cafe Coffee Day / Starbucks', category: 'Food & Dining', reason: 'Weekend coffee meetups', monthsAgo: 0, day: 8 },
-      { type: ExpenseType.EXPENSE, amount: 3800, person: 'Amazon India', category: 'Shopping', reason: 'Desk ergonomic accessories & books', monthsAgo: 0, day: 11 },
-    ];
-
-    const recordsToInsert = sampleItems.map((item) => {
-      const targetDate = new Date(currentYear, currentMonth - item.monthsAgo, item.day, 12, 0, 0);
-      return {
+  public static async clearSampleExpenses(userId: string) {
+    const res = await prisma.expense.deleteMany({
+      where: {
         userId,
-        type: item.type,
-        amount: item.amount,
-        currency: 'INR',
-        date: targetDate,
-        person: item.person,
-        category: item.category,
-        reason: item.reason,
-        paymentMethod: 'UPI',
-        tags: ['Sample'],
-      };
+        tags: { hasSome: ['Sample', 'QuickLog'] },
+      },
     });
-
-    await prisma.expense.createMany({
-      data: recordsToInsert,
-    });
-
-    return { count: recordsToInsert.length };
+    return { deleted: res.count };
   }
 
   /**
    * Advanced Data Analytics Algorithm Engine:
-   * - Calculates monthly income and expenses breakdown
-   * - Compares Month-over-Month (MoM) cash flow trends
-   * - Pinpoints the peak spending month and performs rigorous root-cause analysis ("why" expenses are higher)
-   * - Analyzes top spending reasons/categories, counterparties (persons), and single outlier transactions
+   * - Calculates Total Expenses, Total Income, and Net Savings
+   * - Category-wise spending breakdown with percentages and counts
+   * - Monthly spending and income trends
+   * - Daily spending timeline trends
+   * - Payment method distribution
+   * - "Which month expenses are more and why" diagnostic algorithm
    */
   public static async getExpenseAnalytics(userId: string, _options: { year?: number; months?: number } = {}) {
-    // Fetch all user transactions
-    const where: any = { userId };
     const allExpenses = await prisma.expense.findMany({
-      where,
+      where: { userId },
       orderBy: { date: 'asc' },
     });
 
     if (allExpenses.length === 0) {
       return {
         hasData: false,
+        currency: 'INR',
         summary: {
           totalIncome: 0,
           totalExpense: 0,
-          netBalance: 0,
+          savings: 0,
           savingsRate: 0,
           totalTransactions: 0,
           expenseCount: 0,
@@ -349,25 +296,28 @@ export class ExpenseService {
           averageMonthlyExpense: 0,
         },
         monthlyData: [],
+        monthlySpending: [],
+        categoryWiseSpending: [],
         categoryBreakdown: { outgoing: [], incoming: [] },
+        paymentMethodBreakdown: [],
+        spendingTrends: [],
         personBreakdown: { topPayees: [], topPayers: [] },
         peakMonthAnalysis: null,
       };
     }
 
-    // Currency symbol (take from first item or default INR)
     const currency = allExpenses[0]?.currency || 'INR';
 
-    // 1. Overall Summary Calculations
     let totalIncome = 0;
     let totalExpense = 0;
     let expenseCount = 0;
     let incomeCount = 0;
 
-    // Monthly maps: key = "YYYY-MM"
     const monthBuckets: Record<string, MonthlyBucket> = {};
     const overallCategoryExpense: Record<string, { amount: number; count: number }> = {};
     const overallCategoryIncome: Record<string, { amount: number; count: number }> = {};
+    const paymentMethodsMap: Record<string, { amount: number; count: number }> = {};
+    const dailySpendingMap: Record<string, { date: string; expense: number; income: number }> = {};
     const overallPersonExpense: Record<string, { amount: number; count: number }> = {};
     const overallPersonIncome: Record<string, { amount: number; count: number }> = {};
 
@@ -378,6 +328,11 @@ export class ExpenseService {
       const monthKey = `${year}-${String(month).padStart(2, '0')}`;
       const monthName = d.toLocaleString('en-US', { month: 'long', year: 'numeric' });
       const shortMonth = d.toLocaleString('en-US', { month: 'short', year: '2-digit' });
+      const dayKey = d.toISOString().split('T')[0];
+
+      if (!dailySpendingMap[dayKey]) {
+        dailySpendingMap[dayKey] = { date: dayKey, expense: 0, income: 0 };
+      }
 
       if (!monthBuckets[monthKey]) {
         monthBuckets[monthKey] = {
@@ -394,45 +349,45 @@ export class ExpenseService {
           momExpenseChangePct: null,
           largestExpense: null,
           categorySpends: {},
-          personSpends: {},
         };
       }
 
       const bucket = monthBuckets[monthKey];
       bucket.transactionCount += 1;
 
+      // Payment method tracking
+      const pm = item.paymentMethod || 'UPI';
+      if (!paymentMethodsMap[pm]) {
+        paymentMethodsMap[pm] = { amount: 0, count: 0 };
+      }
+      paymentMethodsMap[pm].amount += item.amount;
+      paymentMethodsMap[pm].count += 1;
+
       if (item.type === ExpenseType.EXPENSE) {
         totalExpense += item.amount;
         expenseCount += 1;
         bucket.totalExpense += item.amount;
-
-        // Category spend in month
         bucket.categorySpends[item.category] = (bucket.categorySpends[item.category] || 0) + item.amount;
+        dailySpendingMap[dayKey].expense += item.amount;
 
-        // Person spend in month
-        bucket.personSpends[item.person] = (bucket.personSpends[item.person] || 0) + item.amount;
-
-        // Overall category spend
         if (!overallCategoryExpense[item.category]) {
           overallCategoryExpense[item.category] = { amount: 0, count: 0 };
         }
         overallCategoryExpense[item.category].amount += item.amount;
         overallCategoryExpense[item.category].count += 1;
 
-        // Overall person expense
-        if (!overallPersonExpense[item.person]) {
-          overallPersonExpense[item.person] = { amount: 0, count: 0 };
+        if (item.person) {
+          if (!overallPersonExpense[item.person]) overallPersonExpense[item.person] = { amount: 0, count: 0 };
+          overallPersonExpense[item.person].amount += item.amount;
+          overallPersonExpense[item.person].count += 1;
         }
-        overallPersonExpense[item.person].amount += item.amount;
-        overallPersonExpense[item.person].count += 1;
 
-        // Largest expense tracking in this month
         if (!bucket.largestExpense || item.amount > bucket.largestExpense.amount) {
           bucket.largestExpense = {
             id: item.id,
             amount: item.amount,
+            description: item.description || item.reason || item.category,
             person: item.person,
-            reason: item.reason,
             category: item.category,
             date: item.date,
           };
@@ -441,26 +396,25 @@ export class ExpenseService {
         totalIncome += item.amount;
         incomeCount += 1;
         bucket.totalIncome += item.amount;
+        dailySpendingMap[dayKey].income += item.amount;
 
-        // Overall category income
         if (!overallCategoryIncome[item.category]) {
           overallCategoryIncome[item.category] = { amount: 0, count: 0 };
         }
         overallCategoryIncome[item.category].amount += item.amount;
         overallCategoryIncome[item.category].count += 1;
 
-        // Overall person income
-        if (!overallPersonIncome[item.person]) {
-          overallPersonIncome[item.person] = { amount: 0, count: 0 };
+        if (item.person) {
+          if (!overallPersonIncome[item.person]) overallPersonIncome[item.person] = { amount: 0, count: 0 };
+          overallPersonIncome[item.person].amount += item.amount;
+          overallPersonIncome[item.person].count += 1;
         }
-        overallPersonIncome[item.person].amount += item.amount;
-        overallPersonIncome[item.person].count += 1;
       }
     }
 
-    // Sort month keys chronologically
+    // Monthly List
     const sortedMonthKeys = Object.keys(monthBuckets).sort();
-    const monthlyList: Array<MonthlyBucket & { topCategory: { name: string; amount: number } | null; topPerson: { name: string; amount: number } | null }> = [];
+    const monthlyList: Array<MonthlyBucket & { topCategory: { name: string; amount: number } | null }> = [];
 
     for (let i = 0; i < sortedMonthKeys.length; i++) {
       const key = sortedMonthKeys[i];
@@ -475,7 +429,6 @@ export class ExpenseService {
         }
       }
 
-      // Top category for this month
       let topCatName = '';
       let topCatAmt = 0;
       for (const [cat, amt] of Object.entries(b.categorySpends)) {
@@ -485,36 +438,74 @@ export class ExpenseService {
         }
       }
 
-      // Top person for this month
-      let topPersonName = '';
-      let topPersonAmt = 0;
-      for (const [p, amt] of Object.entries(b.personSpends)) {
-        if (amt > topPersonAmt) {
-          topPersonAmt = amt;
-          topPersonName = p;
-        }
-      }
-
       monthlyList.push({
         ...b,
         topCategory: topCatName ? { name: topCatName, amount: topCatAmt } : null,
-        topPerson: topPersonName ? { name: topPersonName, amount: topPersonAmt } : null,
       });
     }
 
-    const netBalance = totalIncome - totalExpense;
-    const savingsRate = totalIncome > 0 ? Number(((netBalance / totalIncome) * 100).toFixed(1)) : 0;
+    const savings = totalIncome - totalExpense;
+    const savingsRate = totalIncome > 0 ? Number(((savings / totalIncome) * 100).toFixed(1)) : 0;
     const activeExpenseMonthsCount = monthlyList.filter((m) => m.totalExpense > 0).length || 1;
     const averageMonthlyExpense = Number((totalExpense / activeExpenseMonthsCount).toFixed(2));
 
-    // 2. Data Analytics Algorithm: "Which month expenses are more and why?"
-    // Filter months that had expenses
-    const expenseMonths = monthlyList.filter((m) => m.totalExpense > 0);
+    // Category-wise spending
+    const categoryPalette = [
+      '#f43f5e', '#6366f1', '#06b6d4', '#10b981', '#f59e0b',
+      '#ec4899', '#8b5cf6', '#3b82f6', '#14b8a6', '#84cc16',
+      '#eab308', '#f97316', '#64748b'
+    ];
 
+    const categoryWiseSpending = Object.entries(overallCategoryExpense)
+      .map(([name, data], idx) => ({
+        category: name,
+        totalAmount: data.amount,
+        count: data.count,
+        percentageOfTotal: totalExpense > 0 ? Number(((data.amount / totalExpense) * 100).toFixed(1)) : 0,
+        averagePerTx: data.count > 0 ? Number((data.amount / data.count).toFixed(2)) : 0,
+        color: categoryPalette[idx % categoryPalette.length],
+      }))
+      .sort((a, b) => b.totalAmount - a.totalAmount);
+
+    const categoryIncomingList = Object.entries(overallCategoryIncome)
+      .map(([name, data], idx) => ({
+        category: name,
+        totalAmount: data.amount,
+        count: data.count,
+        percentageOfTotal: totalIncome > 0 ? Number(((data.amount / totalIncome) * 100).toFixed(1)) : 0,
+        averagePerTx: data.count > 0 ? Number((data.amount / data.count).toFixed(2)) : 0,
+        color: categoryPalette[(idx + 4) % categoryPalette.length],
+      }))
+      .sort((a, b) => b.totalAmount - a.totalAmount);
+
+    // Payment methods
+    const paymentMethodBreakdown = Object.entries(paymentMethodsMap)
+      .map(([method, data]) => ({
+        method,
+        amount: data.amount,
+        count: data.count,
+        percentage: (totalExpense + totalIncome) > 0 ? Number(((data.amount / (totalExpense + totalIncome)) * 100).toFixed(1)) : 0,
+      }))
+      .sort((a, b) => b.amount - a.amount);
+
+    // Spending Trends (Chronological daily points)
+    const sortedDays = Object.keys(dailySpendingMap).sort();
+    let cumulativeExpense = 0;
+    const spendingTrends = sortedDays.map((d) => {
+      cumulativeExpense += dailySpendingMap[d].expense;
+      return {
+        date: d,
+        expense: dailySpendingMap[d].expense,
+        income: dailySpendingMap[d].income,
+        cumulativeExpense,
+      };
+    });
+
+    // Peak Month Analytics ("Which month his expenses are more and why")
+    const expenseMonths = monthlyList.filter((m) => m.totalExpense > 0);
     let peakMonthAnalysis: any = null;
 
     if (expenseMonths.length > 0) {
-      // Find peak month (highest total expense)
       let peak = expenseMonths[0];
       for (const m of expenseMonths) {
         if (m.totalExpense > peak.totalExpense) {
@@ -522,45 +513,15 @@ export class ExpenseService {
         }
       }
 
-      // Baseline statistics across all active expense months
       const meanMonthlyExpense = totalExpense / expenseMonths.length;
-
-      // Calculate variance and standard deviation
-      const variance =
-        expenseMonths.length > 1
-          ? expenseMonths.reduce((acc, m) => acc + Math.pow(m.totalExpense - meanMonthlyExpense, 2), 0) /
-            (expenseMonths.length - 1)
-          : 0;
-      const stdDevMonthlyExpense = Math.sqrt(variance);
-
-      // Excess calculation
       const excessOverAverage = Math.max(0, peak.totalExpense - meanMonthlyExpense);
       const percentAboveAverage =
         meanMonthlyExpense > 0 ? Number((((peak.totalExpense - meanMonthlyExpense) / meanMonthlyExpense) * 100).toFixed(1)) : 0;
 
-      // Anomaly status
-      const isSignificantSpike =
-        expenseMonths.length > 1 && (percentAboveAverage >= 25 || peak.totalExpense > meanMonthlyExpense + 1.2 * stdDevMonthlyExpense);
-
-      // --- ROOT CAUSE DECOMPOSITION ("WHY") ---
-      // 1. Category Variance Analysis:
-      // Compare each category's spend in the peak month against its average in other months
       const otherMonths = expenseMonths.filter((m) => m.key !== peak.key);
       const otherMonthsCount = Math.max(1, otherMonths.length);
 
-      interface CategorySurplus {
-        category: string;
-        peakSpend: number;
-        baselineSpend: number;
-        surplus: number;
-        percentageSurplus: number;
-        contributionToExcessPct: number;
-      }
-
-      const categorySurpluses: CategorySurplus[] = [];
-
-      for (const [category, peakSpend] of Object.entries(peak.categorySpends)) {
-        // Average spend in other months for this category
+      const categorySurpluses = Object.entries(peak.categorySpends).map(([category, peakSpend]) => {
         const baselineTotal = otherMonths.reduce((sum, m) => sum + (m.categorySpends[category] || 0), 0);
         const baselineSpend = baselineTotal / otherMonthsCount;
         const surplus = Math.max(0, peakSpend - baselineSpend);
@@ -569,77 +530,32 @@ export class ExpenseService {
         const contributionToExcessPct =
           excessOverAverage > 0 ? Number(((surplus / excessOverAverage) * 100).toFixed(1)) : 0;
 
-        categorySurpluses.push({
+        return {
           category,
           peakSpend,
           baselineSpend: Number(baselineSpend.toFixed(2)),
           surplus: Number(surplus.toFixed(2)),
           percentageSurplus,
           contributionToExcessPct,
-        });
-      }
+        };
+      }).sort((a, b) => b.surplus - a.surplus);
 
-      // Sort by surplus amount descending
-      categorySurpluses.sort((a, b) => b.surplus - a.surplus);
       const topDriverCategories = categorySurpluses.slice(0, 3);
 
-      // 2. Spending Behavior Factor (Ticket Size vs Transaction Frequency)
-      const avgTransactionsPerMonth =
-        expenseMonths.reduce((sum, m) => sum + m.transactionCount, 0) / expenseMonths.length;
-      const avgExpenseTicketOverall = expenseCount > 0 ? totalExpense / expenseCount : 0;
-      const peakMonthAvgTicket =
-        peak.transactionCount > 0 ? peak.totalExpense / peak.transactionCount : 0;
-
-      const ticketSizeFactor = avgExpenseTicketOverall > 0 ? peakMonthAvgTicket / avgExpenseTicketOverall : 1;
-      const frequencyFactor = avgTransactionsPerMonth > 0 ? peak.transactionCount / avgTransactionsPerMonth : 1;
-
-      let spendDriverStyle: 'HIGH_TICKET_PURCHASES' | 'HIGH_TRANSACTION_VOLUME' | 'BALANCED';
-      let spendDriverExplanation = '';
-
-      if (ticketSizeFactor > 1.3 && ticketSizeFactor > frequencyFactor) {
-        spendDriverStyle = 'HIGH_TICKET_PURCHASES';
-        spendDriverExplanation =
-          'The spike was largely driven by high-value, expensive transactions rather than frequent small purchases.';
-      } else if (frequencyFactor > 1.3 && frequencyFactor > ticketSizeFactor) {
-        spendDriverStyle = 'HIGH_TRANSACTION_VOLUME';
-        spendDriverExplanation =
-          'The surge was driven by an unusually high volume of transactions throughout the month.';
-      } else {
-        spendDriverStyle = 'BALANCED';
-        spendDriverExplanation =
-          'The spending surge was a combination of both higher transaction amounts and slightly increased purchase frequency.';
-      }
-
-      // 3. Automated Human-Readable Diagnostic Insights
       const diagnosticInsights: string[] = [];
-
       diagnosticInsights.push(
-        `Your highest spending occurred in ${peak.monthName} with total expenses of ₹${peak.totalExpense.toLocaleString('en-IN')}, which was ${percentAboveAverage}% higher than your typical monthly average of ₹${meanMonthlyExpense.toLocaleString('en-IN', { maximumFractionDigits: 0 })}.`
+        `Highest expenses recorded in ${peak.monthName} (₹${peak.totalExpense.toLocaleString('en-IN')}), which is ${percentAboveAverage}% higher than your monthly average of ₹${meanMonthlyExpense.toLocaleString('en-IN', { maximumFractionDigits: 0 })}.`
       );
 
       if (topDriverCategories.length > 0 && topDriverCategories[0].surplus > 0) {
-        const primary = topDriverCategories[0];
-        const secondary = topDriverCategories[1];
-        if (secondary && secondary.surplus > 0) {
-          diagnosticInsights.push(
-            `Main Drivers: Spending in "${primary.category}" was ₹${primary.surplus.toLocaleString('en-IN')} higher than usual (+${primary.percentageSurplus}%), followed by "${secondary.category}" which exceeded baseline by ₹${secondary.surplus.toLocaleString('en-IN')}.`
-          );
-        } else {
-          diagnosticInsights.push(
-            `Main Driver: An unexpected surge in "${primary.category}" accounted for ₹${primary.surplus.toLocaleString('en-IN')} over the usual baseline (+${primary.percentageSurplus}%).`
-          );
-        }
+        diagnosticInsights.push(
+          `Primary driver was "${topDriverCategories[0].category}" exceeding normal monthly spend by +₹${topDriverCategories[0].surplus.toLocaleString('en-IN')} (+${topDriverCategories[0].percentageSurplus}%).`
+        );
       }
 
       if (peak.largestExpense) {
         diagnosticInsights.push(
-          `Largest Single Expense: ₹${peak.largestExpense.amount.toLocaleString('en-IN')} paid to "${peak.largestExpense.person}" for "${peak.largestExpense.reason}" on ${new Date(peak.largestExpense.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}.`
-        );
-      }
-
-      if (peak.topPerson && peak.topPerson.amount > 0) {
-        diagnosticInsights.push(
-          `Top Payee: "${peak.topPerson.name}" received ₹${peak.topPerson.amount.toLocaleString('en-IN')} in total during ${peak.shortMonth}.`
+          `Largest single transaction: ₹${peak.largestExpense.amount.toLocaleString('en-IN')} on ${peak.largestExpense.category} (${peak.largestExpense.description}).`
         );
       }
 
@@ -651,60 +567,13 @@ export class ExpenseService {
         totalIncome: peak.totalIncome,
         netCashFlow: peak.netCashFlow,
         meanMonthlyExpense: Number(meanMonthlyExpense.toFixed(2)),
-        stdDevMonthlyExpense: Number(stdDevMonthlyExpense.toFixed(2)),
         excessOverAverage: Number(excessOverAverage.toFixed(2)),
         percentAboveAverage,
-        isSignificantSpike,
         topDriverCategories,
         largestExpense: peak.largestExpense,
-        topPerson: peak.topPerson,
-        spendDriverStyle,
-        spendDriverExplanation,
         diagnosticInsights,
       };
     }
-
-    // 3. Overall Category Breakdown lists (sorted by spend)
-    const categoryOutgoingList = Object.entries(overallCategoryExpense)
-      .map(([name, data]) => ({
-        category: name,
-        totalAmount: data.amount,
-        count: data.count,
-        percentageOfTotal: totalExpense > 0 ? Number(((data.amount / totalExpense) * 100).toFixed(1)) : 0,
-        averagePerTx: data.count > 0 ? Number((data.amount / data.count).toFixed(2)) : 0,
-      }))
-      .sort((a, b) => b.totalAmount - a.totalAmount);
-
-    const categoryIncomingList = Object.entries(overallCategoryIncome)
-      .map(([name, data]) => ({
-        category: name,
-        totalAmount: data.amount,
-        count: data.count,
-        percentageOfTotal: totalIncome > 0 ? Number(((data.amount / totalIncome) * 100).toFixed(1)) : 0,
-        averagePerTx: data.count > 0 ? Number((data.amount / data.count).toFixed(2)) : 0,
-      }))
-      .sort((a, b) => b.totalAmount - a.totalAmount);
-
-    // 4. Counterparty Breakdown (Persons)
-    const topPayees = Object.entries(overallPersonExpense)
-      .map(([person, data]) => ({
-        person,
-        totalAmount: data.amount,
-        count: data.count,
-        percentage: totalExpense > 0 ? Number(((data.amount / totalExpense) * 100).toFixed(1)) : 0,
-      }))
-      .sort((a, b) => b.totalAmount - a.totalAmount)
-      .slice(0, 10);
-
-    const topPayers = Object.entries(overallPersonIncome)
-      .map(([person, data]) => ({
-        person,
-        totalAmount: data.amount,
-        count: data.count,
-        percentage: totalIncome > 0 ? Number(((data.amount / totalIncome) * 100).toFixed(1)) : 0,
-      }))
-      .sort((a, b) => b.totalAmount - a.totalAmount)
-      .slice(0, 10);
 
     return {
       hasData: true,
@@ -712,7 +581,7 @@ export class ExpenseService {
       summary: {
         totalIncome,
         totalExpense,
-        netBalance,
+        savings,
         savingsRate,
         totalTransactions: allExpenses.length,
         expenseCount,
@@ -720,14 +589,14 @@ export class ExpenseService {
         averageMonthlyExpense,
       },
       monthlyData: monthlyList,
+      monthlySpending: monthlyList,
+      categoryWiseSpending,
       categoryBreakdown: {
-        outgoing: categoryOutgoingList,
+        outgoing: categoryWiseSpending,
         incoming: categoryIncomingList,
       },
-      personBreakdown: {
-        topPayees,
-        topPayers,
-      },
+      paymentMethodBreakdown,
+      spendingTrends,
       peakMonthAnalysis,
     };
   }
@@ -741,17 +610,16 @@ export class ExpenseService {
       orderBy: { date: 'desc' },
     });
 
-    const headers = ['Date', 'Type', 'Amount', 'Currency', 'Person', 'Category', 'Reason', 'Payment Method', 'Tags'];
+    const headers = ['Date', 'Type', 'Amount', 'Currency', 'Category', 'Description', 'Notes', 'Payment Method'];
     const rows = expenses.map((e) => [
       `"${new Date(e.date).toISOString().split('T')[0]}"`,
       `"${e.type}"`,
       e.amount,
       `"${e.currency}"`,
-      `"${(e.person || '').replace(/"/g, '""')}"`,
       `"${(e.category || '').replace(/"/g, '""')}"`,
-      `"${(e.reason || '').replace(/"/g, '""')}"`,
+      `"${(e.description || e.reason || '').replace(/"/g, '""')}"`,
+      `"${(e.notes || '').replace(/"/g, '""')}"`,
       `"${(e.paymentMethod || '').replace(/"/g, '""')}"`,
-      `"${(e.tags || []).join('; ')}"`,
     ]);
 
     return [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');

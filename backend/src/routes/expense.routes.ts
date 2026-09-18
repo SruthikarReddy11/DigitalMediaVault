@@ -10,8 +10,8 @@ router.use(requireAuth);
 // Analytics & Insights
 router.get('/analytics', ExpenseController.analytics);
 
-// Quick sample seeding for testing & demos
-router.post('/seed-sample', ExpenseController.seedSample);
+// Clear sample/test data
+router.post('/clear-sample', ExpenseController.clearSample);
 
 // CSV Export
 router.get('/export', ExpenseController.exportCsv);
