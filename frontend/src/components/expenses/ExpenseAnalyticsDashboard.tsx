@@ -107,19 +107,20 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
 
   // --- 2. Spending Trends Timeline Graph Calculation (LOWER SCALE ADJUSTED) ---
   // The user requested: "set the graph scale to lower not higher, my daily expenses must be below 200, according to this set the graph"
-  // We strictly isolate daily expenses from income, and set the upper ceiling to DAILY_TARGET_BUDGET (200)
-  // or dynamically adapt if a day exceeds 200 with slight breathing room.
   const trendPoints = spendingTrends.slice(-14); // Recent 14 activity days
-  const maxDayExpense = Math.max(...trendPoints.map((p) => p.expense), 0);
+  const maxDayVal = Math.max(
+    ...trendPoints.map((p) => Math.max(p.expense, p.income)),
+    0
+  );
 
-  // If daily expenses are below 200, scale is locked to 200 (or 220 for breathing room).
-  // If an expense spikes above 200, scale expands to accommodate it.
-  const trendScaleMax = maxDayExpense > DAILY_TARGET_BUDGET
-    ? Math.ceil(maxDayExpense * 1.15)
+  // If daily amounts are below 200, scale is locked to 200.
+  // If amounts exceed 200, scale ceiling smoothly expands to accommodate them.
+  const trendScaleMax = maxDayVal > DAILY_TARGET_BUDGET
+    ? Math.ceil(maxDayVal * 1.15)
     : DAILY_TARGET_BUDGET;
 
   const trendSvgWidth = 560;
-  const trendSvgHeight = 220;
+  const trendSvgHeight = 230;
   const paddingLeft = 55; // room for Y-axis labels
   const paddingRight = 25;
   const paddingTop = 25;
@@ -134,14 +135,27 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
   const getTrendY = (val: number) =>
     paddingTop + plotHeight - (Math.min(val, trendScaleMax) / trendScaleMax) * plotHeight;
 
-  const trendPolylinePoints = trendPoints
+  // Expense Polyline & Area Path
+  const expensePolylinePoints = trendPoints
     .map((p, i) => `${getTrendX(i)},${getTrendY(p.expense)}`)
     .join(' ');
 
-  const trendAreaPath =
+  const expenseAreaPath =
     trendPoints.length > 0
       ? `M ${getTrendX(0)},${paddingTop + plotHeight} L ${trendPoints
           .map((p, i) => `${getTrendX(i)},${getTrendY(p.expense)}`)
+          .join(' L ')} L ${getTrendX(trendPoints.length - 1)},${paddingTop + plotHeight} Z`
+      : '';
+
+  // Income Polyline & Area Path
+  const incomePolylinePoints = trendPoints
+    .map((p, i) => `${getTrendX(i)},${getTrendY(p.income)}`)
+    .join(' ');
+
+  const incomeAreaPath =
+    trendPoints.length > 0
+      ? `M ${getTrendX(0)},${paddingTop + plotHeight} L ${trendPoints
+          .map((p, i) => `${getTrendX(i)},${getTrendY(p.income)}`)
           .join(' L ')} L ${getTrendX(trendPoints.length - 1)},${paddingTop + plotHeight} Z`
       : '';
 
@@ -290,26 +304,30 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
               <div className="flex items-center gap-2">
                 <LineIcon className="w-4 h-4 text-cyan-400" />
                 <h3 className="text-base font-bold text-white">
-                  Spending Trends Timeline (Low Scale: ₹0 – ₹{trendScaleMax})
+                  Daily Income & Expense Line Graph
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                  Target: ≤ ₹200/day
+                  Scale: ₹0 – ₹{trendScaleMax}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Scale is adjusted for daily expenses below ₹200 with clear Y-axis markings and target budget threshold
+                Track daily cash flow with side-by-side lines for incoming earnings and outgoing expenses (Daily Target ≤ ₹{DAILY_TARGET_BUDGET})
               </p>
             </div>
 
             {/* Legend & Target Badge */}
-            <div className="flex items-center gap-4 text-xs font-semibold">
-              <span className="flex items-center gap-1.5 text-rose-400">
-                <span className="w-3 h-0.5 bg-rose-500 rounded" />
-                Daily Spend
-              </span>
+            <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
               <span className="flex items-center gap-1.5 text-emerald-400">
-                <span className="w-3 h-0.5 border-b border-dashed border-emerald-400" />
-                ₹200 Budget Limit
+                <span className="w-3.5 h-1 bg-emerald-500 rounded-full" />
+                Daily Income
+              </span>
+              <span className="flex items-center gap-1.5 text-rose-400">
+                <span className="w-3.5 h-1 bg-rose-500 rounded-full" />
+                Daily Expense
+              </span>
+              <span className="flex items-center gap-1.5 text-emerald-300/80">
+                <span className="w-3.5 h-0.5 border-b-2 border-dashed border-emerald-400" />
+                ₹{DAILY_TARGET_BUDGET} Target Limit
               </span>
             </div>
           </div>
@@ -319,17 +337,42 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
               {/* Tooltip Overlay */}
               {hoveredTrend && (
                 <div
-                  className="absolute z-20 pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2 bg-slate-950/95 border border-white/20 p-2.5 rounded-xl shadow-2xl backdrop-blur-md text-xs"
+                  className="absolute z-20 pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2 bg-slate-950/95 border border-white/20 p-3 rounded-xl shadow-2xl backdrop-blur-md text-xs min-w-[170px]"
                   style={{
                     left: `${(hoveredTrend.x / trendSvgWidth) * 100}%`,
-                    top: `${hoveredTrend.y - 12}px`,
+                    top: `${Math.max(15, hoveredTrend.y - 15)}px`,
                   }}
                 >
-                  <div className="font-bold text-white">{hoveredTrend.date}</div>
-                  <div className="text-rose-400 font-mono font-bold mt-0.5">
-                    Spent: {currencySymbol}{hoveredTrend.expense.toLocaleString('en-IN')}
+                  <div className="font-bold text-white border-b border-white/10 pb-1 mb-1.5 flex items-center justify-between">
+                    <span>{hoveredTrend.date}</span>
+                    <span className="text-[10px] text-slate-400">Daily Log</span>
                   </div>
-                  <div className="mt-1">
+
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-emerald-400 font-mono font-bold">
+                      <span className="text-[11px] font-medium flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500" /> Income:
+                      </span>
+                      <span>+{currencySymbol}{hoveredTrend.income.toLocaleString('en-IN')}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center text-rose-400 font-mono font-bold">
+                      <span className="text-[11px] font-medium flex items-center gap-1">
+                        <span className="w-2 h-2 rounded-full bg-rose-500" /> Expense:
+                      </span>
+                      <span>-{currencySymbol}{hoveredTrend.expense.toLocaleString('en-IN')}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center border-t border-white/10 pt-1 font-mono font-bold text-xs">
+                      <span className="text-[10px] text-slate-300 font-normal">Net:</span>
+                      <span className={hoveredTrend.income - hoveredTrend.expense >= 0 ? 'text-indigo-300' : 'text-rose-400'}>
+                        {hoveredTrend.income - hoveredTrend.expense >= 0 ? '+' : ''}
+                        {currencySymbol}{(hoveredTrend.income - hoveredTrend.expense).toLocaleString('en-IN')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-1.5 pt-1 border-t border-white/10">
                     {hoveredTrend.expense <= DAILY_TARGET_BUDGET ? (
                       <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
@@ -338,18 +381,25 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                     ) : (
                       <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
                         <AlertTriangle className="w-3 h-3" />
-                        Exceeded by ₹{hoveredTrend.expense - DAILY_TARGET_BUDGET}
+                        Over target by ₹{hoveredTrend.expense - DAILY_TARGET_BUDGET}
                       </span>
                     )}
                   </div>
                 </div>
               )}
 
-              <svg viewBox={`0 0 ${trendSvgWidth} ${trendSvgHeight}`} className="w-full h-56 select-none">
+              <svg viewBox={`0 0 ${trendSvgWidth} ${trendSvgHeight}`} className="w-full h-60 select-none">
                 <defs>
+                  {/* Expense Gradient */}
                   <linearGradient id="expenseTrendGradLow" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.45" />
+                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.35" />
                     <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
+                  </linearGradient>
+
+                  {/* Income Gradient */}
+                  <linearGradient id="incomeTrendGradLow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.35" />
+                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
                   </linearGradient>
                 </defs>
 
@@ -402,13 +452,27 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                   fill="#10b981"
                   fontWeight="bold"
                 >
-                  🎯 ₹200 Limit
+                  🎯 ₹{DAILY_TARGET_BUDGET} Daily Target
                 </text>
 
-                {/* Gradient Shaded Area under the line */}
-                {trendAreaPath && <path d={trendAreaPath} fill="url(#expenseTrendGradLow)" />}
+                {/* Shaded Areas */}
+                {incomeAreaPath && <path d={incomeAreaPath} fill="url(#incomeTrendGradLow)" />}
+                {expenseAreaPath && <path d={expenseAreaPath} fill="url(#expenseTrendGradLow)" />}
 
-                {/* Main Polyline Curve */}
+                {/* Income Polyline Curve (Emerald Green) */}
+                {trendPoints.length > 1 && (
+                  <polyline
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={incomePolylinePoints}
+                    className="drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                  />
+                )}
+
+                {/* Expense Polyline Curve (Rose Red) */}
                 {trendPoints.length > 1 && (
                   <polyline
                     fill="none"
@@ -416,59 +480,73 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                     strokeWidth="3"
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    points={trendPolylinePoints}
-                    className="drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]"
+                    points={expensePolylinePoints}
+                    className="drop-shadow-[0_0_8px_rgba(244,63,94,0.5)]"
                   />
                 )}
 
-                {/* Interactive Node Circles */}
+                {/* Interactive Node Circles for Each Day */}
                 {trendPoints.map((p, i) => {
                   const cx = getTrendX(i);
-                  const cy = getTrendY(p.expense);
+                  const cyExpense = getTrendY(p.expense);
+                  const cyIncome = getTrendY(p.income);
                   const isHovered = hoveredTrend?.date === p.date;
                   const isUnderBudget = p.expense <= DAILY_TARGET_BUDGET;
 
                   return (
-                    <g key={p.date} className="cursor-pointer">
+                    <g
+                      key={p.date}
+                      className="cursor-pointer"
+                      onMouseEnter={() =>
+                        setHoveredTrend({
+                          date: p.date,
+                          expense: p.expense,
+                          income: p.income,
+                          x: cx,
+                          y: Math.min(cyExpense, cyIncome),
+                        })
+                      }
+                      onMouseLeave={() => setHoveredTrend(null)}
+                    >
+                      {/* Vertical line connecting the two nodes if different */}
+                      {p.income > 0 && Math.abs(cyIncome - cyExpense) > 4 && (
+                        <line
+                          x1={cx}
+                          y1={cyIncome}
+                          x2={cx}
+                          y2={cyExpense}
+                          stroke="rgba(255,255,255,0.15)"
+                          strokeDasharray="2 2"
+                        />
+                      )}
+
+                      {/* Income Node (Green) */}
+                      {p.income > 0 && (
+                        <circle
+                          cx={cx}
+                          cy={cyIncome}
+                          r={isHovered ? 6 : 4.5}
+                          className="fill-emerald-400 stroke-slate-950 stroke-2 transition-all duration-150"
+                        />
+                      )}
+
+                      {/* Expense Node (Red) */}
                       <circle
                         cx={cx}
-                        cy={cy}
-                        r={isHovered ? 7 : 5}
+                        cy={cyExpense}
+                        r={isHovered ? 6 : 4.5}
                         className={`transition-all duration-150 ${
                           isUnderBudget
-                            ? 'fill-emerald-400 stroke-slate-950 stroke-2'
-                            : 'fill-rose-500 stroke-slate-950 stroke-2'
+                            ? 'fill-rose-500 stroke-slate-950 stroke-2'
+                            : 'fill-amber-400 stroke-slate-950 stroke-2'
                         }`}
-                        onMouseEnter={() =>
-                          setHoveredTrend({
-                            date: p.date,
-                            expense: p.expense,
-                            income: p.income,
-                            x: cx,
-                            y: cy,
-                          })
-                        }
-                        onMouseLeave={() => setHoveredTrend(null)}
                       />
-                      {/* Small value badge above point */}
-                      <text
-                        x={cx}
-                        y={cy - 9}
-                        textAnchor="middle"
-                        fontSize="9"
-                        fill={isUnderBudget ? '#a7f3d0' : '#fecdd3'}
-                        fontFamily="monospace"
-                        fontWeight="bold"
-                      >
-                        ₹{p.expense}
-                      </text>
                     </g>
                   );
                 })}
 
                 {/* X-Axis Dates */}
                 {trendPoints.map((p, i) => {
-                  // Show dates without crowding
                   if (trendPoints.length > 8 && i % 2 !== 0 && i !== trendPoints.length - 1) return null;
                   const cx = getTrendX(i);
                   return (
@@ -487,19 +565,31 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                 })}
               </svg>
 
-              <div className="flex items-center justify-between text-[11px] text-slate-400 px-3 pt-1 border-t border-white/5">
-                <span>Showing daily expense records</span>
-                <span>
-                  Budget Status:{' '}
-                  <strong className={budgetComplianceRate >= 80 ? 'text-emerald-400' : 'text-amber-400'}>
-                    {budgetComplianceRate}% days within ₹{DAILY_TARGET_BUDGET} limit
-                  </strong>
-                </span>
+              {/* Bottom Quick Metric Highlights */}
+              <div className="grid grid-cols-3 gap-2 text-center text-[11px] pt-3 border-t border-white/5 bg-slate-950/40 rounded-xl p-2.5 mt-2">
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Avg Daily Expense</span>
+                  <span className="font-mono font-bold text-rose-400">
+                    ₹{Math.round(trendPoints.reduce((acc, p) => acc + p.expense, 0) / Math.max(1, trendPoints.length))}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Avg Daily Income</span>
+                  <span className="font-mono font-bold text-emerald-400">
+                    ₹{Math.round(trendPoints.reduce((acc, p) => acc + p.income, 0) / Math.max(1, trendPoints.length))}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Daily Target Limit</span>
+                  <span className="font-mono font-bold text-emerald-300">
+                    ≤ ₹{DAILY_TARGET_BUDGET}
+                  </span>
+                </div>
               </div>
             </div>
           ) : (
             <div className="py-12 text-center text-xs text-slate-500">
-              No daily transactions available to plot trend line.
+              No daily transactions available to plot line chart.
             </div>
           )}
         </div>
