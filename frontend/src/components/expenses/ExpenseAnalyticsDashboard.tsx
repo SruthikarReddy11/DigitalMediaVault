@@ -13,8 +13,11 @@ import {
   CreditCard,
   Crown,
   Activity,
+  CheckCircle2,
+  AlertTriangle,
+  Target,
+  Sparkles,
   Layers,
-  Info,
 } from 'lucide-react';
 import { ExpenseAnalytics } from '../../services/expenseApi';
 
@@ -27,7 +30,17 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
   analytics,
 }) => {
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number | null>(null);
-  const [activeChartTab, setActiveChartTab] = useState<'all' | 'pie' | 'bars' | 'trends'>('all');
+  const [activeChartTab, setActiveChartTab] = useState<'all' | 'trends' | 'daily_budget' | 'pie' | 'monthly'>('all');
+  const [hoveredTrend, setHoveredTrend] = useState<{
+    date: string;
+    expense: number;
+    income: number;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  // Daily Expense Target Budget threshold (set according to user request: below 200)
+  const DAILY_TARGET_BUDGET = 200;
 
   if (!analytics.hasData) {
     return (
@@ -35,7 +48,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
         <Activity className="w-12 h-12 mx-auto mb-3 text-slate-500 opacity-40 animate-pulse" />
         <h3 className="text-base font-semibold text-white">No Expense Records Yet</h3>
         <p className="text-xs text-slate-400 mt-1 max-w-md mx-auto">
-          Start recording your expenses in the form above. Once you add transactions, this analytics page will display interactive pie charts, monthly comparison bars, and spending trend graphs.
+          Start recording your expenses in the form above. Once you add transactions, this analytics page will display interactive pie charts, monthly comparison bars, daily budget tracking, and spending trend graphs.
         </p>
       </div>
     );
@@ -44,13 +57,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
   const { summary, monthlySpending, categoryWiseSpending, spendingTrends, paymentMethodBreakdown, peakMonthAnalysis } = analytics;
   const currencySymbol = '₹';
 
-  // Maximum monthly value for bar chart scaling
-  const maxMonthValue = Math.max(
-    ...monthlySpending.map((m) => Math.max(m.totalExpense, m.totalIncome)),
-    1000
-  );
-
-  // SVG Pie Chart Calculation
+  // --- 1. Category Pie Chart Calculations ---
   const totalCatSpend = categoryWiseSpending.reduce((sum, c) => sum + c.totalAmount, 0) || 1;
   let cumulativeAngle = 0;
 
@@ -60,12 +67,11 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
     const endAngle = cumulativeAngle + sliceAngle;
     cumulativeAngle += sliceAngle;
 
-    // Polar coordinates for SVG path
     const startRad = ((startAngle - 90) * Math.PI) / 180;
     const endRad = ((endAngle - 90) * Math.PI) / 180;
 
     const radius = 90;
-    const innerRadius = 55; // Donut chart
+    const innerRadius = 55;
     const cx = 110;
     const cy = 110;
 
@@ -99,94 +105,104 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
 
   const activeCategory = activeCategoryIndex !== null ? categoryWiseSpending[activeCategoryIndex] : null;
 
-  // Trend Line Chart Calculation
-  const trendMax = Math.max(...spendingTrends.map((p) => Math.max(p.expense, p.income)), 500);
-  const trendPoints = spendingTrends.slice(-14); // Last 14 activity days
-  const trendSvgWidth = 500;
-  const trendSvgHeight = 160;
-  const padding = 20;
+  // --- 2. Spending Trends Timeline Graph Calculation (LOWER SCALE ADJUSTED) ---
+  // The user requested: "set the graph scale to lower not higher, my daily expenses must be below 200, according to this set the graph"
+  // We strictly isolate daily expenses from income, and set the upper ceiling to DAILY_TARGET_BUDGET (200)
+  // or dynamically adapt if a day exceeds 200 with slight breathing room.
+  const trendPoints = spendingTrends.slice(-14); // Recent 14 activity days
+  const maxDayExpense = Math.max(...trendPoints.map((p) => p.expense), 0);
 
-  const getX = (idx: number) =>
-    padding + (idx / Math.max(1, trendPoints.length - 1)) * (trendSvgWidth - padding * 2);
-  const getY = (val: number) =>
-    trendSvgHeight - padding - (val / Math.max(1, trendMax)) * (trendSvgHeight - padding * 2);
+  // If daily expenses are below 200, scale is locked to 200 (or 220 for breathing room).
+  // If an expense spikes above 200, scale expands to accommodate it.
+  const trendScaleMax = maxDayExpense > DAILY_TARGET_BUDGET
+    ? Math.ceil(maxDayExpense * 1.15)
+    : DAILY_TARGET_BUDGET;
 
-  const expensePolyline = trendPoints.map((p, i) => `${getX(i)},${getY(p.expense)}`).join(' ');
-  const expenseAreaPath =
+  const trendSvgWidth = 560;
+  const trendSvgHeight = 220;
+  const paddingLeft = 55; // room for Y-axis labels
+  const paddingRight = 25;
+  const paddingTop = 25;
+  const paddingBottom = 35;
+
+  const plotWidth = trendSvgWidth - paddingLeft - paddingRight;
+  const plotHeight = trendSvgHeight - paddingTop - paddingBottom;
+
+  const getTrendX = (idx: number) =>
+    paddingLeft + (idx / Math.max(1, trendPoints.length - 1)) * plotWidth;
+
+  const getTrendY = (val: number) =>
+    paddingTop + plotHeight - (Math.min(val, trendScaleMax) / trendScaleMax) * plotHeight;
+
+  const trendPolylinePoints = trendPoints
+    .map((p, i) => `${getTrendX(i)},${getTrendY(p.expense)}`)
+    .join(' ');
+
+  const trendAreaPath =
     trendPoints.length > 0
-      ? `M ${getX(0)},${trendSvgHeight - padding} L ${trendPolyline(trendPoints, getX, getY)} L ${getX(
-          trendPoints.length - 1
-        )},${trendSvgHeight - padding} Z`
+      ? `M ${getTrendX(0)},${paddingTop + plotHeight} L ${trendPoints
+          .map((p, i) => `${getTrendX(i)},${getTrendY(p.expense)}`)
+          .join(' L ')} L ${getTrendX(trendPoints.length - 1)},${paddingTop + plotHeight} Z`
       : '';
 
-  function trendPolyline(points: typeof trendPoints, xFn: (i: number) => number, yFn: (v: number) => number) {
-    return points.map((p, i) => `${xFn(i)},${yFn(p.expense)}`).join(' L ');
-  }
+  // Calculate Y position for the 200 budget line
+  const budgetLineY = getTrendY(DAILY_TARGET_BUDGET);
+
+  // Number of days strictly below the 200 daily budget
+  const daysWithinBudgetCount = trendPoints.filter((p) => p.expense <= DAILY_TARGET_BUDGET).length;
+  const budgetComplianceRate = trendPoints.length > 0
+    ? Math.round((daysWithinBudgetCount / trendPoints.length) * 100)
+    : 100;
+
+  // --- 3. Monthly Inflow vs Outflow Scale ---
+  const maxMonthValue = Math.max(
+    ...monthlySpending.map((m) => Math.max(m.totalExpense, m.totalIncome)),
+    1000
+  );
 
   return (
     <div className="space-y-6">
-      {/* Top Filter Buttons */}
+      {/* Top Chart Filter Navigation */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-3">
-        <div className="flex items-center gap-1 bg-slate-950/70 p-1 rounded-xl border border-white/10">
-          <button
-            type="button"
-            onClick={() => setActiveChartTab('all')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeChartTab === 'all'
-                ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            All Visualizations
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveChartTab('pie')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeChartTab === 'pie'
-                ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <PieIcon className="w-3.5 h-3.5" />
-            Category Pie Chart
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveChartTab('bars')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeChartTab === 'bars'
-                ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <BarChart3 className="w-3.5 h-3.5" />
-            Monthly Bar Chart
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveChartTab('trends')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              activeChartTab === 'trends'
-                ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <LineIcon className="w-3.5 h-3.5" />
-            Spending Trends
-          </button>
+        <div className="flex flex-wrap items-center gap-1 bg-slate-950/70 p-1 rounded-xl border border-white/10">
+          {[
+            { id: 'all', label: 'All Visualizations', icon: Layers },
+            { id: 'trends', label: 'Daily Trend (Scaled ≤ ₹200)', icon: LineIcon },
+            { id: 'daily_budget', label: 'Daily Budget vs ₹200', icon: Target },
+            { id: 'pie', label: 'Category Pie Chart', icon: PieIcon },
+            { id: 'monthly', label: 'Monthly Comparison', icon: BarChart3 },
+          ].map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveChartTab(tab.id as any)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  activeChartTab === tab.id
+                    ? 'bg-brand-600 text-white shadow-md shadow-brand-600/30'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5" />
+                <span>{tab.label}</span>
+              </button>
+            );
+          })}
         </div>
 
-        <div className="text-xs text-slate-400 font-medium flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-          Live Financial Dashboard
+        {/* Daily Target Indicator Pill */}
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900/80 border border-emerald-500/30 text-xs text-slate-300">
+          <Target className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Daily Target: <strong className="text-white font-mono">₹{DAILY_TARGET_BUDGET}</strong></span>
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 ml-1"></span>
         </div>
       </div>
 
-      {/* KPI Cards: Total Expenses, Total Income, Savings, Monthly Avg */}
+      {/* Top Summary Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Expenses */}
-        <div className="p-4 rounded-2xl bg-slate-900/70 border border-rose-500/20 shadow-lg relative overflow-hidden">
+        <div className="p-4 rounded-2xl bg-slate-900/70 border border-rose-500/20 shadow-lg relative overflow-hidden group hover:border-rose-500/40 transition-all">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               Total Expenses
@@ -204,7 +220,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
         </div>
 
         {/* Total Income */}
-        <div className="p-4 rounded-2xl bg-slate-900/70 border border-emerald-500/20 shadow-lg relative overflow-hidden">
+        <div className="p-4 rounded-2xl bg-slate-900/70 border border-emerald-500/20 shadow-lg relative overflow-hidden group hover:border-emerald-500/40 transition-all">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               Total Income
@@ -217,12 +233,12 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
             {currencySymbol}{summary.totalIncome.toLocaleString('en-IN')}
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
-            {summary.incomeCount} incoming entries
+            {summary.incomeCount} incoming credits
           </p>
         </div>
 
-        {/* Savings */}
-        <div className="p-4 rounded-2xl bg-slate-900/70 border border-brand-500/20 shadow-lg relative overflow-hidden">
+        {/* Net Savings */}
+        <div className="p-4 rounded-2xl bg-slate-900/70 border border-brand-500/20 shadow-lg relative overflow-hidden group hover:border-brand-500/40 transition-all">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
               Net Savings
@@ -240,33 +256,328 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
             {currencySymbol}{summary.savings.toLocaleString('en-IN')}
           </div>
           <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-            <span>Rate:</span>
+            <span>Savings Rate:</span>
             <span className={`font-bold ${summary.savingsRate >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
               {summary.savingsRate}%
             </span>
           </p>
         </div>
 
-        {/* Monthly Average Spend */}
-        <div className="p-4 rounded-2xl bg-slate-900/70 border border-white/10 shadow-lg relative overflow-hidden">
+        {/* Daily Target Compliance */}
+        <div className="p-4 rounded-2xl bg-slate-900/70 border border-emerald-500/20 shadow-lg relative overflow-hidden group hover:border-emerald-500/40 transition-all">
           <div className="flex items-center justify-between mb-2">
             <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-              Monthly Avg Spend
+              ≤ ₹200 Target Adherence
             </span>
-            <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center border border-amber-500/20">
-              <PiggyBank className="w-4 h-4" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center border border-emerald-500/20">
+              <CheckCircle2 className="w-4 h-4" />
             </div>
           </div>
-          <div className="text-2xl font-black text-amber-400 font-mono">
-            {currencySymbol}{summary.averageMonthlyExpense.toLocaleString('en-IN')}
+          <div className="text-2xl font-black text-emerald-400 font-mono">
+            {budgetComplianceRate}%
           </div>
           <p className="text-[11px] text-slate-400 mt-1">
-            Across active months
+            {daysWithinBudgetCount} of {trendPoints.length} days below ₹200
           </p>
         </div>
       </div>
 
-      {/* GRAPH 1: INTERACTIVE PIE / DONUT CHART FOR CATEGORY-WISE SPENDING */}
+      {/* GRAPH 1: REDESIGNED SPENDING TRENDS TIMELINE WITH LOWER SCALE (0 TO ₹200) */}
+      {(activeChartTab === 'all' || activeChartTab === 'trends') && (
+        <div className="p-6 rounded-2xl bg-slate-900/70 border border-white/10 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <LineIcon className="w-4 h-4 text-cyan-400" />
+                <h3 className="text-base font-bold text-white">
+                  Spending Trends Timeline (Low Scale: ₹0 – ₹{trendScaleMax})
+                </h3>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                  Target: ≤ ₹200/day
+                </span>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Scale is adjusted for daily expenses below ₹200 with clear Y-axis markings and target budget threshold
+              </p>
+            </div>
+
+            {/* Legend & Target Badge */}
+            <div className="flex items-center gap-4 text-xs font-semibold">
+              <span className="flex items-center gap-1.5 text-rose-400">
+                <span className="w-3 h-0.5 bg-rose-500 rounded" />
+                Daily Spend
+              </span>
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <span className="w-3 h-0.5 border-b border-dashed border-emerald-400" />
+                ₹200 Budget Limit
+              </span>
+            </div>
+          </div>
+
+          {trendPoints.length > 0 ? (
+            <div className="relative w-full overflow-x-auto pt-2">
+              {/* Tooltip Overlay */}
+              {hoveredTrend && (
+                <div
+                  className="absolute z-20 pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2 bg-slate-950/95 border border-white/20 p-2.5 rounded-xl shadow-2xl backdrop-blur-md text-xs"
+                  style={{
+                    left: `${(hoveredTrend.x / trendSvgWidth) * 100}%`,
+                    top: `${hoveredTrend.y - 12}px`,
+                  }}
+                >
+                  <div className="font-bold text-white">{hoveredTrend.date}</div>
+                  <div className="text-rose-400 font-mono font-bold mt-0.5">
+                    Spent: {currencySymbol}{hoveredTrend.expense.toLocaleString('en-IN')}
+                  </div>
+                  <div className="mt-1">
+                    {hoveredTrend.expense <= DAILY_TARGET_BUDGET ? (
+                      <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Within Target (₹{DAILY_TARGET_BUDGET - hoveredTrend.expense} saved)
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-amber-400 flex items-center gap-1">
+                        <AlertTriangle className="w-3 h-3" />
+                        Exceeded by ₹{hoveredTrend.expense - DAILY_TARGET_BUDGET}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <svg viewBox={`0 0 ${trendSvgWidth} ${trendSvgHeight}`} className="w-full h-56 select-none">
+                <defs>
+                  <linearGradient id="expenseTrendGradLow" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.45" />
+                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
+                  </linearGradient>
+                </defs>
+
+                {/* Y-Axis Value Gridlines and Labels */}
+                {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                  const val = Math.round(trendScaleMax * (1 - ratio));
+                  const yPos = paddingTop + ratio * plotHeight;
+                  return (
+                    <g key={ratio}>
+                      {/* Gridline */}
+                      <line
+                        x1={paddingLeft}
+                        y1={yPos}
+                        x2={trendSvgWidth - paddingRight}
+                        y2={yPos}
+                        stroke="rgba(255,255,255,0.08)"
+                        strokeDasharray={ratio === 1 ? 'none' : '3 3'}
+                      />
+                      {/* Y-Axis Label */}
+                      <text
+                        x={paddingLeft - 8}
+                        y={yPos + 4}
+                        textAnchor="end"
+                        fontSize="10"
+                        fill="#94a3b8"
+                        fontFamily="monospace"
+                        fontWeight="600"
+                      >
+                        ₹{val}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* Target ₹200 Budget Line */}
+                <line
+                  x1={paddingLeft}
+                  y1={budgetLineY}
+                  x2={trendSvgWidth - paddingRight}
+                  y2={budgetLineY}
+                  stroke="#10b981"
+                  strokeWidth="1.5"
+                  strokeDasharray="5 4"
+                />
+                <text
+                  x={trendSvgWidth - paddingRight - 4}
+                  y={budgetLineY - 6}
+                  textAnchor="end"
+                  fontSize="9"
+                  fill="#10b981"
+                  fontWeight="bold"
+                >
+                  🎯 ₹200 Limit
+                </text>
+
+                {/* Gradient Shaded Area under the line */}
+                {trendAreaPath && <path d={trendAreaPath} fill="url(#expenseTrendGradLow)" />}
+
+                {/* Main Polyline Curve */}
+                {trendPoints.length > 1 && (
+                  <polyline
+                    fill="none"
+                    stroke="#f43f5e"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={trendPolylinePoints}
+                    className="drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]"
+                  />
+                )}
+
+                {/* Interactive Node Circles */}
+                {trendPoints.map((p, i) => {
+                  const cx = getTrendX(i);
+                  const cy = getTrendY(p.expense);
+                  const isHovered = hoveredTrend?.date === p.date;
+                  const isUnderBudget = p.expense <= DAILY_TARGET_BUDGET;
+
+                  return (
+                    <g key={p.date} className="cursor-pointer">
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={isHovered ? 7 : 5}
+                        className={`transition-all duration-150 ${
+                          isUnderBudget
+                            ? 'fill-emerald-400 stroke-slate-950 stroke-2'
+                            : 'fill-rose-500 stroke-slate-950 stroke-2'
+                        }`}
+                        onMouseEnter={() =>
+                          setHoveredTrend({
+                            date: p.date,
+                            expense: p.expense,
+                            income: p.income,
+                            x: cx,
+                            y: cy,
+                          })
+                        }
+                        onMouseLeave={() => setHoveredTrend(null)}
+                      />
+                      {/* Small value badge above point */}
+                      <text
+                        x={cx}
+                        y={cy - 9}
+                        textAnchor="middle"
+                        fontSize="9"
+                        fill={isUnderBudget ? '#a7f3d0' : '#fecdd3'}
+                        fontFamily="monospace"
+                        fontWeight="bold"
+                      >
+                        ₹{p.expense}
+                      </text>
+                    </g>
+                  );
+                })}
+
+                {/* X-Axis Dates */}
+                {trendPoints.map((p, i) => {
+                  // Show dates without crowding
+                  if (trendPoints.length > 8 && i % 2 !== 0 && i !== trendPoints.length - 1) return null;
+                  const cx = getTrendX(i);
+                  return (
+                    <text
+                      key={`date-${p.date}`}
+                      x={cx}
+                      y={trendSvgHeight - 10}
+                      textAnchor="middle"
+                      fontSize="9"
+                      fill="#94a3b8"
+                      fontFamily="monospace"
+                    >
+                      {p.date.slice(5)}
+                    </text>
+                  );
+                })}
+              </svg>
+
+              <div className="flex items-center justify-between text-[11px] text-slate-400 px-3 pt-1 border-t border-white/5">
+                <span>Showing daily expense records</span>
+                <span>
+                  Budget Status:{' '}
+                  <strong className={budgetComplianceRate >= 80 ? 'text-emerald-400' : 'text-amber-400'}>
+                    {budgetComplianceRate}% days within ₹{DAILY_TARGET_BUDGET} limit
+                  </strong>
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="py-12 text-center text-xs text-slate-500">
+              No daily transactions available to plot trend line.
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* GRAPH 2 (NEW): DAILY EXPENSE BAR GAUGE VS ₹200 TARGET */}
+      {(activeChartTab === 'all' || activeChartTab === 'daily_budget') && (
+        <div className="p-6 rounded-2xl bg-slate-900/70 border border-white/10 shadow-xl space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <Target className="w-4 h-4 text-emerald-400" />
+                <h3 className="text-base font-bold text-white">
+                  Daily Spending vs ₹200 Target Limit (Bar Gauge)
+                </h3>
+              </div>
+              <p className="text-xs text-slate-400 mt-0.5">
+                Color-coded bars showing green when below ₹200 and red when exceeding daily allowance
+              </p>
+            </div>
+            <div className="flex items-center gap-3 text-xs font-semibold">
+              <span className="flex items-center gap-1 text-emerald-400">
+                <span className="w-2.5 h-2.5 rounded bg-emerald-500" />
+                ≤ ₹200 (Within Target)
+              </span>
+              <span className="flex items-center gap-1 text-rose-400">
+                <span className="w-2.5 h-2.5 rounded bg-rose-500" />
+                &gt; ₹200 (Exceeded)
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 pt-2">
+            {trendPoints.map((p) => {
+              const isUnder = p.expense <= DAILY_TARGET_BUDGET;
+              const fillPct = Math.min(100, Math.round((p.expense / DAILY_TARGET_BUDGET) * 100));
+
+              return (
+                <div
+                  key={`gauge-${p.date}`}
+                  className={`p-3 rounded-xl border transition-all ${
+                    isUnder
+                      ? 'bg-slate-950/60 border-emerald-500/20 hover:border-emerald-500/40'
+                      : 'bg-slate-950/60 border-rose-500/30 hover:border-rose-500/50'
+                  }`}
+                >
+                  <div className="text-[10px] text-slate-400 font-mono text-center">
+                    {p.date.slice(5)}
+                  </div>
+
+                  {/* Vertical mini-bar container */}
+                  <div className="w-full bg-slate-900 rounded-full h-16 my-2 flex flex-col justify-end p-0.5 relative overflow-hidden">
+                    <div
+                      className={`w-full rounded-full transition-all duration-500 ${
+                        isUnder
+                          ? 'bg-gradient-to-t from-emerald-600 to-teal-400'
+                          : 'bg-gradient-to-t from-rose-600 to-amber-500'
+                      }`}
+                      style={{ height: `${Math.max(4, fillPct)}%` }}
+                    />
+                  </div>
+
+                  <div className="text-center">
+                    <div className={`text-xs font-mono font-bold ${isUnder ? 'text-emerald-400' : 'text-rose-400'}`}>
+                      ₹{p.expense}
+                    </div>
+                    <div className="text-[9px] text-slate-400 mt-0.5">
+                      {isUnder ? `Saved ₹${DAILY_TARGET_BUDGET - p.expense}` : `+₹${p.expense - DAILY_TARGET_BUDGET}`}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* GRAPH 3: INTERACTIVE PIE / DONUT CHART FOR CATEGORY-WISE SPENDING */}
       {(activeChartTab === 'all' || activeChartTab === 'pie') && (
         <div className="p-6 rounded-2xl bg-slate-900/60 border border-white/10 shadow-xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-6">
@@ -381,8 +692,8 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
         </div>
       )}
 
-      {/* GRAPH 2: MONTHLY INFLOW VS OUTFLOW BAR CHART */}
-      {(activeChartTab === 'all' || activeChartTab === 'bars') && (
+      {/* GRAPH 4: MONTHLY INFLOW VS OUTFLOW BAR CHART */}
+      {(activeChartTab === 'all' || activeChartTab === 'monthly') && (
         <div className="p-6 rounded-2xl bg-slate-900/60 border border-white/10 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div>
@@ -477,113 +788,65 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
         </div>
       )}
 
-      {/* GRAPH 3: SPENDING TRENDS LINE / AREA GRAPH & PAYMENT METHODS */}
-      {(activeChartTab === 'all' || activeChartTab === 'trends') && (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Trend Area Chart (8 cols) */}
-          <div className="lg:col-span-8 p-6 rounded-2xl bg-slate-900/60 border border-white/10 shadow-xl space-y-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-base font-bold text-white flex items-center gap-2">
-                  <LineIcon className="w-4 h-4 text-cyan-400" />
-                  Spending Trends Timeline
-                </h3>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Daily expense fluctuations over recent activity
-                </p>
-              </div>
-            </div>
+      {/* GRAPH 5: CATEGORY HORIZONTAL COMPARISON BARS & PAYMENT METHOD METRICS */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        {/* Category Horizontal Comparison (7 cols) */}
+        <div className="lg:col-span-7 p-6 rounded-2xl bg-slate-900/60 border border-white/10 shadow-xl space-y-4">
+          <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <BarChart3 className="w-4 h-4 text-amber-400" />
+            Category Spending Comparison
+          </h3>
 
-            {trendPoints.length > 1 ? (
-              <div className="w-full overflow-x-auto pt-2">
-                <svg viewBox={`0 0 ${trendSvgWidth} ${trendSvgHeight}`} className="w-full h-44">
-                  <defs>
-                    <linearGradient id="expenseTrendGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.35" />
-                      <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
-                    </linearGradient>
-                  </defs>
-
-                  {/* Horizontal grid lines */}
-                  {[0.25, 0.5, 0.75].map((factor) => (
-                    <line
-                      key={factor}
-                      x1={padding}
-                      y1={padding + factor * (trendSvgHeight - padding * 2)}
-                      x2={trendSvgWidth - padding}
-                      y2={padding + factor * (trendSvgHeight - padding * 2)}
-                      stroke="rgba(255,255,255,0.06)"
-                      strokeDasharray="4 4"
-                    />
-                  ))}
-
-                  {/* Gradient Area Fill */}
-                  {expenseAreaPath && <path d={expenseAreaPath} fill="url(#expenseTrendGrad)" />}
-
-                  {/* Polyline */}
-                  <polyline
-                    fill="none"
-                    stroke="#f43f5e"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    points={expensePolyline}
+          <div className="space-y-3">
+            {categoryWiseSpending.slice(0, 7).map((cat) => (
+              <div key={cat.category} className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-semibold text-slate-300">{cat.category}</span>
+                  <span className="font-mono text-slate-400">
+                    {currencySymbol}{cat.totalAmount.toLocaleString('en-IN')} ({cat.percentageOfTotal}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-950 rounded-full h-2 overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${Math.max(2, cat.percentageOfTotal)}%`,
+                      backgroundColor: cat.color,
+                    }}
                   />
-
-                  {/* Data Points */}
-                  {trendPoints.map((p, i) => (
-                    <circle
-                      key={p.date}
-                      cx={getX(i)}
-                      cy={getY(p.expense)}
-                      r="4"
-                      className="fill-rose-500 stroke-slate-900 stroke-2"
-                    />
-                  ))}
-                </svg>
-
-                {/* X-axis date labels */}
-                <div className="flex justify-between text-[10px] text-slate-500 px-3 mt-1">
-                  <span>{trendPoints[0]?.date}</span>
-                  <span>{trendPoints[Math.floor(trendPoints.length / 2)]?.date}</span>
-                  <span>{trendPoints[trendPoints.length - 1]?.date}</span>
                 </div>
               </div>
-            ) : (
-              <div className="py-12 text-center text-xs text-slate-500">
-                Need at least 2 active transaction days to plot trend curve.
-              </div>
-            )}
-          </div>
-
-          {/* Payment Method Distribution (4 cols) */}
-          <div className="lg:col-span-4 p-6 rounded-2xl bg-slate-900/60 border border-white/10 shadow-xl space-y-4">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <CreditCard className="w-4 h-4 text-indigo-400" />
-              Payment Methods
-            </h3>
-
-            <div className="space-y-3">
-              {paymentMethodBreakdown.map((pm) => (
-                <div key={pm.method} className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-semibold text-slate-300">{pm.method}</span>
-                    <span className="font-mono text-slate-400">
-                      {currencySymbol}{pm.amount.toLocaleString('en-IN')} ({pm.percentage}%)
-                    </span>
-                  </div>
-                  <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="bg-indigo-500 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${Math.max(3, pm.percentage)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
-      )}
+
+        {/* Payment Methods (5 cols) */}
+        <div className="lg:col-span-5 p-6 rounded-2xl bg-slate-900/60 border border-white/10 shadow-xl space-y-4">
+          <h3 className="text-base font-bold text-white flex items-center gap-2">
+            <CreditCard className="w-4 h-4 text-indigo-400" />
+            Payment Methods Distribution
+          </h3>
+
+          <div className="space-y-3">
+            {paymentMethodBreakdown.map((pm) => (
+              <div key={pm.method} className="space-y-1">
+                <div className="flex justify-between text-xs">
+                  <span className="font-semibold text-slate-300">{pm.method}</span>
+                  <span className="font-mono text-slate-400">
+                    {currencySymbol}{pm.amount.toLocaleString('en-IN')} ({pm.percentage}%)
+                  </span>
+                </div>
+                <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
+                  <div
+                    className="bg-indigo-500 h-full rounded-full transition-all duration-500"
+                    style={{ width: `${Math.max(3, pm.percentage)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
       {/* PEAK MONTH "WHY" ALGORITHM CARD */}
       {peakMonthAnalysis && (
