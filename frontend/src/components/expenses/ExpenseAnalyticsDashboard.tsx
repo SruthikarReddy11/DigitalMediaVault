@@ -49,6 +49,10 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
     y: number;
   } | null>(null);
 
+  // View modes: 'bar' (default, matches reference image) or 'line'
+  const [dailyExpenseChartType, setDailyExpenseChartType] = useState<'bar' | 'line'>('bar');
+  const [cashflowChartType, setCashflowChartType] = useState<'bar' | 'line'>('bar');
+
   // Daily Expense Target Budget threshold (set according to user request: below 200)
   const DAILY_TARGET_BUDGET = 200;
 
@@ -205,7 +209,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
           {[
             { id: 'all', label: 'All Visualizations', icon: Layers },
             { id: 'expense_only', label: 'Daily Expense (≤ ₹200)', icon: LineIcon },
-            { id: 'cashflow', label: 'Daily Income vs Expense', icon: ArrowRightLeft },
+            { id: 'cashflow', label: 'Daily Income vs Expense (Bar Graph)', icon: BarChart3 },
             { id: 'daily_budget', label: 'Daily Budget Bar Gauge', icon: Target },
             { id: 'pie', label: 'Category Pie Chart', icon: PieIcon },
             { id: 'monthly', label: 'Monthly Comparison', icon: BarChart3 },
@@ -339,10 +343,38 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
               </p>
             </div>
 
-            {/* Legend & Target Badge */}
-            <div className="flex flex-wrap items-center gap-4 text-xs font-semibold">
+            {/* View Mode Toggle & Legend */}
+            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
+              {/* Toggle Between Bar Graph and Line Graph */}
+              <div className="flex items-center bg-slate-950/80 p-0.5 rounded-lg border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setDailyExpenseChartType('bar')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                    dailyExpenseChartType === 'bar'
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <BarChart3 className="w-3 h-3" />
+                  Bar Graph
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDailyExpenseChartType('line')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                    dailyExpenseChartType === 'line'
+                      ? 'bg-rose-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <LineIcon className="w-3 h-3" />
+                  Line Graph
+                </button>
+              </div>
+
               <span className="flex items-center gap-1.5 text-rose-400">
-                <span className="w-3.5 h-1 bg-rose-500 rounded-full" />
+                <span className="w-3.5 h-1.5 bg-rose-500 rounded-sm" />
                 Daily Expense
               </span>
               <span className="flex items-center gap-1.5 text-emerald-300">
@@ -446,68 +478,124 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                   🎯 ₹{DAILY_TARGET_BUDGET} Limit
                 </text>
 
-                {/* Shaded Area */}
-                {expenseOnlyArea && <path d={expenseOnlyArea} fill="url(#expenseOnlyGrad)" />}
+                {/* Render Either Bar Graph or Line Graph */}
+                {dailyExpenseChartType === 'bar' ? (
+                  // Bar Graph Mode
+                  trendPoints.map((p, i) => {
+                    const slotWidth = plotWidth / Math.max(1, trendPoints.length);
+                    const bWidth = Math.min(22, Math.max(8, slotWidth - 10));
+                    const bx = paddingLeft + i * slotWidth + (slotWidth - bWidth) / 2;
+                    const bHeight = p.expense > 0 ? Math.max(3, (Math.min(p.expense, expenseScaleMax) / expenseScaleMax) * plotHeight) : 0;
+                    const by = paddingTop + plotHeight - bHeight;
+                    const isHovered = hoveredExpenseOnly?.date === p.date;
+                    const isUnderBudget = p.expense <= DAILY_TARGET_BUDGET;
 
-                {/* Polyline Curve */}
-                {trendPoints.length > 1 && (
-                  <polyline
-                    fill="none"
-                    stroke="#f43f5e"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    points={expenseOnlyPolyline}
-                    className="drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]"
-                  />
-                )}
-
-                {/* Nodes on each date */}
-                {trendPoints.map((p, i) => {
-                  const cx = getChartX(i);
-                  const cy = getExpenseOnlyY(p.expense);
-                  const isHovered = hoveredExpenseOnly?.date === p.date;
-                  const isUnderBudget = p.expense <= DAILY_TARGET_BUDGET;
-
-                  return (
-                    <g
-                      key={`exp-node-${p.date}`}
-                      className="cursor-pointer"
-                      onMouseEnter={() =>
-                        setHoveredExpenseOnly({
-                          date: p.date,
-                          expense: p.expense,
-                          x: cx,
-                          y: cy,
-                        })
-                      }
-                      onMouseLeave={() => setHoveredExpenseOnly(null)}
-                    >
-                      <circle
-                        cx={cx}
-                        cy={cy}
-                        r={isHovered ? 7 : 5}
-                        className={`transition-all duration-150 ${
-                          isUnderBudget
-                            ? 'fill-rose-500 stroke-slate-950 stroke-2'
-                            : 'fill-amber-400 stroke-slate-950 stroke-2'
-                        }`}
-                      />
-                      {/* Price label above dot */}
-                      <text
-                        x={cx}
-                        y={cy - 9}
-                        textAnchor="middle"
-                        fontSize="9"
-                        fill={isUnderBudget ? '#fecdd3' : '#fde68a'}
-                        fontFamily="monospace"
-                        fontWeight="bold"
+                    return (
+                      <g
+                        key={`exp-bar-${p.date}`}
+                        className="cursor-pointer"
+                        onMouseEnter={() =>
+                          setHoveredExpenseOnly({
+                            date: p.date,
+                            expense: p.expense,
+                            x: bx + bWidth / 2,
+                            y: by,
+                          })
+                        }
+                        onMouseLeave={() => setHoveredExpenseOnly(null)}
                       >
-                        ₹{p.expense}
-                      </text>
-                    </g>
-                  );
-                })}
+                        <rect
+                          x={bx}
+                          y={by}
+                          width={bWidth}
+                          height={bHeight}
+                          rx="3"
+                          className={`transition-all duration-200 ${
+                            isHovered
+                              ? 'fill-rose-400 filter drop-shadow-[0_0_6px_rgba(244,63,94,0.7)]'
+                              : isUnderBudget
+                              ? 'fill-rose-500 hover:fill-rose-400'
+                              : 'fill-amber-500 hover:fill-amber-400'
+                          }`}
+                        />
+                        {/* Numerical value on top of bar */}
+                        {p.expense > 0 && (
+                          <text
+                            x={bx + bWidth / 2}
+                            y={Math.max(paddingTop + 10, by - 5)}
+                            textAnchor="middle"
+                            fontSize="8.5"
+                            fill={isUnderBudget ? '#fecdd3' : '#fde68a'}
+                            fontFamily="monospace"
+                            fontWeight="bold"
+                          >
+                            ₹{p.expense}
+                          </text>
+                        )}
+                      </g>
+                    );
+                  })
+                ) : (
+                  // Line Graph Mode
+                  <>
+                    {expenseOnlyArea && <path d={expenseOnlyArea} fill="url(#expenseOnlyGrad)" />}
+                    {trendPoints.length > 1 && (
+                      <polyline
+                        fill="none"
+                        stroke="#f43f5e"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        points={expenseOnlyPolyline}
+                        className="drop-shadow-[0_0_8px_rgba(244,63,94,0.6)]"
+                      />
+                    )}
+                    {trendPoints.map((p, i) => {
+                      const cx = getChartX(i);
+                      const cy = getExpenseOnlyY(p.expense);
+                      const isHovered = hoveredExpenseOnly?.date === p.date;
+                      const isUnderBudget = p.expense <= DAILY_TARGET_BUDGET;
+
+                      return (
+                        <g
+                          key={`exp-node-${p.date}`}
+                          className="cursor-pointer"
+                          onMouseEnter={() =>
+                            setHoveredExpenseOnly({
+                              date: p.date,
+                              expense: p.expense,
+                              x: cx,
+                              y: cy,
+                            })
+                          }
+                          onMouseLeave={() => setHoveredExpenseOnly(null)}
+                        >
+                          <circle
+                            cx={cx}
+                            cy={cy}
+                            r={isHovered ? 7 : 5}
+                            className={`transition-all duration-150 ${
+                              isUnderBudget
+                                ? 'fill-rose-500 stroke-slate-950 stroke-2'
+                                : 'fill-amber-400 stroke-slate-950 stroke-2'
+                            }`}
+                          />
+                          <text
+                            x={cx}
+                            y={cy - 9}
+                            textAnchor="middle"
+                            fontSize="9"
+                            fill={isUnderBudget ? '#fecdd3' : '#fde68a'}
+                            fontFamily="monospace"
+                            fontWeight="bold"
+                          >
+                            ₹{p.expense}
+                          </text>
+                        </g>
+                      );
+                    })}
+                  </>
+                )}
 
                 {/* X-Axis Dates */}
                 {trendPoints.map((p, i) => {
@@ -559,34 +647,61 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
         </div>
       )}
 
-      {/* GRAPH 2: SEPARATE GRAPH FOR DAILY INCOME VS EXPENSE CASHFLOW */}
+      {/* GRAPH 2: SEPARATE DEDICATED GROUPED BAR GRAPH CHART FOR DAILY INCOME VS EXPENSE (MATCHES REFERENCE IMAGE) */}
       {(activeChartTab === 'all' || activeChartTab === 'cashflow') && (
         <div className="p-6 rounded-2xl bg-slate-900/70 border border-white/10 shadow-xl space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
-                <ArrowRightLeft className="w-4 h-4 text-cyan-400" />
+                <BarChart3 className="w-4 h-4 text-amber-400" />
                 <h3 className="text-base font-bold text-white">
-                  Daily Income vs Expense Cashflow Comparison
+                  Daily Income vs Expense Comparison (Grouped Bar Chart)
                 </h3>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Dual Cashflow Graph
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Clustered Bar Graph
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Separate comparative graph visualizing incoming income and outgoing expenses side-by-side
+                Side-by-side grouped vertical bars showing outgoing expenses and incoming earnings by date
               </p>
             </div>
 
-            {/* Legend */}
-            <div className="flex items-center gap-4 text-xs font-semibold">
-              <span className="flex items-center gap-1.5 text-emerald-400">
-                <span className="w-3.5 h-1 bg-emerald-500 rounded-full" />
-                Daily Income
+            {/* View Mode Toggle & Legend */}
+            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
+              <div className="flex items-center bg-slate-950/80 p-0.5 rounded-lg border border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setCashflowChartType('bar')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                    cashflowChartType === 'bar'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <BarChart3 className="w-3 h-3" />
+                  Bar Graph
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCashflowChartType('line')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                    cashflowChartType === 'line'
+                      ? 'bg-amber-600 text-white shadow-sm'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <LineIcon className="w-3 h-3" />
+                  Line Graph
+                </button>
+              </div>
+
+              <span className="flex items-center gap-1.5 text-amber-400">
+                <span className="w-3 h-3 bg-amber-500 rounded-sm" />
+                Expense (Yellow)
               </span>
-              <span className="flex items-center gap-1.5 text-rose-400">
-                <span className="w-3.5 h-1 bg-rose-500 rounded-full" />
-                Daily Expense
+              <span className="flex items-center gap-1.5 text-emerald-400">
+                <span className="w-3 h-3 bg-emerald-500 rounded-sm" />
+                Income (Green)
               </span>
             </div>
           </div>
@@ -633,150 +748,347 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                 </div>
               )}
 
-              <svg viewBox={`0 0 ${chartSvgWidth} ${chartSvgHeight}`} className="w-full h-60 select-none">
-                <defs>
-                  <linearGradient id="cashflowIncomeGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
-                  </linearGradient>
-                  <linearGradient id="cashflowExpenseGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#f43f5e" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
+              {cashflowChartType === 'bar' ? (
+                /* GROUPED BAR GRAPH SVG (EXACTLY MATCHES USER'S REFERENCE IMAGE) */
+                <svg viewBox="0 0 620 270" className="w-full h-64 select-none">
+                  {/* Centered Chart Title at Top */}
+                  <text
+                    x={(70 + 620 - 90) / 2}
+                    y={22}
+                    textAnchor="middle"
+                    fill="#ffffff"
+                    fontSize="13"
+                    fontWeight="bold"
+                    letterSpacing="0.3"
+                  >
+                    Daily Income &amp; Expense Comparison by Date
+                  </text>
 
-                {/* Y-Axis Value Gridlines and Labels */}
-                {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-                  const val = Math.round(cashflowScaleMax * (1 - ratio));
-                  const yPos = paddingTop + ratio * plotHeight;
-                  return (
-                    <g key={ratio}>
-                      <line
-                        x1={paddingLeft}
-                        y1={yPos}
-                        x2={chartSvgWidth - paddingRight}
-                        y2={yPos}
-                        stroke="rgba(255,255,255,0.08)"
-                        strokeDasharray={ratio === 1 ? 'none' : '3 3'}
-                      />
-                      <text
-                        x={paddingLeft - 8}
-                        y={yPos + 4}
-                        textAnchor="end"
-                        fontSize="10"
-                        fill="#94a3b8"
-                        fontFamily="monospace"
-                        fontWeight="600"
-                      >
-                        ₹{val >= 1000 ? `${Math.round(val / 1000)}k` : val}
-                      </text>
-                    </g>
-                  );
-                })}
+                  {/* Left Rotated Y-Axis Label: Amount (₹) */}
+                  <text
+                    x={18}
+                    y={45 + 190 / 2}
+                    transform={`rotate(-90 18 ${45 + 190 / 2})`}
+                    textAnchor="middle"
+                    fill="#cbd5e1"
+                    fontSize="11"
+                    fontWeight="700"
+                    letterSpacing="0.5"
+                  >
+                    Amount ({currencySymbol})
+                  </text>
 
-                {/* Shaded Areas */}
-                {cashflowIncomeArea && <path d={cashflowIncomeArea} fill="url(#cashflowIncomeGrad)" />}
-                {cashflowExpenseArea && <path d={cashflowExpenseArea} fill="url(#cashflowExpenseGrad)" />}
-
-                {/* Income Curve (Emerald) */}
-                {trendPoints.length > 1 && (
-                  <polyline
-                    fill="none"
-                    stroke="#10b981"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    points={cashflowIncomePolyline}
-                    className="drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
-                  />
-                )}
-
-                {/* Expense Curve (Rose) */}
-                {trendPoints.length > 1 && (
-                  <polyline
-                    fill="none"
-                    stroke="#f43f5e"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    points={cashflowExpensePolyline}
-                    className="drop-shadow-[0_0_8px_rgba(244,63,94,0.5)]"
-                  />
-                )}
-
-                {/* Nodes for each date */}
-                {trendPoints.map((p, i) => {
-                  const cx = getChartX(i);
-                  const cyExp = getCashflowY(p.expense);
-                  const cyInc = getCashflowY(p.income);
-                  const isHovered = hoveredCashflow?.date === p.date;
-
-                  return (
-                    <g
-                      key={`cf-node-${p.date}`}
-                      className="cursor-pointer"
-                      onMouseEnter={() =>
-                        setHoveredCashflow({
-                          date: p.date,
-                          expense: p.expense,
-                          income: p.income,
-                          x: cx,
-                          y: Math.min(cyExp, cyInc),
-                        })
-                      }
-                      onMouseLeave={() => setHoveredCashflow(null)}
-                    >
-                      {p.income > 0 && Math.abs(cyInc - cyExp) > 4 && (
+                  {/* Horizontal Dotted Gridlines & Y-Axis Scale Values */}
+                  {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                    const val = Math.round(cashflowScaleMax * (1 - ratio));
+                    const yPos = 45 + ratio * 190;
+                    return (
+                      <g key={ratio}>
                         <line
-                          x1={cx}
-                          y1={cyInc}
-                          x2={cx}
-                          y2={cyExp}
-                          stroke="rgba(255,255,255,0.2)"
-                          strokeDasharray="2 2"
+                          x1={70}
+                          y1={yPos}
+                          x2={620 - 90}
+                          y2={yPos}
+                          stroke="rgba(255,255,255,0.12)"
+                          strokeDasharray="2 3"
                         />
-                      )}
+                        <text
+                          x={70 - 8}
+                          y={yPos + 4}
+                          textAnchor="end"
+                          fontSize="10"
+                          fill="#94a3b8"
+                          fontFamily="monospace"
+                          fontWeight="600"
+                        >
+                          ₹{val >= 1000 ? `${Math.round(val / 1000)}k` : val}
+                        </text>
+                      </g>
+                    );
+                  })}
 
-                      {/* Income Node (Green) */}
-                      {p.income > 0 && (
+                  {/* Right-Side Legend (Yellow = Expense, Green = Income) */}
+                  <g transform={`translate(${620 - 90 + 12}, ${45 + 190 / 2 - 20})`}>
+                    {/* Expense (Golden Yellow) */}
+                    <rect x="0" y="0" width="12" height="12" rx="2" fill="#eab308" />
+                    <text x="16" y="10" fill="#fde047" fontSize="10.5" fontWeight="600">
+                      Expense
+                    </text>
+
+                    {/* Income (Forest Green) */}
+                    <rect x="0" y="20" width="12" height="12" rx="2" fill="#16a34a" />
+                    <text x="16" y="30" fill="#86efac" fontSize="10.5" fontWeight="600">
+                      Income
+                    </text>
+                  </g>
+
+                  {/* Grouped Vertical Bars For Each Date */}
+                  {trendPoints.map((p, i) => {
+                    const plotW = 620 - 70 - 90;
+                    const groupW = plotW / Math.max(1, trendPoints.length);
+                    const bWidth = Math.min(18, Math.max(6, (groupW - 8) / 2));
+                    const groupCenterX = 70 + (i + 0.5) * groupW;
+
+                    // Expense Bar (Yellow - Left)
+                    const expHeight = p.expense > 0 ? Math.max(3, (p.expense / cashflowScaleMax) * 190) : 0;
+                    const expY = 45 + 190 - expHeight;
+                    const expX = groupCenterX - bWidth - 0.5;
+
+                    // Income Bar (Green - Right)
+                    const incHeight = p.income > 0 ? Math.max(3, (p.income / cashflowScaleMax) * 190) : 0;
+                    const incY = 45 + 190 - incHeight;
+                    const incX = groupCenterX + 0.5;
+
+                    const isHovered = hoveredCashflow?.date === p.date;
+
+                    return (
+                      <g
+                        key={`bar-group-${p.date}`}
+                        className="cursor-pointer"
+                        onMouseEnter={() =>
+                          setHoveredCashflow({
+                            date: p.date,
+                            expense: p.expense,
+                            income: p.income,
+                            x: groupCenterX,
+                            y: Math.min(expY, incY),
+                          })
+                        }
+                        onMouseLeave={() => setHoveredCashflow(null)}
+                      >
+                        {/* Background subtle hover highlight column */}
+                        {isHovered && (
+                          <rect
+                            x={groupCenterX - groupW / 2 + 2}
+                            y={45}
+                            width={groupW - 4}
+                            height={190}
+                            fill="rgba(255,255,255,0.04)"
+                            rx="4"
+                          />
+                        )}
+
+                        {/* Expense Bar (Yellow) */}
+                        <rect
+                          x={expX}
+                          y={expY}
+                          width={bWidth}
+                          height={expHeight}
+                          rx="1.5"
+                          className={`transition-all duration-150 ${
+                            isHovered
+                              ? 'fill-amber-300 filter drop-shadow-[0_0_6px_rgba(234,179,8,0.7)]'
+                              : 'fill-amber-500 hover:fill-amber-400'
+                          }`}
+                        />
+
+                        {/* Number on top of Expense bar */}
+                        {p.expense > 0 && (
+                          <text
+                            x={expX + bWidth / 2}
+                            y={Math.max(45 + 10, expY - 4)}
+                            textAnchor="middle"
+                            fontSize="8"
+                            fill="#fef08a"
+                            fontFamily="monospace"
+                            fontWeight="bold"
+                          >
+                            {p.expense >= 1000 ? `${(p.expense / 1000).toFixed(1)}k` : p.expense}
+                          </text>
+                        )}
+
+                        {/* Income Bar (Green) */}
+                        <rect
+                          x={incX}
+                          y={incY}
+                          width={bWidth}
+                          height={incHeight}
+                          rx="1.5"
+                          className={`transition-all duration-150 ${
+                            isHovered
+                              ? 'fill-emerald-300 filter drop-shadow-[0_0_6px_rgba(22,163,74,0.7)]'
+                              : 'fill-emerald-600 hover:fill-emerald-500'
+                          }`}
+                        />
+
+                        {/* Number on top of Income bar */}
+                        {p.income > 0 && (
+                          <text
+                            x={incX + bWidth / 2}
+                            y={Math.max(45 + 10, incY - 4)}
+                            textAnchor="middle"
+                            fontSize="8"
+                            fill="#bbf7d0"
+                            fontFamily="monospace"
+                            fontWeight="bold"
+                          >
+                            {p.income >= 1000 ? `${(p.income / 1000).toFixed(1)}k` : p.income}
+                          </text>
+                        )}
+
+                        {/* Date label centered below the bar pair */}
+                        <text
+                          x={groupCenterX}
+                          y={270 - 10}
+                          textAnchor="middle"
+                          fontSize="9"
+                          fill={isHovered ? '#ffffff' : '#94a3b8'}
+                          fontFamily="monospace"
+                          fontWeight={isHovered ? 'bold' : 'normal'}
+                        >
+                          {p.date.slice(5)}
+                        </text>
+                      </g>
+                    );
+                  })}
+                </svg>
+              ) : (
+                /* DUAL LINE GRAPH MODE (ALTERNATIVE VIEW) */
+                <svg viewBox={`0 0 ${chartSvgWidth} ${chartSvgHeight}`} className="w-full h-60 select-none">
+                  <defs>
+                    <linearGradient id="cashflowIncomeGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity="0.0" />
+                    </linearGradient>
+                    <linearGradient id="cashflowExpenseGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.3" />
+                      <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Y-Axis Value Gridlines and Labels */}
+                  {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                    const val = Math.round(cashflowScaleMax * (1 - ratio));
+                    const yPos = paddingTop + ratio * plotHeight;
+                    return (
+                      <g key={ratio}>
+                        <line
+                          x1={paddingLeft}
+                          y1={yPos}
+                          x2={chartSvgWidth - paddingRight}
+                          y2={yPos}
+                          stroke="rgba(255,255,255,0.08)"
+                          strokeDasharray={ratio === 1 ? 'none' : '3 3'}
+                        />
+                        <text
+                          x={paddingLeft - 8}
+                          y={yPos + 4}
+                          textAnchor="end"
+                          fontSize="10"
+                          fill="#94a3b8"
+                          fontFamily="monospace"
+                          fontWeight="600"
+                        >
+                          ₹{val >= 1000 ? `${Math.round(val / 1000)}k` : val}
+                        </text>
+                      </g>
+                    );
+                  })}
+
+                  {/* Shaded Areas */}
+                  {cashflowIncomeArea && <path d={cashflowIncomeArea} fill="url(#cashflowIncomeGrad)" />}
+                  {cashflowExpenseArea && <path d={cashflowExpenseArea} fill="url(#cashflowExpenseGrad)" />}
+
+                  {/* Income Curve (Emerald) */}
+                  {trendPoints.length > 1 && (
+                    <polyline
+                      fill="none"
+                      stroke="#10b981"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      points={cashflowIncomePolyline}
+                      className="drop-shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+                    />
+                  )}
+
+                  {/* Expense Curve (Amber) */}
+                  {trendPoints.length > 1 && (
+                    <polyline
+                      fill="none"
+                      stroke="#f59e0b"
+                      strokeWidth="3"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      points={cashflowExpensePolyline}
+                      className="drop-shadow-[0_0_8px_rgba(245,158,11,0.5)]"
+                    />
+                  )}
+
+                  {/* Nodes for each date */}
+                  {trendPoints.map((p, i) => {
+                    const cx = getChartX(i);
+                    const cyExp = getCashflowY(p.expense);
+                    const cyInc = getCashflowY(p.income);
+                    const isHovered = hoveredCashflow?.date === p.date;
+
+                    return (
+                      <g
+                        key={`cf-node-${p.date}`}
+                        className="cursor-pointer"
+                        onMouseEnter={() =>
+                          setHoveredCashflow({
+                            date: p.date,
+                            expense: p.expense,
+                            income: p.income,
+                            x: cx,
+                            y: Math.min(cyExp, cyInc),
+                          })
+                        }
+                        onMouseLeave={() => setHoveredCashflow(null)}
+                      >
+                        {p.income > 0 && Math.abs(cyInc - cyExp) > 4 && (
+                          <line
+                            x1={cx}
+                            y1={cyInc}
+                            x2={cx}
+                            y2={cyExp}
+                            stroke="rgba(255,255,255,0.2)"
+                            strokeDasharray="2 2"
+                          />
+                        )}
+
+                        {/* Income Node (Green) */}
+                        {p.income > 0 && (
+                          <circle
+                            cx={cx}
+                            cy={cyInc}
+                            r={isHovered ? 6 : 4}
+                            className="fill-emerald-400 stroke-slate-950 stroke-2"
+                          />
+                        )}
+
+                        {/* Expense Node (Amber) */}
                         <circle
                           cx={cx}
-                          cy={cyInc}
+                          cy={cyExp}
                           r={isHovered ? 6 : 4}
-                          className="fill-emerald-400 stroke-slate-950 stroke-2"
+                          className="fill-amber-400 stroke-slate-950 stroke-2"
                         />
-                      )}
+                      </g>
+                    );
+                  })}
 
-                      {/* Expense Node (Red) */}
-                      <circle
-                        cx={cx}
-                        cy={cyExp}
-                        r={isHovered ? 6 : 4}
-                        className="fill-rose-500 stroke-slate-950 stroke-2"
-                      />
-                    </g>
-                  );
-                })}
-
-                {/* X-Axis Dates */}
-                {trendPoints.map((p, i) => {
-                  if (trendPoints.length > 8 && i % 2 !== 0 && i !== trendPoints.length - 1) return null;
-                  const cx = getChartX(i);
-                  return (
-                    <text
-                      key={`cf-date-${p.date}`}
-                      x={cx}
-                      y={chartSvgHeight - 10}
-                      textAnchor="middle"
-                      fontSize="9"
-                      fill="#94a3b8"
-                      fontFamily="monospace"
-                    >
-                      {p.date.slice(5)}
-                    </text>
-                  );
-                })}
-              </svg>
+                  {/* X-Axis Dates */}
+                  {trendPoints.map((p, i) => {
+                    if (trendPoints.length > 8 && i % 2 !== 0 && i !== trendPoints.length - 1) return null;
+                    const cx = getChartX(i);
+                    return (
+                      <text
+                        key={`cf-date-${p.date}`}
+                        x={cx}
+                        y={chartSvgHeight - 10}
+                        textAnchor="middle"
+                        fontSize="9"
+                        fill="#94a3b8"
+                        fontFamily="monospace"
+                      >
+                        {p.date.slice(5)}
+                      </text>
+                    );
+                  })}
+                </svg>
+              )}
 
               {/* Bottom Quick Metric Highlights */}
               <div className="grid grid-cols-3 gap-2 text-center text-[11px] pt-3 border-t border-white/5 bg-slate-950/40 rounded-xl p-2.5 mt-2">
