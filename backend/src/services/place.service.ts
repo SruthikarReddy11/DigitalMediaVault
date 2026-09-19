@@ -84,6 +84,11 @@ export class PlaceService {
     if (reminderTimeStr && /^\d{1,2}:\d{2}$/.test(reminderTimeStr)) {
       const [h, m] = reminderTimeStr.split(':').map(Number);
       baseDate.setHours(h, m, 0, 0);
+    } else if (
+      (reminderDateStr instanceof Date && (reminderDateStr.getHours() !== 0 || reminderDateStr.getMinutes() !== 0)) ||
+      (typeof reminderDateStr === 'string' && (reminderDateStr.includes('T') || reminderDateStr.includes(':')))
+    ) {
+      // Keep existing hours/minutes from datetime string
     } else {
       // Default to 9:00 AM on the reminder day
       baseDate.setHours(9, 0, 0, 0);
@@ -140,18 +145,36 @@ export class PlaceService {
     const phoneNumber = input.phoneNumber || placeData?.phoneNumber || null;
     const website = input.website || placeData?.website || null;
     const openingHours = input.openingHours || placeData?.openingHours || null;
-    const imageUrl = input.imageUrl || placeData?.imageUrl || null;
+    const imageUrl = input.imageUrl || (input as any).photoUrl || placeData?.imageUrl || null;
     const photoReference = input.photoReference || placeData?.photoReference || null;
     const photoAttributions = input.photoAttributions || placeData?.photoAttributions || [];
-    const status = input.status || PlaceStatus.WANT_TO_VISIT;
+
+    // Safely sanitize status to prevent Prisma enum runtime crashes
+    let status: PlaceStatus = PlaceStatus.WANT_TO_VISIT;
+    const tags = Array.isArray(input.tags) ? [...input.tags] : [];
+
+    if (input.status) {
+      const upper = String(input.status).toUpperCase();
+      if (Object.values(PlaceStatus).includes(upper as any)) {
+        status = upper as PlaceStatus;
+      } else if (upper === 'FAVORITE') {
+        status = PlaceStatus.WANT_TO_VISIT;
+        if (!tags.includes('Favorite')) tags.push('Favorite');
+      }
+    }
 
     let reminderDate: Date | null = null;
     let triggerTime: Date | null = null;
     const reminderOption = input.reminderOption || 'EXACT';
 
     if (input.reminderDate) {
-      reminderDate = new Date(input.reminderDate);
-      triggerTime = this.calculateTriggerTime(reminderDate, input.reminderTime, reminderOption);
+      try {
+        const d = new Date(input.reminderDate);
+        if (!isNaN(d.getTime())) {
+          reminderDate = d;
+          triggerTime = this.calculateTriggerTime(reminderDate, input.reminderTime, reminderOption);
+        }
+      } catch {}
     }
 
     // Optional Calendar Event Sync
@@ -204,7 +227,7 @@ export class PlaceService {
         photoReference,
         photoAttributions,
         notes: input.notes?.trim() || null,
-        tags: input.tags || [],
+        tags: tags || [],
         status,
         reminderDate,
         reminderTime: input.reminderTime || null,
@@ -415,11 +438,19 @@ export class PlaceService {
     if (input.tags !== undefined) updateData.tags = input.tags;
 
     if (input.status !== undefined) {
-      updateData.status = input.status;
-      if (input.status === PlaceStatus.VISITED && !existing.visitedAt) {
-        updateData.visitedAt = new Date();
-      } else if (input.status !== PlaceStatus.VISITED) {
-        updateData.visitedAt = null;
+      const upper = String(input.status).toUpperCase();
+      if (Object.values(PlaceStatus).includes(upper as any)) {
+        updateData.status = upper as PlaceStatus;
+        if (upper === PlaceStatus.VISITED && !existing.visitedAt) {
+          updateData.visitedAt = new Date();
+        } else if (upper !== PlaceStatus.VISITED) {
+          updateData.visitedAt = null;
+        }
+      } else if (upper === 'FAVORITE') {
+        const currentTags = existing.tags || [];
+        if (!currentTags.includes('Favorite')) {
+          updateData.tags = [...currentTags, 'Favorite'];
+        }
       }
     }
 

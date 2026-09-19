@@ -871,9 +871,16 @@ function openGoogleMapsModal(
           <select id="vaultx-place-status" class="vaultx-input" style="cursor:pointer;">
             <option value="WANT_TO_VISIT" selected>📌 Want to Visit</option>
             <option value="PLANNED">🗓️ Planned</option>
+            <option value="UPCOMING">⏰ Upcoming</option>
             <option value="VISITED">✅ Visited</option>
-            <option value="FAVORITE">⭐ Favorite</option>
           </select>
+        </div>
+
+        <div style="margin-bottom:12px; display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="vaultx-place-favorite" style="cursor:pointer; accent-color:#8b5cf6;" />
+          <label for="vaultx-place-favorite" style="font-size:12.5px; color:#f1f5f9; cursor:pointer; user-select:none; font-weight:500;">
+            ⭐ Mark as Favorite
+          </label>
         </div>
 
         <div style="margin-bottom:12px;">
@@ -906,6 +913,7 @@ function openGoogleMapsModal(
 
     const form = stepContainer.querySelector('#vaultx-save-place-form') as HTMLFormElement;
     const statusSelect = stepContainer.querySelector('#vaultx-place-status') as HTMLSelectElement;
+    const favCheckbox = stepContainer.querySelector('#vaultx-place-favorite') as HTMLInputElement;
     const presetSelect = stepContainer.querySelector('#vaultx-place-reminder-preset') as HTMLSelectElement;
     const customWrap = stepContainer.querySelector('#vaultx-custom-reminder-wrap') as HTMLElement;
     const customInput = stepContainer.querySelector('#vaultx-place-custom-date') as HTMLInputElement;
@@ -932,6 +940,11 @@ function openGoogleMapsModal(
       submitBtn.textContent = 'Saving Place...';
       errBox.innerHTML = '';
 
+      const tags: string[] = [];
+      if (favCheckbox?.checked) {
+        tags.push('Favorite');
+      }
+
       let reminderDate: string | undefined = undefined;
       const now = new Date();
       if (presetSelect.value === '1_DAY') {
@@ -941,7 +954,12 @@ function openGoogleMapsModal(
       } else if (presetSelect.value === '1_MONTH') {
         reminderDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
       } else if (presetSelect.value === 'CUSTOM' && customInput.value) {
-        reminderDate = new Date(customInput.value).toISOString();
+        try {
+          const parsed = new Date(customInput.value);
+          if (!isNaN(parsed.getTime())) {
+            reminderDate = parsed.toISOString();
+          }
+        } catch {}
       }
 
       const payload = {
@@ -954,9 +972,11 @@ function openGoogleMapsModal(
         category: place.category,
         rating: place.rating,
         userRatingsTotal: place.userRatingsTotal,
-        photoUrl: place.photoUrl,
+        imageUrl: place.photoUrl || place.imageUrl,
+        photoUrl: place.photoUrl || place.imageUrl,
         photoAttributions: place.photoAttributions,
         status: statusSelect.value,
+        tags,
         notes: notesInput.value.trim() || undefined,
         reminderDate,
       };
