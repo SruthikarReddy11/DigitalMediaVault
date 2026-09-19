@@ -65,6 +65,7 @@ model User {
   savedProducts     SavedProduct[]
   productSections   ProductSection[]
   expenses          Expense[]
+  bankAccountLinks  BankAccountLink[]
 
   @@index([email])
   @@index([username])
@@ -598,28 +599,56 @@ enum ExpenseType {
 }
 
 model Expense {
-  id            String      @id @default(uuid())
+  id            String           @id @default(uuid())
   userId        String
-  type          ExpenseType @default(EXPENSE)
+  type          ExpenseType      @default(EXPENSE)
   amount        Float
-  currency      String      @default("INR")
+  currency      String           @default("INR")
   date          DateTime
   person        String?
   category      String
   description   String?
   reason        String?
   notes         String?
-  paymentMethod String      @default("UPI")
+  paymentMethod String           @default("UPI")
   receiptUrl    String?
-  tags          String[]    @default([])
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  tags          String[]         @default([])
+  bankTxnId     String?
+  bankAccountId String?
+  bankName      String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
-  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bankAccount   BankAccountLink? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
 
   @@index([userId])
   @@index([userId, date])
   @@index([userId, type])
   @@index([userId, category])
+  @@index([userId, bankTxnId])
   @@map("expenses")
+}
+
+model BankAccountLink {
+  id                String    @id @default(uuid())
+  userId            String
+  provider          String    @default("SETU")
+  fipId             String
+  bankName          String
+  accountNumberMask String
+  accountType       String    @default("SAVINGS")
+  consentId         String
+  consentStatus     String    @default("ACTIVE")
+  consentHandle     String?
+  lastSyncedAt      DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user              User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenses          Expense[]
+
+  @@index([userId])
+  @@index([userId, consentStatus])
+  @@map("bank_account_links")
 }

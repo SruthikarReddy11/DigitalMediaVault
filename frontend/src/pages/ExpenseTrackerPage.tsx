@@ -9,6 +9,8 @@ import {
   Receipt,
   Download,
   PieChart,
+  Building2,
+  Sparkles,
 } from 'lucide-react';
 import {
   expenseApi,
@@ -19,11 +21,14 @@ import {
   CreateExpensePayload,
   UpdateExpensePayload,
 } from '../services/expenseApi';
+import { bankSyncApi, ConnectedAccount } from '../services/bankSyncApi';
 import { useToast } from '../contexts/ToastContext';
 import { SaveExpensePromptBanner } from '../components/expenses/SaveExpensePromptBanner';
 import { ExpenseAnalyticsDashboard } from '../components/expenses/ExpenseAnalyticsDashboard';
 import { ExpenseList } from '../components/expenses/ExpenseList';
 import { ExpenseModal } from '../components/expenses/ExpenseModal';
+import { LinkBankAccountModal } from '../components/expenses/LinkBankAccountModal';
+import { ConnectedBanksModal } from '../components/expenses/ConnectedBanksModal';
 
 export const ExpenseTrackerPage: React.FC = () => {
   const { success, error } = useToast();
@@ -46,6 +51,22 @@ export const ExpenseTrackerPage: React.FC = () => {
   const [expenseToEdit, setExpenseToEdit] = useState<Expense | null>(null);
   const [modalDefaultType, setModalDefaultType] = useState<ExpenseType>('EXPENSE');
 
+  // Bank Sync (Account Aggregator) states
+  const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
+  const [isLinkBankModalOpen, setIsLinkBankModalOpen] = useState<boolean>(false);
+  const [isConnectedBanksModalOpen, setIsConnectedBanksModalOpen] = useState<boolean>(false);
+  const [isBankSyncing, setIsBankSyncing] = useState<boolean>(false);
+
+  // Load connected bank accounts
+  const loadConnectedAccounts = useCallback(async () => {
+    try {
+      const accounts = await bankSyncApi.getConnectedAccounts();
+      setConnectedAccounts(accounts);
+    } catch (e) {
+      console.warn('Failed to load connected bank accounts:', e);
+    }
+  }, []);
+
   // Fetch all data
   const fetchData = useCallback(async (showRefreshing = false) => {
     if (showRefreshing) setIsRefreshing(true);
@@ -59,17 +80,36 @@ export const ExpenseTrackerPage: React.FC = () => {
 
       setAnalytics(analyticsRes);
       setExpenses(listRes.data || []);
+      await loadConnectedAccounts();
     } catch (err: any) {
       error(err.message || 'Failed to load expense data');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [filters, error]);
+  }, [filters, error, loadConnectedAccounts]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Handle 1-Click Bank Transaction Sync
+  const handleFastBankSync = async () => {
+    setIsBankSyncing(true);
+    try {
+      const res = await bankSyncApi.syncTransactions();
+      success(
+        res.syncedCount > 0
+          ? `Direct Bank Sync: Ingested ${res.syncedCount} new transactions without manual entry!`
+          : 'Bank Sync: All transactions are already up to date.'
+      );
+      await fetchData(true);
+    } catch (err: any) {
+      error(err.response?.data?.message || err.message || 'Failed to sync bank accounts');
+    } finally {
+      setIsBankSyncing(false);
+    }
+  };
 
   // Handle Quick Save
   const handleQuickSave = async (payload: CreateExpensePayload) => {
@@ -157,6 +197,41 @@ export const ExpenseTrackerPage: React.FC = () => {
 
         {/* Top Header Actions */}
         <div className="flex items-center gap-2.5 flex-wrap">
+          {/* Bank Sync (Account Aggregator) Widget */}
+          {connectedAccounts.length === 0 ? (
+            <button
+              type="button"
+              onClick={() => setIsLinkBankModalOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 transition-all shadow-sm"
+              title="Link Bank Account for Automated Sync"
+            >
+              <Building2 className="w-4 h-4 text-indigo-400" />
+              Link Bank (Auto-Sync)
+            </button>
+          ) : (
+            <div className="flex items-center bg-slate-900/90 rounded-xl border border-white/10 p-0.5 shadow-inner">
+              <button
+                type="button"
+                onClick={() => setIsConnectedBanksModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-all"
+                title="Manage Connected Bank Accounts"
+              >
+                <Building2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>{connectedAccounts.length} Bank{connectedAccounts.length > 1 ? 's' : ''} Linked</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleFastBankSync}
+                disabled={isBankSyncing}
+                className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow transition-all disabled:opacity-50"
+                title="Direct Bank Transaction Sync"
+              >
+                <RefreshCw className={`w-3 h-3 ${isBankSyncing ? 'animate-spin' : ''}`} />
+                {isBankSyncing ? 'Syncing...' : 'Sync Bank'}
+              </button>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={() => fetchData(true)}
@@ -312,6 +387,26 @@ export const ExpenseTrackerPage: React.FC = () => {
         expenseToEdit={expenseToEdit}
         defaultType={modalDefaultType}
         onSubmit={handleModalSubmit}
+      />
+
+      {/* Link Bank Account Modal (RBI Account Aggregator) */}
+      <LinkBankAccountModal
+        isOpen={isLinkBankModalOpen}
+        onClose={() => setIsLinkBankModalOpen(false)}
+        onSuccess={async () => {
+          await fetchData(true);
+        }}
+      />
+
+      {/* Connected Bank Accounts Drawer/Modal */}
+      <ConnectedBanksModal
+        isOpen={isConnectedBanksModalOpen}
+        onClose={() => setIsConnectedBanksModalOpen(false)}
+        accounts={connectedAccounts}
+        onRefresh={async () => {
+          await fetchData(true);
+        }}
+        onOpenLinkModal={() => setIsLinkBankModalOpen(true)}
       />
     </div>
   );

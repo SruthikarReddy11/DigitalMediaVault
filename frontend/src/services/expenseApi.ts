@@ -53,6 +53,8 @@ export interface Expense {
   reason?: string | null;
   receiptUrl?: string | null;
   tags: string[];
+  bankTxnId?: string | null;
+  bankName?: string | null;
   createdAt: string;
   updatedAt: string;
 }

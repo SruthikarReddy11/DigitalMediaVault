@@ -11,6 +11,7 @@ import {
   User,
   CreditCard,
   FileSpreadsheet,
+  Building2,
 } from 'lucide-react';
 import { Expense, ExpenseType, ExpenseFilters } from '../../services/expenseApi';
 
@@ -209,6 +210,12 @@ export const ExpenseList: React.FC<ExpenseListProps> = ({
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white/5 text-slate-300 border border-white/5">
                         {item.paymentMethod || 'UPI'}
                       </span>
+                      {item.bankName && (
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 flex items-center gap-1">
+                          <Building2 className="w-2.5 h-2.5 text-indigo-400" />
+                          {item.bankName}
+                        </span>
+                      )}
                     </div>
 
                     {(item.description || item.reason) && (
