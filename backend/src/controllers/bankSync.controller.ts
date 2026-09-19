@@ -129,7 +129,8 @@ export class BankSyncController {
       }
 
       const id = String(req.params.id);
-      await AccountAggregatorService.disconnectAccount(userId, id);
+      const deleteExpenses = req.query.deleteExpenses !== 'false';
+      await AccountAggregatorService.disconnectAccount(userId, id, deleteExpenses);
 
       res.json({
         success: true,
@@ -137,6 +138,28 @@ export class BankSyncController {
       });
     } catch (err: any) {
       res.status(400).json({ success: false, message: err.message || 'Failed to unlink bank account' });
+    }
+  }
+
+  /**
+   * DELETE /api/expenses/bank/clear-synced
+   */
+  public static async clearAllSynced(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, message: 'Authentication required' });
+        return;
+      }
+
+      const result = await AccountAggregatorService.clearAllSyncedData(userId);
+      res.json({
+        success: true,
+        message: `Cleared ${result.deletedExpensesCount} bank transactions and removed ${result.deletedAccountsCount} linked bank account(s).`,
+        data: result,
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: err.message || 'Failed to clear synced data' });
     }
   }
 }

@@ -71,6 +71,23 @@ export const ConnectedBanksModal: React.FC<ConnectedBanksModalProps> = ({
 
   const activeAccounts = accounts.filter((a) => a.consentStatus === 'ACTIVE');
 
+  const handleClearAllData = async () => {
+    if (!window.confirm('Are you sure you want to remove ALL synced bank transactions and unlink all bank accounts? This will delete all demo/synced data.')) {
+      return;
+    }
+    setIsSyncing(true);
+    try {
+      const res = await bankSyncApi.clearAllSyncedData();
+      success(`Cleaned up ${res.deletedExpensesCount} transaction(s) and unlinked bank accounts.`);
+      await onRefresh();
+      onClose();
+    } catch (err: any) {
+      error(err.response?.data?.message || err.message || 'Failed to clear synced data');
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fadeIn">
       <div className="relative w-full max-w-lg bg-slate-900 border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
@@ -140,7 +157,7 @@ export const ConnectedBanksModal: React.FC<ConnectedBanksModalProps> = ({
                       <div className="flex items-center gap-2">
                         <h4 className="text-xs font-bold text-white">{acc.bankName}</h4>
                         <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                          Active
+                          {acc.provider === 'SIMULATOR' ? 'Demo Simulator' : 'Active'}
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-400 font-mono mt-0.5">
@@ -163,7 +180,7 @@ export const ConnectedBanksModal: React.FC<ConnectedBanksModalProps> = ({
 
                   <button
                     type="button"
-                    title="Unlink Account"
+                    title="Unlink and Delete Account"
                     disabled={disconnectingId === acc.id}
                     onClick={() => handleDisconnect(acc.id, acc.bankName)}
                     className="p-2 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all disabled:opacity-40"
@@ -180,28 +197,43 @@ export const ConnectedBanksModal: React.FC<ConnectedBanksModalProps> = ({
           )}
 
           {/* Action Buttons */}
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-white/10">
-            <button
-              type="button"
-              onClick={() => {
-                onClose();
-                onOpenLinkModal();
-              }}
-              className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/5 border border-white/10 transition-all flex items-center justify-center gap-1.5"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Link Another Bank
-            </button>
+          <div className="pt-3 flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-white/10">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenLinkModal();
+                }}
+                className="w-full sm:w-auto px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-white/5 border border-white/10 transition-all flex items-center justify-center gap-1.5"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Link Another Bank
+              </button>
+
+              {activeAccounts.length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleClearAllData}
+                  disabled={isSyncing}
+                  className="px-3 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 transition-all flex items-center justify-center gap-1"
+                  title="Remove all synced demo data and accounts"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Clear Synced Data
+                </button>
+              )}
+            </div>
 
             {activeAccounts.length > 0 && (
               <button
                 type="button"
                 onClick={handleSyncAll}
                 disabled={isSyncing}
-                className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50"
+                className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold shadow-lg shadow-emerald-600/30 transition-all disabled:opacity-50"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
-                {isSyncing ? 'Syncing Feeds...' : 'Sync All Bank Feeds'}
+                {isSyncing ? 'Syncing Feeds...' : 'Sync All Feeds'}
               </button>
             )}
           </div>

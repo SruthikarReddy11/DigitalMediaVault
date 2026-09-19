@@ -10,6 +10,9 @@ describe('RBI Account Aggregator (AA) Bank Sync Tests', () => {
   let linkedBankAccountId: string;
 
   beforeAll(async () => {
+    // Explicitly set simulator mode for deterministic unit testing
+    process.env.AA_MODE = 'simulator';
+
     // Register unique test user
     const username = `aa_user_${Date.now()}`;
     const email = `${username}@example.com`;
@@ -158,7 +161,7 @@ describe('RBI Account Aggregator (AA) Bank Sync Tests', () => {
       expect(res.body.data.duplicateCount).toBeGreaterThan(0);
     });
 
-    it('should disconnect / unlink bank account', async () => {
+    it('should disconnect / unlink bank account and delete associated record', async () => {
       const res = await request(app)
         .delete(`/api/expenses/bank/accounts/${linkedBankAccountId}`)
         .set('Cookie', userCookie);
@@ -169,7 +172,18 @@ describe('RBI Account Aggregator (AA) Bank Sync Tests', () => {
       const link = await prisma.bankAccountLink.findUnique({
         where: { id: linkedBankAccountId },
       });
-      expect(link?.consentStatus).toBe('REVOKED');
+      expect(link).toBeNull();
+    });
+
+    it('should clear all synced bank data via /api/expenses/bank/clear-synced', async () => {
+      const res = await request(app)
+        .delete('/api/expenses/bank/clear-synced')
+        .set('Cookie', userCookie);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+      expect(res.body.data).toHaveProperty('deletedExpensesCount');
+      expect(res.body.data).toHaveProperty('deletedAccountsCount');
     });
   });
 });

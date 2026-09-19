@@ -101,9 +101,17 @@ export const bankSyncApi = {
   },
 
   /**
-   * Disconnect a bank account
+   * Disconnect a bank account (and delete its synced transactions)
    */
-  disconnectAccount: async (id: string): Promise<void> => {
-    await api.delete(`/expenses/bank/accounts/${id}`);
+  disconnectAccount: async (id: string, deleteExpenses: boolean = true): Promise<void> => {
+    await api.delete(`/expenses/bank/accounts/${id}?deleteExpenses=${deleteExpenses}`);
+  },
+
+  /**
+   * Clear all synced bank transactions and linked accounts
+   */
+  clearAllSyncedData: async (): Promise<{ deletedExpensesCount: number; deletedAccountsCount: number }> => {
+    const res = await api.delete('/expenses/bank/clear-synced');
+    return res.data.data;
   },
 };

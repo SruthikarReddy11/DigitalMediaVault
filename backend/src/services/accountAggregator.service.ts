@@ -139,8 +139,11 @@ export class AccountAggregatorService {
 
     if (this.isSetuConfigured()) {
       // Live Setu Account Aggregator Integration
+      const isProduction = process.env.AA_MODE === 'production';
+      const defaultUrl = isProduction ? 'https://fiu.setu.co' : 'https://fiu-sandbox.setu.co';
+      const setuBaseUrl = process.env.SETU_BASE_URL || defaultUrl;
+
       try {
-        const setuBaseUrl = process.env.SETU_BASE_URL || 'https://fiu-sandbox.setu.co';
         const response = await httpPost(
           `${setuBaseUrl}/consents`,
           {
@@ -170,8 +173,10 @@ export class AccountAggregatorService {
           mode: 'setu',
         };
       } catch (err: any) {
-        console.error('Setu AA API Error, falling back to simulator:', err.response?.data || err.message);
-        // Fall back gracefully to simulator if Setu returns unauthorized/network issue
+        console.error('Setu AA API Error:', err.message);
+        throw new Error(
+          `Setu API Error: ${err.message}. Setu rejected your credentials (${isProduction ? 'Production' : 'Sandbox'}). Please verify your SETU_CLIENT_ID, SETU_CLIENT_SECRET, and SETU_PRODUCT_INSTANCE_ID in backend/.env.`
+        );
       }
     }
 
@@ -184,7 +189,7 @@ export class AccountAggregatorService {
       bankName: bank.name,
       expiresInSeconds: 300,
       mode: 'simulator',
-      mockOtpNotice: 'For testing, enter OTP: 123456 (or any 6 digits)',
+      mockOtpNotice: '⚡ Simulator Demo Mode: Enter OTP: 123456 (or any 6 digits). Set valid Setu credentials in .env for live accounts.',
     };
   }
 
@@ -213,8 +218,11 @@ export class AccountAggregatorService {
     }[] = [];
 
     if (this.isSetuConfigured() && !consentHandle.startsWith('sim_handle_')) {
+      const isProduction = process.env.AA_MODE === 'production';
+      const defaultUrl = isProduction ? 'https://fiu.setu.co' : 'https://fiu-sandbox.setu.co';
+      const setuBaseUrl = process.env.SETU_BASE_URL || defaultUrl;
+
       try {
-        const setuBaseUrl = process.env.SETU_BASE_URL || 'https://fiu-sandbox.setu.co';
         const response = await httpPost(
           `${setuBaseUrl}/consents/${consentHandle}/verify`,
           { otp: cleanOtp },
@@ -233,13 +241,16 @@ export class AccountAggregatorService {
           accountNumberMask: acc.maskedAccNumber || `XXXXXXXX${Math.floor(1000 + Math.random() * 9000)}`,
           accountType: acc.type || 'SAVINGS',
         }));
-      } catch (err: any) {
-        console.error('Setu OTP verify error:', err.response?.data || err.message);
-      }
-    }
 
-    // If simulator or no accounts returned from API yet, provide verified bank account
-    if (accountsToLink.length === 0) {
+        if (accountsToLink.length === 0) {
+          throw new Error('No bank accounts were discovered by Setu for this phone number and bank.');
+        }
+      } catch (err: any) {
+        console.error('Setu OTP verify error:', err.message);
+        throw new Error(`Failed to verify OTP with Setu: ${err.message}`);
+      }
+    } else if (consentHandle.startsWith('sim_handle_')) {
+      // Simulator mode only
       const mockLast4 = Math.floor(1000 + Math.random() * 9000);
       accountsToLink.push({
         fipId: bank.fipId,
@@ -247,6 +258,8 @@ export class AccountAggregatorService {
         accountNumberMask: `XXXXXXXX${mockLast4}`,
         accountType: 'SAVINGS',
       });
+    } else {
+      throw new Error('Invalid consent session. Please restart bank linking.');
     }
 
     // Save BankAccountLink in Database
@@ -568,9 +581,9 @@ export class AccountAggregatorService {
   }
 
   /**
-   * Disconnect / Unlink a bank account
+   * Disconnect / Unlink a bank account (and optionally delete its imported expenses)
    */
-  public static async disconnectAccount(userId: string, bankAccountId: string) {
+  public static async disconnectAccount(userId: string, bankAccountId: string, deleteExpenses: boolean = true) {
     const existing = await prisma.bankAccountLink.findFirst({
       where: { id: bankAccountId, userId },
     });
@@ -579,11 +592,35 @@ export class AccountAggregatorService {
       throw new Error('Bank account link not found');
     }
 
-    return prisma.bankAccountLink.update({
+    if (deleteExpenses) {
+      await prisma.expense.deleteMany({
+        where: { userId, bankAccountId },
+      });
+    }
+
+    return prisma.bankAccountLink.delete({
       where: { id: bankAccountId },
-      data: {
-        consentStatus: 'REVOKED',
+    });
+  }
+
+  /**
+   * Remove all bank synced accounts and their transactions for user
+   */
+  public static async clearAllSyncedData(userId: string) {
+    const deletedExpenses = await prisma.expense.deleteMany({
+      where: {
+        userId,
+        bankTxnId: { not: null },
       },
     });
+
+    const deletedLinks = await prisma.bankAccountLink.deleteMany({
+      where: { userId },
+    });
+
+    return {
+      deletedExpensesCount: deletedExpenses.count,
+      deletedAccountsCount: deletedLinks.count,
+    };
   }
 }

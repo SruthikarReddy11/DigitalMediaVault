@@ -14,6 +14,7 @@ router.post('/bank/consent/initiate', BankSyncController.initiateConsent);
 router.post('/bank/consent/verify', BankSyncController.verifyConsent);
 router.post('/bank/sync', BankSyncController.syncTransactions);
 router.get('/bank/accounts', BankSyncController.getConnectedAccounts);
+router.delete('/bank/clear-synced', BankSyncController.clearAllSynced);
 router.delete('/bank/accounts/:id', BankSyncController.disconnectAccount);
 
 // Analytics & Insights

@@ -262,23 +262,33 @@ export const LinkBankAccountModal: React.FC<LinkBankAccountModalProps> = ({
                 </p>
               </div>
 
-              {/* Simulator Notice & Quick Auto-Fill */}
-              {consentData?.mode === 'simulator' && (
-                <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs space-y-2">
+              {/* Mode Notice */}
+              {consentData?.mode === 'simulator' ? (
+                <div className="p-3.5 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs space-y-2">
                   <div className="flex items-center gap-2 font-bold text-amber-300">
                     <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span>Sandbox Test Environment</span>
+                    <span>Demo Simulator Mode Active</span>
                   </div>
                   <p className="text-[11px] text-amber-200/90 leading-relaxed">
-                    In development mode, real cellular SMS is bypassed to prevent carrier SMS charges. Your test OTP is <strong className="text-white font-mono bg-amber-500/30 px-1.5 py-0.5 rounded">123456</strong>.
+                    Live Setu credentials were not active, so this is running in safe demo mode. Enter OTP <strong className="text-white font-mono bg-amber-500/30 px-1.5 py-0.5 rounded">123456</strong> to test simulated transactions.
                   </p>
                   <button
                     type="button"
                     onClick={() => setOtp('123456')}
                     className="w-full py-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs transition-all flex items-center justify-center gap-1.5"
                   >
-                    ⚡ Click to Auto-Fill Test OTP (123456)
+                    ⚡ Auto-Fill Demo OTP (123456)
                   </button>
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-200 text-xs space-y-1">
+                  <div className="flex items-center gap-2 font-bold text-emerald-300">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Live Bank Account Aggregator</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-200/90 leading-relaxed">
+                    A real OTP has been dispatched by your bank (+91 {consentData?.mobileNumber}). Please enter the SMS code received.
+                  </p>
                 </div>
               )}
 
