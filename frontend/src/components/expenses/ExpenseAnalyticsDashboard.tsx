@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   TrendingUp,
   TrendingDown,
@@ -7,6 +7,11 @@ import {
   Wallet,
   PiggyBank,
   Calendar,
+  CalendarDays,
+  CalendarX,
+  ChevronLeft,
+  ChevronRight,
+  RotateCcw,
   PieChart as PieIcon,
   BarChart3,
   LineChart as LineIcon,
@@ -29,6 +34,7 @@ interface ExpenseAnalyticsDashboardProps {
 
 export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps> = ({
   analytics,
+  onSelectMonth,
 }) => {
   const [activeCategoryIndex, setActiveCategoryIndex] = useState<number | null>(null);
   const [activeChartTab, setActiveChartTab] = useState<'all' | 'expense_only' | 'cashflow' | 'daily_budget' | 'pie' | 'monthly'>('all');
@@ -70,7 +76,100 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
 
   const { summary, monthlySpending, categoryWiseSpending, spendingTrends, paymentMethodBreakdown, peakMonthAnalysis } = analytics;
   const currencySymbol = '₹';
-  const trendPoints = spendingTrends.slice(-14); // Recent 14 activity days
+
+  // --- Month Navigation & Day-Wise Expenses ---
+  const currentMonthKey = useMemo(() => new Date().toISOString().slice(0, 7), []);
+  const [selectedMonthKey, setSelectedMonthKey] = useState<string>(() => {
+    if (analytics.monthlySpending && analytics.monthlySpending.length > 0) {
+      const hasCurrent = analytics.monthlySpending.some((m) => m.key === currentMonthKey);
+      return hasCurrent ? currentMonthKey : analytics.monthlySpending[analytics.monthlySpending.length - 1].key;
+    }
+    return currentMonthKey;
+  });
+
+  const [selectedYear, selectedMonth] = useMemo(() => {
+    const parts = selectedMonthKey.split('-').map(Number);
+    return [parts[0] || new Date().getFullYear(), parts[1] || (new Date().getMonth() + 1)];
+  }, [selectedMonthKey]);
+
+  const selectedMonthDate = useMemo(() => new Date(selectedYear, selectedMonth - 1, 1), [selectedYear, selectedMonth]);
+  const selectedMonthName = useMemo(() => selectedMonthDate.toLocaleString('en-US', { month: 'long', year: 'numeric' }), [selectedMonthDate]);
+  const currentMonthName = useMemo(() => new Date().toLocaleString('en-US', { month: 'long', year: 'numeric' }), []);
+  const daysInMonth = useMemo(() => new Date(selectedYear, selectedMonth, 0).getDate(), [selectedYear, selectedMonth]);
+
+  const handlePrevMonth = () => {
+    let y = selectedYear;
+    let m = selectedMonth - 1;
+    if (m < 1) {
+      m = 12;
+      y -= 1;
+    }
+    const nextKey = `${y}-${String(m).padStart(2, '0')}`;
+    setSelectedMonthKey(nextKey);
+    onSelectMonth?.(nextKey);
+  };
+
+  const handleNextMonth = () => {
+    let y = selectedYear;
+    let m = selectedMonth + 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+    const nextKey = `${y}-${String(m).padStart(2, '0')}`;
+    setSelectedMonthKey(nextKey);
+    onSelectMonth?.(nextKey);
+  };
+
+  // Map of all daily records across all time
+  const dailySpendingLookup = useMemo(() => {
+    const map = new Map<string, { expense: number; income: number }>();
+    (spendingTrends || []).forEach((p) => {
+      map.set(p.date, { expense: p.expense, income: p.income });
+    });
+    return map;
+  }, [spendingTrends]);
+
+  // Construct day-wise calendar for all 1..daysInMonth
+  // If user has no expense on that day, expense is 0
+  const monthDailyData = useMemo(() => {
+    const points = [];
+    let totalExpense = 0;
+    let totalIncome = 0;
+    let daysWithExpense = 0;
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayStr = String(day).padStart(2, '0');
+      const dateStr = `${selectedMonthKey}-${dayStr}`;
+      const data = dailySpendingLookup.get(dateStr) || { expense: 0, income: 0 };
+
+      if (data.expense > 0) {
+        daysWithExpense++;
+        totalExpense += data.expense;
+      }
+      totalIncome += data.income;
+
+      points.push({
+        date: dateStr,
+        dayNumber: day,
+        dayLabel: `${String(selectedMonth).padStart(2, '0')}-${dayStr}`,
+        expense: data.expense,
+        income: data.income,
+      });
+    }
+
+    const hasData = totalExpense > 0 || totalIncome > 0;
+
+    return {
+      points,
+      totalExpense,
+      totalIncome,
+      daysWithExpense,
+      hasData,
+    };
+  }, [selectedMonthKey, selectedYear, selectedMonth, daysInMonth, dailySpendingLookup]);
+
+  const trendPoints = monthDailyData.points;
 
   // --- 1. Category Pie Chart Calculations ---
   const totalCatSpend = categoryWiseSpending.reduce((sum, c) => sum + c.totalAmount, 0) || 1;
@@ -121,25 +220,23 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
   const activeCategory = activeCategoryIndex !== null ? categoryWiseSpending[activeCategoryIndex] : null;
 
   // --- 2. GRAPH 1: DAILY EXPENSE ONLY (LOW SCALE ₹0 - ₹200) ---
-  // The user requested: "in the image graph i need only expense only and set the scale to lower not higher, my daily expenses must be below 200"
-  // Here we STRICTLY ignore income so large salaries never distort the daily budget graph!
   const maxExpenseInTrend = Math.max(...trendPoints.map((p) => p.expense), 0);
   const expenseScaleMax = maxExpenseInTrend > DAILY_TARGET_BUDGET
     ? Math.ceil(maxExpenseInTrend * 1.15)
     : DAILY_TARGET_BUDGET;
 
-  const chartSvgWidth = 560;
-  const chartSvgHeight = 220;
+  const chartSvgWidth = Math.max(760, daysInMonth * 26 + 80);
+  const chartSvgHeight = 230;
   const paddingLeft = 55;
-  const paddingRight = 25;
-  const paddingTop = 25;
+  const paddingRight = 35;
+  const paddingTop = 28;
   const paddingBottom = 35;
 
   const plotWidth = chartSvgWidth - paddingLeft - paddingRight;
   const plotHeight = chartSvgHeight - paddingTop - paddingBottom;
 
   const getChartX = (idx: number) =>
-    paddingLeft + (idx / Math.max(1, trendPoints.length - 1)) * plotWidth;
+    paddingLeft + (idx / Math.max(1, daysInMonth - 1)) * plotWidth;
 
   const getExpenseOnlyY = (val: number) =>
     paddingTop + plotHeight - (Math.min(val, expenseScaleMax) / expenseScaleMax) * plotHeight;
@@ -158,41 +255,51 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
   const budgetLineY = getExpenseOnlyY(DAILY_TARGET_BUDGET);
 
   const daysWithinBudgetCount = trendPoints.filter((p) => p.expense <= DAILY_TARGET_BUDGET).length;
-  const budgetComplianceRate = trendPoints.length > 0
-    ? Math.round((daysWithinBudgetCount / trendPoints.length) * 100)
+  const budgetComplianceRate = daysInMonth > 0
+    ? Math.round((daysWithinBudgetCount / daysInMonth) * 100)
     : 100;
 
   // --- 3. GRAPH 2: SEPARATE DEDICATED GRAPH FOR DAILY INCOME VS EXPENSE ---
-  // Separate scale showing both income and expense in full cashflow context
   const maxCashflowVal = Math.max(
     ...trendPoints.map((p) => Math.max(p.expense, p.income)),
     100
   );
-  const cashflowScaleMax = Math.ceil(maxCashflowVal * 1.1);
+  const cashflowScaleMax = Math.ceil(maxCashflowVal * 1.15);
+  const cfSvgWidth = Math.max(780, daysInMonth * 26 + 140);
+  const cfSvgHeight = 270;
+  const cfPadLeft = 70;
+  const cfPadRight = 95;
+  const cfPadTop = 45;
+  const cfPadBottom = 35;
+  const cfPlotWidth = cfSvgWidth - cfPadLeft - cfPadRight;
+  const cfPlotHeight = cfSvgHeight - cfPadTop - cfPadBottom;
+
+  const getCashflowX = (idx: number) =>
+    cfPadLeft + (idx / Math.max(1, daysInMonth - 1)) * cfPlotWidth;
 
   const getCashflowY = (val: number) =>
-    paddingTop + plotHeight - (Math.min(val, cashflowScaleMax) / cashflowScaleMax) * plotHeight;
+    cfPadTop + cfPlotHeight - (Math.min(val, cashflowScaleMax) / cashflowScaleMax) * cfPlotHeight;
 
   const cashflowIncomePolyline = trendPoints
-    .map((p, i) => `${getChartX(i)},${getCashflowY(p.income)}`)
+    .map((p, i) => `${getCashflowX(i)},${getCashflowY(p.income)}`)
     .join(' ');
 
   const cashflowExpensePolyline = trendPoints
-    .map((p, i) => `${getChartX(i)},${getCashflowY(p.expense)}`)
+    .map((p, i) => `${getCashflowX(i)},${getCashflowY(p.expense)}`)
     .join(' ');
 
   const cashflowIncomeArea =
     trendPoints.length > 0
-      ? `M ${getChartX(0)},${paddingTop + plotHeight} L ${trendPoints
-          .map((p, i) => `${getChartX(i)},${getCashflowY(p.income)}`)
-          .join(' L ')} L ${getChartX(trendPoints.length - 1)},${paddingTop + plotHeight} Z`
+      ? `M ${cfPadLeft},${cfPadTop + cfPlotHeight} L ${trendPoints
+          .map((p, i) => `${getCashflowX(i)},${getCashflowY(p.income)}`)
+          .join(' L ')} L ${cfPadLeft + cfPlotWidth},${cfPadTop + cfPlotHeight} Z`
       : '';
 
   const cashflowExpenseArea =
     trendPoints.length > 0
-      ? `M ${getChartX(0)},${paddingTop + plotHeight} L ${trendPoints
-          .map((p, i) => `${getChartX(i)},${getCashflowY(p.expense)}`)
-          .join(' L ')} L ${getChartX(trendPoints.length - 1)},${paddingTop + plotHeight} Z`
+      ? `M ${cfPadLeft},${cfPadTop + cfPlotHeight} L ${trendPoints
+          .map((p, i) => `${getCashflowX(i)},${getCashflowY(p.expense)}`)
+          .join(' L ')} L ${cfPadLeft + cfPlotWidth},${cfPadTop + cfPlotHeight} Z`
       : '';
 
   // --- 4. Monthly Bar Chart Scale ---
@@ -324,33 +431,71 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
         </div>
       </div>
 
-      {/* GRAPH 1: DAILY EXPENSE ONLY (MATCHES USER IMAGE, LOWER SCALE 0 - ₹200) */}
+      {/* GRAPH 1: DAILY EXPENSE ONLY (WITH MONTH NAVIGATION & 0 FOR EMPTY DAYS) */}
       {(activeChartTab === 'all' || activeChartTab === 'expense_only') && (
         <div className="p-6 rounded-2xl bg-slate-900/70 border border-white/10 shadow-xl space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
                 <LineIcon className="w-4 h-4 text-rose-400" />
                 <h3 className="text-base font-bold text-white">
-                  Spending Trends Timeline (Daily Expenses Only)
+                  Spending Trends (Daily Expenses)
                 </h3>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30 font-mono">
                   Scale: ₹0 – ₹{expenseScaleMax}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Daily expense fluctuations scaled strictly for expenses below ₹200 (Daily Target: ≤ ₹{DAILY_TARGET_BUDGET})
+                Day-wise expenses for <strong className="text-white">{selectedMonthName}</strong> (Target: ≤ ₹{DAILY_TARGET_BUDGET}/day)
               </p>
             </div>
 
-            {/* View Mode Toggle & Legend */}
-            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
+            {/* Month Navigator & View Mode Controls */}
+            <div className="flex flex-wrap items-center gap-2.5 text-xs font-semibold">
+              {/* Month Switcher Navigator */}
+              <div className="flex items-center bg-slate-950/90 p-0.5 rounded-xl border border-white/10 shadow-inner">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  title="Previous Month"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-white">
+                  <CalendarDays className="w-3.5 h-3.5 text-brand-400" />
+                  <span>{selectedMonthName}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  title="Next Month"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Jump to current month button if on another month */}
+              {selectedMonthKey !== currentMonthKey && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonthKey(currentMonthKey)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/30 hover:bg-brand-500/30 transition-all"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Current
+                </button>
+              )}
+
               {/* Toggle Between Bar Graph and Line Graph */}
-              <div className="flex items-center bg-slate-950/80 p-0.5 rounded-lg border border-white/10">
+              <div className="flex items-center bg-slate-950/80 p-0.5 rounded-xl border border-white/10">
                 <button
                   type="button"
                   onClick={() => setDailyExpenseChartType('bar')}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
                     dailyExpenseChartType === 'bar'
                       ? 'bg-rose-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-white'
@@ -362,7 +507,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                 <button
                   type="button"
                   onClick={() => setDailyExpenseChartType('line')}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
                     dailyExpenseChartType === 'line'
                       ? 'bg-rose-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-white'
@@ -373,18 +518,15 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                 </button>
               </div>
 
-              <span className="flex items-center gap-1.5 text-rose-400">
-                <span className="w-3.5 h-1.5 bg-rose-500 rounded-sm" />
-                Daily Expense
-              </span>
-              <span className="flex items-center gap-1.5 text-emerald-300">
+              {/* Target Limit Badge */}
+              <span className="flex items-center gap-1.5 text-emerald-300 ml-1">
                 <span className="w-3.5 h-0.5 border-b-2 border-dashed border-emerald-400" />
-                ₹{DAILY_TARGET_BUDGET} Target Limit
+                ≤ ₹{DAILY_TARGET_BUDGET} Limit
               </span>
             </div>
           </div>
 
-          {trendPoints.length > 0 ? (
+          {monthDailyData.hasData ? (
             <div className="relative w-full overflow-x-auto pt-2">
               {/* Tooltip Overlay */}
               {hoveredExpenseOnly && (
@@ -397,15 +539,20 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                 >
                   <div className="font-bold text-white border-b border-white/10 pb-1 mb-1 flex items-center justify-between">
                     <span>{hoveredExpenseOnly.date}</span>
-                    <span className="text-[10px] text-slate-400">Expense Log</span>
+                    <span className="text-[10px] text-slate-400">Day {parseInt(hoveredExpenseOnly.date.slice(8), 10)}</span>
                   </div>
 
-                  <div className="text-rose-400 font-mono font-bold text-sm">
+                  <div className={`font-mono font-bold text-sm ${hoveredExpenseOnly.expense > 0 ? 'text-rose-400' : 'text-slate-400'}`}>
                     Spent: {currencySymbol}{hoveredExpenseOnly.expense.toLocaleString('en-IN')}
                   </div>
 
                   <div className="mt-1 pt-1 border-t border-white/10">
-                    {hoveredExpenseOnly.expense <= DAILY_TARGET_BUDGET ? (
+                    {hoveredExpenseOnly.expense === 0 ? (
+                      <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3 text-slate-500" />
+                        No expenses on this day (₹0)
+                      </span>
+                    ) : hoveredExpenseOnly.expense <= DAILY_TARGET_BUDGET ? (
                       <span className="text-[10px] font-bold text-emerald-400 flex items-center gap-1">
                         <CheckCircle2 className="w-3 h-3" />
                         Within Target (₹{DAILY_TARGET_BUDGET - hoveredExpenseOnly.expense} saved)
@@ -420,7 +567,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                 </div>
               )}
 
-              <svg viewBox={`0 0 ${chartSvgWidth} ${chartSvgHeight}`} className="w-full h-56 select-none">
+              <svg viewBox={`0 0 ${chartSvgWidth} ${chartSvgHeight}`} className="w-full h-60 select-none">
                 <defs>
                   <linearGradient id="expenseOnlyGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#f43f5e" stopOpacity="0.4" />
@@ -480,16 +627,55 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
 
                 {/* Render Either Bar Graph or Line Graph */}
                 {dailyExpenseChartType === 'bar' ? (
-                  // Bar Graph Mode
-                  trendPoints.map((p, i) => {
-                    const slotWidth = plotWidth / Math.max(1, trendPoints.length);
-                    const bWidth = Math.min(22, Math.max(8, slotWidth - 10));
-                    const bx = paddingLeft + i * slotWidth + (slotWidth - bWidth) / 2;
-                    const bHeight = p.expense > 0 ? Math.max(3, (Math.min(p.expense, expenseScaleMax) / expenseScaleMax) * plotHeight) : 0;
+                  // Bar Graph Mode: Every day of the month is rendered
+                  trendPoints.map((p) => {
+                    const slotWidth = plotWidth / daysInMonth;
+                    const bWidth = Math.min(18, Math.max(8, slotWidth - 8));
+                    const bx = paddingLeft + (p.dayNumber - 1) * slotWidth + (slotWidth - bWidth) / 2;
+                    const bHeight = p.expense > 0 ? Math.max(4, (Math.min(p.expense, expenseScaleMax) / expenseScaleMax) * plotHeight) : 0;
                     const by = paddingTop + plotHeight - bHeight;
                     const isHovered = hoveredExpenseOnly?.date === p.date;
                     const isUnderBudget = p.expense <= DAILY_TARGET_BUDGET;
 
+                    if (p.expense === 0) {
+                      // Empty day: render "0" text right above baseline + subtle dot
+                      return (
+                        <g
+                          key={`exp-bar-${p.date}`}
+                          className="cursor-pointer group"
+                          onMouseEnter={() =>
+                            setHoveredExpenseOnly({
+                              date: p.date,
+                              expense: 0,
+                              x: bx + bWidth / 2,
+                              y: paddingTop + plotHeight,
+                            })
+                          }
+                          onMouseLeave={() => setHoveredExpenseOnly(null)}
+                        >
+                          <circle
+                            cx={bx + bWidth / 2}
+                            cy={paddingTop + plotHeight}
+                            r={isHovered ? 3 : 1.5}
+                            fill={isHovered ? '#94a3b8' : '#475569'}
+                            className="transition-all"
+                          />
+                          <text
+                            x={bx + bWidth / 2}
+                            y={paddingTop + plotHeight - 4}
+                            textAnchor="middle"
+                            fontSize="8"
+                            fill="#64748b"
+                            fontFamily="monospace"
+                            fontWeight="600"
+                          >
+                            0
+                          </text>
+                        </g>
+                      );
+                    }
+
+                    // Day with expense: render vertical bar + amount label on top
                     return (
                       <g
                         key={`exp-bar-${p.date}`}
@@ -512,31 +698,29 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                           rx="3"
                           className={`transition-all duration-200 ${
                             isHovered
-                              ? 'fill-rose-400 filter drop-shadow-[0_0_6px_rgba(244,63,94,0.7)]'
+                              ? 'filter drop-shadow-[0_0_8px_rgba(244,63,94,0.8)] fill-rose-400'
                               : isUnderBudget
                               ? 'fill-rose-500 hover:fill-rose-400'
                               : 'fill-amber-500 hover:fill-amber-400'
                           }`}
                         />
                         {/* Numerical value on top of bar */}
-                        {p.expense > 0 && (
-                          <text
-                            x={bx + bWidth / 2}
-                            y={Math.max(paddingTop + 10, by - 5)}
-                            textAnchor="middle"
-                            fontSize="8.5"
-                            fill={isUnderBudget ? '#fecdd3' : '#fde68a'}
-                            fontFamily="monospace"
-                            fontWeight="bold"
-                          >
-                            ₹{p.expense}
-                          </text>
-                        )}
+                        <text
+                          x={bx + bWidth / 2}
+                          y={Math.max(paddingTop + 10, by - 5)}
+                          textAnchor="middle"
+                          fontSize="8.5"
+                          fill={isUnderBudget ? '#fecdd3' : '#fde68a'}
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          ₹{p.expense}
+                        </text>
                       </g>
                     );
                   })
                 ) : (
-                  // Line Graph Mode
+                  // Line Graph Mode across month days
                   <>
                     {expenseOnlyArea && <path d={expenseOnlyArea} fill="url(#expenseOnlyGrad)" />}
                     {trendPoints.length > 1 && (
@@ -573,23 +757,25 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                           <circle
                             cx={cx}
                             cy={cy}
-                            r={isHovered ? 7 : 5}
+                            r={isHovered ? 6 : p.expense > 0 ? 4 : 2}
                             className={`transition-all duration-150 ${
-                              isUnderBudget
+                              p.expense === 0
+                                ? 'fill-slate-600'
+                                : isUnderBudget
                                 ? 'fill-rose-500 stroke-slate-950 stroke-2'
                                 : 'fill-amber-400 stroke-slate-950 stroke-2'
                             }`}
                           />
                           <text
                             x={cx}
-                            y={cy - 9}
+                            y={cy - 8}
                             textAnchor="middle"
-                            fontSize="9"
-                            fill={isUnderBudget ? '#fecdd3' : '#fde68a'}
+                            fontSize="8"
+                            fill={p.expense === 0 ? '#64748b' : isUnderBudget ? '#fecdd3' : '#fde68a'}
                             fontFamily="monospace"
-                            fontWeight="bold"
+                            fontWeight={p.expense > 0 ? 'bold' : 'normal'}
                           >
-                            ₹{p.expense}
+                            {p.expense > 0 ? `₹${p.expense}` : '0'}
                           </text>
                         </g>
                       );
@@ -599,8 +785,13 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
 
                 {/* X-Axis Dates */}
                 {trendPoints.map((p, i) => {
-                  if (trendPoints.length > 8 && i % 2 !== 0 && i !== trendPoints.length - 1) return null;
-                  const cx = getChartX(i);
+                  const step = Math.ceil(daysInMonth / 10);
+                  const shouldShowLabel = i % step === 0 || i === daysInMonth - 1 || p.date.endsWith('-01');
+                  if (!shouldShowLabel) return null;
+
+                  const slotWidth = plotWidth / daysInMonth;
+                  const cx = paddingLeft + (p.dayNumber - 1) * slotWidth + slotWidth / 2;
+
                   return (
                     <text
                       key={`date-${p.date}`}
@@ -611,24 +802,30 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                       fill="#94a3b8"
                       fontFamily="monospace"
                     >
-                      {p.date.slice(5)}
+                      {p.dayLabel}
                     </text>
                   );
                 })}
               </svg>
 
-              {/* Bottom Quick Metrics */}
-              <div className="grid grid-cols-3 gap-2 text-center text-[11px] pt-3 border-t border-white/5 bg-slate-950/40 rounded-xl p-2.5 mt-2">
+              {/* Bottom Quick Metrics for Selected Month */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-[11px] pt-3 border-t border-white/5 bg-slate-950/40 rounded-xl p-2.5 mt-2">
                 <div>
-                  <span className="text-slate-400 block text-[10px]">Avg Daily Spend</span>
+                  <span className="text-slate-400 block text-[10px]">Month Total Spend</span>
                   <span className="font-mono font-bold text-rose-400">
-                    ₹{Math.round(trendPoints.reduce((acc, p) => acc + p.expense, 0) / Math.max(1, trendPoints.length))}
+                    ₹{monthDailyData.totalExpense.toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[10px]">Budget Target</span>
-                  <span className="font-mono font-bold text-emerald-400">
-                    ≤ ₹{DAILY_TARGET_BUDGET} / day
+                  <span className="text-slate-400 block text-[10px]">Avg Daily Spend</span>
+                  <span className="font-mono font-bold text-amber-300">
+                    ₹{Math.round(monthDailyData.totalExpense / daysInMonth)} / day
+                  </span>
+                </div>
+                <div>
+                  <span className="text-slate-400 block text-[10px]">Active Spend Days</span>
+                  <span className="font-mono font-bold text-slate-200">
+                    {monthDailyData.daysWithExpense} of {daysInMonth} days
                   </span>
                 </div>
                 <div>
@@ -640,8 +837,37 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
               </div>
             </div>
           ) : (
-            <div className="py-12 text-center text-xs text-slate-500">
-              No daily expense transactions available to plot trend line.
+            /* NO DATA FOUND STATE FOR THIS MONTH */
+            <div className="py-14 text-center bg-slate-950/40 rounded-2xl border border-white/5 space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-full bg-slate-800/60 border border-white/10 flex items-center justify-center text-slate-400">
+                <CalendarX className="w-6 h-6 text-slate-500" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white">
+                  No Data Found for {selectedMonthName}
+                </h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  No expense records were found for {selectedMonthName}.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonthKey(currentMonthKey)}
+                  className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow transition-all"
+                >
+                  Go to Current Month ({currentMonthName})
+                </button>
+                {monthlySpending.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMonthKey(monthlySpending[monthlySpending.length - 1].key)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-white/10 transition-all"
+                  >
+                    View Latest Active Month ({monthlySpending[monthlySpending.length - 1].monthName})
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -650,7 +876,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
       {/* GRAPH 2: SEPARATE DEDICATED GROUPED BAR GRAPH CHART FOR DAILY INCOME VS EXPENSE (MATCHES REFERENCE IMAGE) */}
       {(activeChartTab === 'all' || activeChartTab === 'cashflow') && (
         <div className="p-6 rounded-2xl bg-slate-900/70 border border-white/10 shadow-xl space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
             <div>
               <div className="flex items-center gap-2">
                 <BarChart3 className="w-4 h-4 text-amber-400" />
@@ -662,17 +888,55 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Side-by-side grouped vertical bars showing outgoing expenses and incoming earnings by date
+                Side-by-side grouped vertical bars showing outgoing expenses and incoming earnings for <strong className="text-white">{selectedMonthName}</strong>
               </p>
             </div>
 
-            {/* View Mode Toggle & Legend */}
-            <div className="flex flex-wrap items-center gap-3 text-xs font-semibold">
-              <div className="flex items-center bg-slate-950/80 p-0.5 rounded-lg border border-white/10">
+            {/* Month Navigator, View Mode Toggle & Legend */}
+            <div className="flex flex-wrap items-center gap-2.5 text-xs font-semibold">
+              {/* Month Switcher Navigator */}
+              <div className="flex items-center bg-slate-950/90 p-0.5 rounded-xl border border-white/10 shadow-inner">
+                <button
+                  type="button"
+                  onClick={handlePrevMonth}
+                  title="Previous Month"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-white">
+                  <CalendarDays className="w-3.5 h-3.5 text-amber-400" />
+                  <span>{selectedMonthName}</span>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={handleNextMonth}
+                  title="Next Month"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Jump to current month button if on another month */}
+              {selectedMonthKey !== currentMonthKey && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonthKey(currentMonthKey)}
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-brand-500/20 text-brand-300 border border-brand-500/30 hover:bg-brand-500/30 transition-all"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Current
+                </button>
+              )}
+
+              <div className="flex items-center bg-slate-950/80 p-0.5 rounded-xl border border-white/10">
                 <button
                   type="button"
                   onClick={() => setCashflowChartType('bar')}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
                     cashflowChartType === 'bar'
                       ? 'bg-amber-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-white'
@@ -684,7 +948,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                 <button
                   type="button"
                   onClick={() => setCashflowChartType('line')}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold transition-all ${
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
                     cashflowChartType === 'line'
                       ? 'bg-amber-600 text-white shadow-sm'
                       : 'text-slate-400 hover:text-white'
@@ -706,14 +970,14 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
             </div>
           </div>
 
-          {trendPoints.length > 0 ? (
+          {monthDailyData.hasData ? (
             <div className="relative w-full overflow-x-auto pt-2">
               {/* Tooltip Overlay */}
               {hoveredCashflow && (
                 <div
                   className="absolute z-20 pointer-events-none transform -translate-x-1/2 -translate-y-full mb-2 bg-slate-950/95 border border-white/20 p-3 rounded-xl shadow-2xl backdrop-blur-md text-xs min-w-[170px]"
                   style={{
-                    left: `${(hoveredCashflow.x / chartSvgWidth) * 100}%`,
+                    left: `${(hoveredCashflow.x / cfSvgWidth) * 100}%`,
                     top: `${Math.max(15, hoveredCashflow.y - 15)}px`,
                   }}
                 >
@@ -750,10 +1014,10 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
 
               {cashflowChartType === 'bar' ? (
                 /* GROUPED BAR GRAPH SVG (EXACTLY MATCHES USER'S REFERENCE IMAGE) */
-                <svg viewBox="0 0 620 270" className="w-full h-64 select-none">
+                <svg viewBox={`0 0 ${cfSvgWidth} ${cfSvgHeight}`} className="w-full h-64 select-none">
                   {/* Centered Chart Title at Top */}
                   <text
-                    x={(70 + 620 - 90) / 2}
+                    x={cfPadLeft + cfPlotWidth / 2}
                     y={22}
                     textAnchor="middle"
                     fill="#ffffff"
@@ -761,14 +1025,14 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                     fontWeight="bold"
                     letterSpacing="0.3"
                   >
-                    Daily Income &amp; Expense Comparison by Date
+                    Daily Income &amp; Expense Comparison for {selectedMonthName}
                   </text>
 
                   {/* Left Rotated Y-Axis Label: Amount (₹) */}
                   <text
-                    x={18}
-                    y={45 + 190 / 2}
-                    transform={`rotate(-90 18 ${45 + 190 / 2})`}
+                    x={20}
+                    y={cfPadTop + cfPlotHeight / 2}
+                    transform={`rotate(-90 20 ${cfPadTop + cfPlotHeight / 2})`}
                     textAnchor="middle"
                     fill="#cbd5e1"
                     fontSize="11"
@@ -781,19 +1045,19 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                   {/* Horizontal Dotted Gridlines & Y-Axis Scale Values */}
                   {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
                     const val = Math.round(cashflowScaleMax * (1 - ratio));
-                    const yPos = 45 + ratio * 190;
+                    const yPos = cfPadTop + ratio * cfPlotHeight;
                     return (
                       <g key={ratio}>
                         <line
-                          x1={70}
+                          x1={cfPadLeft}
                           y1={yPos}
-                          x2={620 - 90}
+                          x2={cfPadLeft + cfPlotWidth}
                           y2={yPos}
                           stroke="rgba(255,255,255,0.12)"
                           strokeDasharray="2 3"
                         />
                         <text
-                          x={70 - 8}
+                          x={cfPadLeft - 8}
                           y={yPos + 4}
                           textAnchor="end"
                           fontSize="10"
@@ -808,7 +1072,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                   })}
 
                   {/* Right-Side Legend (Yellow = Expense, Green = Income) */}
-                  <g transform={`translate(${620 - 90 + 12}, ${45 + 190 / 2 - 20})`}>
+                  <g transform={`translate(${cfPadLeft + cfPlotWidth + 12}, ${cfPadTop + cfPlotHeight / 2 - 20})`}>
                     {/* Expense (Golden Yellow) */}
                     <rect x="0" y="0" width="12" height="12" rx="2" fill="#eab308" />
                     <text x="16" y="10" fill="#fde047" fontSize="10.5" fontWeight="600">
@@ -824,22 +1088,22 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
 
                   {/* Grouped Vertical Bars For Each Date */}
                   {trendPoints.map((p, i) => {
-                    const plotW = 620 - 70 - 90;
-                    const groupW = plotW / Math.max(1, trendPoints.length);
-                    const bWidth = Math.min(18, Math.max(6, (groupW - 8) / 2));
-                    const groupCenterX = 70 + (i + 0.5) * groupW;
+                    const groupW = cfPlotWidth / daysInMonth;
+                    const bWidth = Math.min(18, Math.max(5, (groupW - 6) / 2));
+                    const groupCenterX = cfPadLeft + (i + 0.5) * groupW;
 
                     // Expense Bar (Yellow - Left)
-                    const expHeight = p.expense > 0 ? Math.max(3, (p.expense / cashflowScaleMax) * 190) : 0;
-                    const expY = 45 + 190 - expHeight;
+                    const expHeight = p.expense > 0 ? Math.max(4, (p.expense / cashflowScaleMax) * cfPlotHeight) : 0;
+                    const expY = cfPadTop + cfPlotHeight - expHeight;
                     const expX = groupCenterX - bWidth - 0.5;
 
                     // Income Bar (Green - Right)
-                    const incHeight = p.income > 0 ? Math.max(3, (p.income / cashflowScaleMax) * 190) : 0;
-                    const incY = 45 + 190 - incHeight;
+                    const incHeight = p.income > 0 ? Math.max(4, (p.income / cashflowScaleMax) * cfPlotHeight) : 0;
+                    const incY = cfPadTop + cfPlotHeight - incHeight;
                     const incX = groupCenterX + 0.5;
 
                     const isHovered = hoveredCashflow?.date === p.date;
+                    const hasBothZero = p.expense === 0 && p.income === 0;
 
                     return (
                       <g
@@ -860,83 +1124,119 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                         {isHovered && (
                           <rect
                             x={groupCenterX - groupW / 2 + 2}
-                            y={45}
+                            y={cfPadTop}
                             width={groupW - 4}
-                            height={190}
+                            height={cfPlotHeight}
                             fill="rgba(255,255,255,0.04)"
                             rx="4"
                           />
                         )}
 
-                        {/* Expense Bar (Yellow) */}
-                        <rect
-                          x={expX}
-                          y={expY}
-                          width={bWidth}
-                          height={expHeight}
-                          rx="1.5"
-                          className={`transition-all duration-150 ${
-                            isHovered
-                              ? 'fill-amber-300 filter drop-shadow-[0_0_6px_rgba(234,179,8,0.7)]'
-                              : 'fill-amber-500 hover:fill-amber-400'
-                          }`}
-                        />
+                        {/* If both are zero, display single 0 above baseline */}
+                        {hasBothZero ? (
+                          <g>
+                            <circle
+                              cx={groupCenterX}
+                              cy={cfPadTop + cfPlotHeight}
+                              r={1.5}
+                              fill="#475569"
+                            />
+                            <text
+                              x={groupCenterX}
+                              y={cfPadTop + cfPlotHeight - 5}
+                              textAnchor="middle"
+                              fontSize="8"
+                              fill="#64748b"
+                              fontFamily="monospace"
+                            >
+                              0
+                            </text>
+                          </g>
+                        ) : (
+                          <>
+                            {/* Expense Bar (Yellow) */}
+                            {p.expense > 0 ? (
+                              <>
+                                <rect
+                                  x={expX}
+                                  y={expY}
+                                  width={bWidth}
+                                  height={expHeight}
+                                  rx="1.5"
+                                  className={`transition-all duration-150 ${
+                                    isHovered
+                                      ? 'fill-amber-300 filter drop-shadow-[0_0_6px_rgba(234,179,8,0.7)]'
+                                      : 'fill-amber-500 hover:fill-amber-400'
+                                  }`}
+                                />
+                                <text
+                                  x={expX + bWidth / 2}
+                                  y={Math.max(cfPadTop + 10, expY - 4)}
+                                  textAnchor="middle"
+                                  fontSize="7.5"
+                                  fill="#fef08a"
+                                  fontFamily="monospace"
+                                  fontWeight="bold"
+                                >
+                                  {p.expense >= 1000 ? `${(p.expense / 1000).toFixed(1)}k` : p.expense}
+                                </text>
+                              </>
+                            ) : (
+                              /* Expense is 0, show 0 on expense side */
+                              <text
+                                x={expX + bWidth / 2}
+                                y={cfPadTop + cfPlotHeight - 5}
+                                textAnchor="middle"
+                                fontSize="7.5"
+                                fill="#64748b"
+                                fontFamily="monospace"
+                              >
+                                0
+                              </text>
+                            )}
 
-                        {/* Number on top of Expense bar */}
-                        {p.expense > 0 && (
-                          <text
-                            x={expX + bWidth / 2}
-                            y={Math.max(45 + 10, expY - 4)}
-                            textAnchor="middle"
-                            fontSize="8"
-                            fill="#fef08a"
-                            fontFamily="monospace"
-                            fontWeight="bold"
-                          >
-                            {p.expense >= 1000 ? `${(p.expense / 1000).toFixed(1)}k` : p.expense}
-                          </text>
+                            {/* Income Bar (Green) */}
+                            {p.income > 0 && (
+                              <>
+                                <rect
+                                  x={incX}
+                                  y={incY}
+                                  width={bWidth}
+                                  height={incHeight}
+                                  rx="1.5"
+                                  className={`transition-all duration-150 ${
+                                    isHovered
+                                      ? 'fill-emerald-300 filter drop-shadow-[0_0_6px_rgba(22,163,74,0.7)]'
+                                      : 'fill-emerald-600 hover:fill-emerald-500'
+                                  }`}
+                                />
+                                <text
+                                  x={incX + bWidth / 2}
+                                  y={Math.max(cfPadTop + 10, incY - 4)}
+                                  textAnchor="middle"
+                                  fontSize="7.5"
+                                  fill="#bbf7d0"
+                                  fontFamily="monospace"
+                                  fontWeight="bold"
+                                >
+                                  {p.income >= 1000 ? `${(p.income / 1000).toFixed(1)}k` : p.income}
+                                </text>
+                              </>
+                            )}
+                          </>
                         )}
 
-                        {/* Income Bar (Green) */}
-                        <rect
-                          x={incX}
-                          y={incY}
-                          width={bWidth}
-                          height={incHeight}
-                          rx="1.5"
-                          className={`transition-all duration-150 ${
-                            isHovered
-                              ? 'fill-emerald-300 filter drop-shadow-[0_0_6px_rgba(22,163,74,0.7)]'
-                              : 'fill-emerald-600 hover:fill-emerald-500'
-                          }`}
-                        />
-
-                        {/* Number on top of Income bar */}
-                        {p.income > 0 && (
-                          <text
-                            x={incX + bWidth / 2}
-                            y={Math.max(45 + 10, incY - 4)}
-                            textAnchor="middle"
-                            fontSize="8"
-                            fill="#bbf7d0"
-                            fontFamily="monospace"
-                            fontWeight="bold"
-                          >
-                            {p.income >= 1000 ? `${(p.income / 1000).toFixed(1)}k` : p.income}
-                          </text>
-                        )}
-
-                        {/* Date label centered below the bar pair */}
+                        {/* Date label centered below the bar pair (Day number) */}
                         <text
                           x={groupCenterX}
-                          y={270 - 10}
+                          y={cfSvgHeight - 10}
                           textAnchor="middle"
-                          fontSize="9"
+                          fontSize="8.5"
                           fill={isHovered ? '#ffffff' : '#94a3b8'}
                           fontFamily="monospace"
                           fontWeight={isHovered ? 'bold' : 'normal'}
                         >
-                          {p.date.slice(5)}
+                          {p.dayNumber}
                         </text>
                       </g>
                     );
@@ -944,7 +1244,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                 </svg>
               ) : (
                 /* DUAL LINE GRAPH MODE (ALTERNATIVE VIEW) */
-                <svg viewBox={`0 0 ${chartSvgWidth} ${chartSvgHeight}`} className="w-full h-60 select-none">
+                <svg viewBox={`0 0 ${cfSvgWidth} ${cfSvgHeight}`} className="w-full h-64 select-none">
                   <defs>
                     <linearGradient id="cashflowIncomeGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#10b981" stopOpacity="0.3" />
@@ -959,19 +1259,19 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                   {/* Y-Axis Value Gridlines and Labels */}
                   {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
                     const val = Math.round(cashflowScaleMax * (1 - ratio));
-                    const yPos = paddingTop + ratio * plotHeight;
+                    const yPos = cfPadTop + ratio * cfPlotHeight;
                     return (
                       <g key={ratio}>
                         <line
-                          x1={paddingLeft}
+                          x1={cfPadLeft}
                           y1={yPos}
-                          x2={chartSvgWidth - paddingRight}
+                          x2={cfPadLeft + cfPlotWidth}
                           y2={yPos}
                           stroke="rgba(255,255,255,0.08)"
                           strokeDasharray={ratio === 1 ? 'none' : '3 3'}
                         />
                         <text
-                          x={paddingLeft - 8}
+                          x={cfPadLeft - 8}
                           y={yPos + 4}
                           textAnchor="end"
                           fontSize="10"
@@ -1017,7 +1317,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
 
                   {/* Nodes for each date */}
                   {trendPoints.map((p, i) => {
-                    const cx = getChartX(i);
+                    const cx = getCashflowX(i);
                     const cyExp = getCashflowY(p.expense);
                     const cyInc = getCashflowY(p.income);
                     const isHovered = hoveredCashflow?.date === p.date;
@@ -1062,59 +1362,103 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
                         <circle
                           cx={cx}
                           cy={cyExp}
-                          r={isHovered ? 6 : 4}
-                          className="fill-amber-400 stroke-slate-950 stroke-2"
+                          r={isHovered ? 6 : p.expense > 0 ? 4 : 2}
+                          className={p.expense > 0 ? 'fill-amber-400 stroke-slate-950 stroke-2' : 'fill-slate-600'}
                         />
+
+                        <text
+                          x={cx}
+                          y={cyExp - 7}
+                          textAnchor="middle"
+                          fontSize="7.5"
+                          fill={p.expense === 0 ? '#64748b' : '#fde047'}
+                          fontFamily="monospace"
+                          fontWeight={p.expense > 0 ? 'bold' : 'normal'}
+                        >
+                          {p.expense > 0 ? (p.expense >= 1000 ? `${(p.expense / 1000).toFixed(1)}k` : p.expense) : '0'}
+                        </text>
                       </g>
                     );
                   })}
 
                   {/* X-Axis Dates */}
                   {trendPoints.map((p, i) => {
-                    if (trendPoints.length > 8 && i % 2 !== 0 && i !== trendPoints.length - 1) return null;
-                    const cx = getChartX(i);
+                    const step = Math.ceil(daysInMonth / 10);
+                    const shouldShowLabel = i % step === 0 || i === daysInMonth - 1 || p.date.endsWith('-01');
+                    if (!shouldShowLabel) return null;
+
+                    const cx = getCashflowX(i);
                     return (
                       <text
                         key={`cf-date-${p.date}`}
                         x={cx}
-                        y={chartSvgHeight - 10}
+                        y={cfSvgHeight - 10}
                         textAnchor="middle"
                         fontSize="9"
                         fill="#94a3b8"
                         fontFamily="monospace"
                       >
-                        {p.date.slice(5)}
+                        {p.dayNumber}
                       </text>
                     );
                   })}
                 </svg>
               )}
 
-              {/* Bottom Quick Metric Highlights */}
+              {/* Bottom Quick Metric Highlights for Selected Month */}
               <div className="grid grid-cols-3 gap-2 text-center text-[11px] pt-3 border-t border-white/5 bg-slate-950/40 rounded-xl p-2.5 mt-2">
                 <div>
-                  <span className="text-slate-400 block text-[10px]">Period Total Income</span>
+                  <span className="text-slate-400 block text-[10px]">{selectedMonthName} Total Income</span>
                   <span className="font-mono font-bold text-emerald-400">
-                    ₹{trendPoints.reduce((acc, p) => acc + p.income, 0).toLocaleString('en-IN')}
+                    ₹{monthDailyData.totalIncome.toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div>
-                  <span className="text-slate-400 block text-[10px]">Period Total Expense</span>
+                  <span className="text-slate-400 block text-[10px]">{selectedMonthName} Total Expense</span>
                   <span className="font-mono font-bold text-rose-400">
-                    ₹{trendPoints.reduce((acc, p) => acc + p.expense, 0).toLocaleString('en-IN')}
+                    ₹{monthDailyData.totalExpense.toLocaleString('en-IN')}
                   </span>
                 </div>
                 <div>
                   <span className="text-slate-400 block text-[10px]">Net Cashflow</span>
-                  <span className="font-mono font-bold text-indigo-400">
-                    +₹{(trendPoints.reduce((acc, p) => acc + p.income, 0) - trendPoints.reduce((acc, p) => acc + p.expense, 0)).toLocaleString('en-IN')}
+                  <span className={`font-mono font-bold ${monthDailyData.totalIncome >= monthDailyData.totalExpense ? 'text-emerald-400' : 'text-rose-400'}`}>
+                    {monthDailyData.totalIncome >= monthDailyData.totalExpense ? '+' : ''}₹{(monthDailyData.totalIncome - monthDailyData.totalExpense).toLocaleString('en-IN')}
                   </span>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="py-12 text-center text-xs text-slate-500">
-              No daily transactions available to plot cashflow line chart.
+            /* NO DATA FOUND STATE FOR THIS MONTH */
+            <div className="py-14 text-center bg-slate-950/40 rounded-2xl border border-white/5 space-y-3">
+              <div className="w-12 h-12 mx-auto rounded-full bg-slate-800/60 border border-white/10 flex items-center justify-center text-slate-400">
+                <CalendarX className="w-6 h-6 text-slate-500" />
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-white">
+                  No Data Found for {selectedMonthName}
+                </h4>
+                <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+                  No transactions were found for {selectedMonthName}.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedMonthKey(currentMonthKey)}
+                  className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-semibold shadow transition-all"
+                >
+                  Go to Current Month ({currentMonthName})
+                </button>
+                {monthlySpending.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMonthKey(monthlySpending[monthlySpending.length - 1].key)}
+                    className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-white/10 transition-all"
+                  >
+                    View Latest Active Month ({monthlySpending[monthlySpending.length - 1].monthName})
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -1128,7 +1472,7 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
               <div className="flex items-center gap-2">
                 <Target className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-base font-bold text-white">
-                  Daily Spending vs ₹200 Target Limit (Bar Gauge)
+                  Daily Spending vs ₹200 Target Limit ({selectedMonthName})
                 </h3>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
@@ -1147,48 +1491,56 @@ export const ExpenseAnalyticsDashboard: React.FC<ExpenseAnalyticsDashboardProps>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 pt-2">
-            {trendPoints.map((p) => {
-              const isUnder = p.expense <= DAILY_TARGET_BUDGET;
-              const fillPct = Math.min(100, Math.round((p.expense / DAILY_TARGET_BUDGET) * 100));
+          {monthDailyData.hasData ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2.5 pt-2">
+              {trendPoints.map((p) => {
+                const isUnder = p.expense <= DAILY_TARGET_BUDGET;
+                const fillPct = Math.min(100, Math.round((p.expense / DAILY_TARGET_BUDGET) * 100));
 
-              return (
-                <div
-                  key={`gauge-${p.date}`}
-                  className={`p-3 rounded-xl border transition-all ${
-                    isUnder
-                      ? 'bg-slate-950/60 border-emerald-500/20 hover:border-emerald-500/40'
-                      : 'bg-slate-950/60 border-rose-500/30 hover:border-rose-500/50'
-                  }`}
-                >
-                  <div className="text-[10px] text-slate-400 font-mono text-center">
-                    {p.date.slice(5)}
-                  </div>
-
-                  {/* Vertical mini-bar container */}
-                  <div className="w-full bg-slate-900 rounded-full h-16 my-2 flex flex-col justify-end p-0.5 relative overflow-hidden">
-                    <div
-                      className={`w-full rounded-full transition-all duration-500 ${
-                        isUnder
-                          ? 'bg-gradient-to-t from-emerald-600 to-teal-400'
-                          : 'bg-gradient-to-t from-rose-600 to-amber-500'
-                      }`}
-                      style={{ height: `${Math.max(4, fillPct)}%` }}
-                    />
-                  </div>
-
-                  <div className="text-center">
-                    <div className={`text-xs font-mono font-bold ${isUnder ? 'text-emerald-400' : 'text-rose-400'}`}>
-                      ₹{p.expense}
+                return (
+                  <div
+                    key={`gauge-${p.date}`}
+                    className={`p-3 rounded-xl border transition-all ${
+                      isUnder
+                        ? 'bg-slate-950/60 border-emerald-500/20 hover:border-emerald-500/40'
+                        : 'bg-slate-950/60 border-rose-500/30 hover:border-rose-500/50'
+                    }`}
+                  >
+                    <div className="text-[10px] text-slate-400 font-mono text-center">
+                      {p.date.slice(5)}
                     </div>
-                    <div className="text-[9px] text-slate-400 mt-0.5">
-                      {isUnder ? `Saved ₹${DAILY_TARGET_BUDGET - p.expense}` : `+₹${p.expense - DAILY_TARGET_BUDGET}`}
+
+                    {/* Vertical mini-bar container */}
+                    <div className="w-full bg-slate-900 rounded-full h-16 my-2 flex flex-col justify-end p-0.5 relative overflow-hidden">
+                      <div
+                        className={`w-full rounded-full transition-all duration-500 ${
+                          isUnder
+                            ? 'bg-gradient-to-t from-emerald-600 to-teal-400'
+                            : 'bg-gradient-to-t from-rose-600 to-amber-500'
+                        }`}
+                        style={{ height: `${Math.max(4, fillPct)}%` }}
+                      />
+                    </div>
+
+                    <div className="text-center">
+                      <div className={`text-xs font-mono font-bold ${isUnder ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        ₹{p.expense}
+                      </div>
+                      <div className="text-[9px] text-slate-400 mt-0.5">
+                        {isUnder ? `Saved ₹${DAILY_TARGET_BUDGET - p.expense}` : `+₹${p.expense - DAILY_TARGET_BUDGET}`}
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="py-10 text-center bg-slate-950/40 rounded-2xl border border-white/5 space-y-2">
+              <p className="text-xs text-slate-400">
+                No expense records to evaluate budget for <strong className="text-white">{selectedMonthName}</strong>.
+              </p>
+            </div>
+          )}
         </div>
       )}
 
