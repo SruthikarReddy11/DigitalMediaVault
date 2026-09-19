@@ -83,7 +83,10 @@ export const LinkBankAccountModal: React.FC<LinkBankAccountModalProps> = ({
       const res = await bankSyncApi.initiateConsent(cleanMobile, selectedBank.fipId);
       setConsentData(res);
       setStep('otp');
-      success(`OTP sent to +91 ${cleanMobile}`);
+      if (res.mode === 'simulator') {
+        setOtp('123456');
+      }
+      success(`OTP requested for +91 ${cleanMobile}`);
     } catch (err: any) {
       error(err.response?.data?.message || err.message || 'Failed to request consent');
     } finally {
@@ -259,11 +262,23 @@ export const LinkBankAccountModal: React.FC<LinkBankAccountModalProps> = ({
                 </p>
               </div>
 
-              {/* Simulator Hint Pill */}
-              {consentData?.mockOtpNotice && (
-                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2 text-center justify-center font-mono">
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>{consentData.mockOtpNotice}</span>
+              {/* Simulator Notice & Quick Auto-Fill */}
+              {consentData?.mode === 'simulator' && (
+                <div className="p-3 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-200 text-xs space-y-2">
+                  <div className="flex items-center gap-2 font-bold text-amber-300">
+                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Sandbox Test Environment</span>
+                  </div>
+                  <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                    In development mode, real cellular SMS is bypassed to prevent carrier SMS charges. Your test OTP is <strong className="text-white font-mono bg-amber-500/30 px-1.5 py-0.5 rounded">123456</strong>.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setOtp('123456')}
+                    className="w-full py-1.5 px-3 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 font-bold text-xs transition-all flex items-center justify-center gap-1.5"
+                  >
+                    ⚡ Click to Auto-Fill Test OTP (123456)
+                  </button>
                 </div>
               )}
 
