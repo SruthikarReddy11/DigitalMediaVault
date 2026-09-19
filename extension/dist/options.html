@@ -11,10 +11,90 @@
     <!-- Header -->
     <header class="header">
       <div class="logo-box">
-        <svg class="logo-icon" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z"/>
-          <path d="M12 11v6"/>
-          <path d="M9 14h6"/>
+        <svg class="logo-icon" width="40" height="40" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="optTopGrad" x1="60" y1="14" x2="60" y2="62" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#7dd3fc" />
+              <stop offset="35%" stop-color="#38bdf8" />
+              <stop offset="70%" stop-color="#06b6d4" />
+              <stop offset="100%" stop-color="#6366f1" />
+            </linearGradient>
+            <linearGradient id="optLeftGrad" x1="18" y1="38" x2="60" y2="106" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#0284c7" />
+              <stop offset="45%" stop-color="#0369a1" />
+              <stop offset="85%" stop-color="#082f49" />
+              <stop offset="100%" stop-color="#030712" />
+            </linearGradient>
+            <linearGradient id="optRightGrad" x1="102" y1="38" x2="60" y2="106" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#6366f1" />
+              <stop offset="45%" stop-color="#7c3aed" />
+              <stop offset="80%" stop-color="#4c1d95" />
+              <stop offset="100%" stop-color="#0f172a" />
+            </linearGradient>
+            <radialGradient id="optQuantumBloom" cx="60" cy="62" r="32" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#a5f3fc" stop-opacity="1" />
+              <stop offset="25%" stop-color="#38bdf8" stop-opacity="0.85" />
+              <stop offset="55%" stop-color="#3b82f6" stop-opacity="0.45" />
+              <stop offset="85%" stop-color="#6366f1" stop-opacity="0.15" />
+              <stop offset="100%" stop-color="#030712" stop-opacity="0" />
+            </radialGradient>
+            <linearGradient id="optSpecularRim" x1="18" y1="14" x2="102" y2="106" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
+              <stop offset="25%" stop-color="#a5f3fc" stop-opacity="0.8" />
+              <stop offset="55%" stop-color="#38bdf8" stop-opacity="0.6" />
+              <stop offset="85%" stop-color="#c084fc" stop-opacity="0.4" />
+              <stop offset="100%" stop-color="#ffffff" stop-opacity="0.2" />
+            </linearGradient>
+            <linearGradient id="optChamferLight" x1="60" y1="14" x2="60" y2="106" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#ffffff" stop-opacity="0.7" />
+              <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.1" />
+            </linearGradient>
+            <linearGradient id="optOrbitRingGrad" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
+              <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.7" />
+              <stop offset="50%" stop-color="#818cf8" stop-opacity="0.2" />
+              <stop offset="100%" stop-color="#c084fc" stop-opacity="0.6" />
+            </linearGradient>
+          </defs>
+          <g opacity="0.75">
+            <ellipse cx="60" cy="60" rx="54" ry="24" fill="none" stroke="url(#optOrbitRingGrad)" stroke-width="1.2" stroke-dasharray="4 6 1 6" />
+            <circle cx="114" cy="60" r="2.5" fill="#38bdf8" />
+            <circle cx="6" cy="60" r="2" fill="#a855f7" />
+          </g>
+          <g opacity="0.6">
+            <ellipse cx="60" cy="60" rx="24" ry="50" fill="none" stroke="#67e8f9" stroke-width="1" stroke-dasharray="3 5" transform="rotate(25 60 60)" />
+            <circle cx="60" cy="10" r="2" fill="#ffffff" transform="rotate(25 60 60)" />
+          </g>
+          <circle cx="60" cy="62" r="30" fill="url(#optQuantumBloom)" />
+          <path d="M18 38L60 62V106L18 82V38Z" fill="url(#optLeftGrad)" stroke="url(#optSpecularRim)" stroke-width="1.5" stroke-linejoin="round" />
+          <g opacity="0.8">
+            <path d="M32 58L48 67M32 76L54 88M40 46L40 82" stroke="#38bdf8" stroke-width="1.2" stroke-linecap="round" />
+            <circle cx="32" cy="58" r="1.8" fill="#a5f3fc" />
+            <circle cx="48" cy="67" r="1.8" fill="#38bdf8" />
+            <circle cx="32" cy="76" r="1.8" fill="#a5f3fc" />
+            <circle cx="54" cy="88" r="1.8" fill="#38bdf8" />
+          </g>
+          <path d="M60 62L102 38V82L60 106V62Z" fill="url(#optRightGrad)" stroke="url(#optSpecularRim)" stroke-width="1.5" stroke-linejoin="round" />
+          <g opacity="0.8">
+            <path d="M88 58L72 67M88 76L66 88M80 46L80 82" stroke="#c084fc" stroke-width="1.2" stroke-linecap="round" />
+            <circle cx="88" cy="58" r="1.8" fill="#e9d5ff" />
+            <circle cx="72" cy="67" r="1.8" fill="#c084fc" />
+            <circle cx="88" cy="76" r="1.8" fill="#e9d5ff" />
+            <circle cx="66" cy="88" r="1.8" fill="#c084fc" />
+          </g>
+          <path d="M60 14L102 38L60 62L18 38L60 14Z" fill="url(#optTopGrad)" stroke="url(#optSpecularRim)" stroke-width="1.6" stroke-linejoin="round" />
+          <path d="M60 21L92 38L60 55L28 38L60 21Z" fill="none" stroke="url(#optChamferLight)" stroke-width="1" stroke-opacity="0.6" />
+          <path d="M40 26L80 26L70 33L30 33L40 26Z" fill="#ffffff" fill-opacity="0.4" />
+          <path d="M60 62V106" stroke="#ffffff" stroke-opacity="0.55" stroke-width="1.2" stroke-linecap="round" />
+          <path d="M60 46L74 54L60 69L46 54L60 46Z" fill="#030712" fill-opacity="0.95" stroke="#67e8f9" stroke-width="1.6" stroke-linejoin="round" />
+          <circle cx="60" cy="55" r="5" stroke="#38bdf8" stroke-width="1" stroke-dasharray="2 2" />
+          <circle cx="60" cy="54" r="3.2" fill="#ffffff" />
+          <circle cx="60" cy="54" r="1.6" fill="#0284c7" />
+          <path d="M60 57.5V63.5M58 61H62" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round" />
+          <circle cx="60" cy="14" r="2.2" fill="#ffffff" />
+          <path d="M54 14H66M60 8V20" stroke="#ffffff" stroke-width="1" stroke-linecap="round" />
+          <circle cx="102" cy="38" r="2" fill="#a5f3fc" />
+          <circle cx="18" cy="38" r="2" fill="#a5f3fc" />
+          <circle cx="60" cy="106" r="2.2" fill="#a855f7" />
         </svg>
         <div>
           <h1>VaultXMedia Wishlist</h1>

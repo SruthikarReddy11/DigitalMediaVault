@@ -506,10 +506,26 @@ function injectProductSaveButton() {
 
   btn.innerHTML = `
     <span class="vaultx-btn-icon">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z"></path>
-        <path d="M12 11v6"></path>
-        <path d="M9 14h6"></path>
+      <svg width="20" height="20" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <linearGradient id="btnTopGrad" x1="60" y1="14" x2="60" y2="62" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#7dd3fc" />
+            <stop offset="100%" stop-color="#6366f1" />
+          </linearGradient>
+          <linearGradient id="btnLeftGrad" x1="18" y1="38" x2="60" y2="106" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#0284c7" />
+            <stop offset="100%" stop-color="#030712" />
+          </linearGradient>
+          <linearGradient id="btnRightGrad" x1="102" y1="38" x2="60" y2="106" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stop-color="#6366f1" />
+            <stop offset="100%" stop-color="#4c1d95" />
+          </linearGradient>
+        </defs>
+        <path d="M18 38L60 62V106L18 82V38Z" fill="url(#btnLeftGrad)" stroke="#38bdf8" stroke-width="2" stroke-linejoin="round" />
+        <path d="M60 62L102 38V82L60 106V62Z" fill="url(#btnRightGrad)" stroke="#c084fc" stroke-width="2" stroke-linejoin="round" />
+        <path d="M60 14L102 38L60 62L18 38L60 14Z" fill="url(#btnTopGrad)" stroke="#ffffff" stroke-width="2" stroke-linejoin="round" />
+        <circle cx="60" cy="54" r="5" fill="#ffffff" />
+        <circle cx="60" cy="54" r="2.5" fill="#0284c7" />
       </svg>
     </span>
     <span class="vaultx-btn-text">Save to VaultXMedia</span>
