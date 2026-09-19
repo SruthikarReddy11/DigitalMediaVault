@@ -7,7 +7,7 @@ export interface AuthUser {
   avatarUrl?: string | null;
 }
 
-export type UrlClassification = 'PRODUCT' | 'YOUTUBE' | 'GENERIC';
+export type UrlClassification = 'PRODUCT' | 'YOUTUBE' | 'GOOGLE_MAPS' | 'GENERIC';
 
 export interface ProductExtractResult {
   url: string;
@@ -117,6 +117,9 @@ export type ExtensionMessage =
   | { action: 'CREATE_VAULT_CELL'; folderId: string; data: { url: string; title?: string; notes?: string } }
   | { action: 'CREATE_VAULT_FOLDER'; data: { name: string; password: string; color?: string; description?: string } }
   | { action: 'OPEN_VAULT_SAVE_MODAL'; url: string; title: string; webUrl?: string; isAuthenticated?: boolean }
+  | { action: 'RESOLVE_PLACE'; url: string }
+  | { action: 'SAVE_PLACE'; data: any }
+  | { action: 'OPEN_PLACE_SAVE_MODAL'; url?: string }
   | {
       action: 'SHOW_TOAST';
       title: string;

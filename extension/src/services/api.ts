@@ -480,4 +480,66 @@ export const vaultApi = {
 
     return json.data as VaultFolder;
   },
+
+  /**
+   * Resolve Google Maps Place URL via VaultXMedia backend
+   */
+  async resolvePlace(url: string, token: string, apiUrl: string): Promise<any> {
+    const cleanBase = apiUrl.replace(/\/+$/, '');
+    const endpoint = `${cleanBase}/places/resolve`;
+
+    const headers: any = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token.trim()}`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      credentials: 'omit',
+      headers,
+      body: JSON.stringify({ url: url.trim() }),
+    });
+
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success) {
+      throw new VaultApiError(
+        json?.error?.message || 'Failed to resolve Google Maps place details.',
+        json?.error?.code,
+        response.status
+      );
+    }
+
+    return json.data;
+  },
+
+  /**
+   * Save a Place to Places & Plans in VaultXMedia
+   */
+  async savePlace(payload: any, token: string, apiUrl: string): Promise<any> {
+    if (!token || !token.trim()) {
+      throw new VaultApiError('Authentication required to save place.', 'UNAUTHORIZED', 401);
+    }
+
+    const cleanBase = apiUrl.replace(/\/+$/, '');
+    const endpoint = `${cleanBase}/places`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      credentials: 'omit',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token.trim()}`,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const json = await response.json().catch(() => null);
+    if (!response.ok || !json?.success) {
+      throw new VaultApiError(
+        json?.error?.message || 'Failed to save place.',
+        json?.error?.code,
+        response.status
+      );
+    }
+
+    return json.data;
+  },
 };

@@ -66,6 +66,10 @@ model User {
   productSections   ProductSection[]
   expenses          Expense[]
   bankAccountLinks  BankAccountLink[]
+  notes             Note[]
+  places            Place[]
+  placeReminders    PlaceReminder[]
+  tripPlans         TripPlan[]
 
   @@index([email])
   @@index([username])
@@ -141,6 +145,9 @@ model File {
   albumCoverFor PhotoAlbum[] @relation("AlbumCover")
   albumItems   PhotoAlbumItem[]
   calendarAttachments CalendarAttachment[]
+  noteAttachments     NoteAttachment[]
+  placeFiles          PlaceFile[]
+  tripPlanFiles       TripPlanFile[]
 
   @@index([userId])
   @@index([fileType])
@@ -438,6 +445,8 @@ model CalendarEvent {
   reminders       CalendarReminder[]
   checklist       CalendarChecklistItem[]
   attachments     CalendarAttachment[]
+  place           Place?                @relation("PlaceCalendarEvent")
+  tripPlanEvents  TripPlanEvent[]
 
   @@index([userId])
   @@index([startTime])
@@ -621,6 +630,8 @@ model Expense {
 
   user          User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   bankAccount   BankAccountLink? @relation(fields: [bankAccountId], references: [id], onDelete: SetNull)
+  placeExpenses PlaceExpense[]
+  tripPlanExpenses TripPlanExpense[]
 
   @@index([userId])
   @@index([userId, date])
@@ -652,3 +663,280 @@ model BankAccountLink {
   @@index([userId, consentStatus])
   @@map("bank_account_links")
 }
+
+// ============================================================================
+// FEATURE 1: SECURE NOTES
+// ============================================================================
+
+model Note {
+  id                  String           @id @default(uuid())
+  userId              String
+  title               String
+  content             String?          // Plain text / rich text content (null if encrypted)
+  isPasswordProtected Boolean          @default(false)
+  passwordHash        String?          // bcrypt hash of note password if protected
+  encryptedContent    String?          // AES-256-GCM ciphertext
+  encryptionIv        String?          // IV
+  encryptionTag       String?          // Auth tag
+  encryptionSalt      String?          // PBKDF2 salt
+  isHidden            Boolean          @default(false)
+  isPinned            Boolean          @default(false)
+  isArchived          Boolean          @default(false)
+  color               String?          @default("#8b5cf6")
+  tags                String[]         @default([])
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  attachments         NoteAttachment[]
+  places              PlaceNote[]
+  tripPlans           TripPlanNote[]
+
+  @@index([userId])
+  @@index([userId, isHidden])
+  @@index([userId, isPinned])
+  @@index([userId, isArchived])
+  @@map("notes")
+}
+
+model NoteAttachment {
+  id        String   @id @default(uuid())
+  noteId    String
+  fileId    String
+  addedAt   DateTime @default(now())
+
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, fileId])
+  @@index([noteId])
+  @@index([fileId])
+  @@map("note_attachments")
+}
+
+// ============================================================================
+// FEATURE 2: PLACES & PLANS
+// ============================================================================
+
+enum PlaceStatus {
+  WANT_TO_VISIT
+  PLANNED
+  UPCOMING
+  VISITED
+  CANCELLED
+}
+
+model Place {
+  id                String           @id @default(uuid())
+  userId            String
+  placeId           String?          // Google Place ID (ChIJ...)
+  name              String
+  address           String?
+  city              String?
+  state             String?
+  country           String?
+  latitude          Float?
+  longitude         Float?
+  googleMapsUrl     String
+  category          String?
+  rating            Float?
+  userRatingsTotal  Int?
+  phoneNumber       String?
+  website           String?
+  openingHours      Json?            // Array of weekday text or hours status
+  imageUrl          String?          // Photo URL or proxy path
+  photoReference    String?          // Google photo reference
+  photoAttributions String[]         @default([]) // HTML attributions required by Google
+  notes             String?
+  tags              String[]         @default([])
+  status            PlaceStatus      @default(WANT_TO_VISIT)
+  reminderDate      DateTime?
+  reminderTime      String?          // e.g. "14:30"
+  reminderOption    String?          // EXACT, ONE_DAY_BEFORE, ONE_WEEK_BEFORE, ONE_MONTH_BEFORE, CUSTOM
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+  visitedAt         DateTime?
+
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reminders         PlaceReminder[]
+  notesLinks        PlaceNote[]
+  calendarEventId   String?          @unique
+  calendarEvent     CalendarEvent?   @relation("PlaceCalendarEvent", fields: [calendarEventId], references: [id], onDelete: SetNull)
+  tripPlans         TripPlanPlace[]
+  files             PlaceFile[]
+  expenses          PlaceExpense[]
+
+  @@index([userId])
+  @@index([userId, status])
+  @@index([userId, reminderDate])
+  @@map("places")
+}
+
+model PlaceReminder {
+  id              String         @id @default(uuid())
+  placeId         String
+  userId          String
+  triggerTime     DateTime
+  reminderOption  String         @default("EXACT")
+  status          ReminderStatus @default(PENDING)
+  notifiedAt      DateTime?
+  createdAt       DateTime       @default(now())
+
+  place           Place          @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([placeId])
+  @@index([triggerTime])
+  @@index([status])
+  @@map("place_reminders")
+}
+
+model PlaceNote {
+  id        String   @id @default(uuid())
+  placeId   String
+  noteId    String
+  createdAt DateTime @default(now())
+
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@unique([placeId, noteId])
+  @@index([placeId])
+  @@index([noteId])
+  @@map("place_notes")
+}
+
+model PlaceFile {
+  id        String   @id @default(uuid())
+  placeId   String
+  fileId    String
+  createdAt DateTime @default(now())
+
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  file      File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([placeId, fileId])
+  @@index([placeId])
+  @@index([fileId])
+  @@map("place_files")
+}
+
+model PlaceExpense {
+  id        String   @id @default(uuid())
+  placeId   String
+  expenseId String
+  createdAt DateTime @default(now())
+
+  place     Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  expense   Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@unique([placeId, expenseId])
+  @@index([placeId])
+  @@index([expenseId])
+  @@map("place_expenses")
+}
+
+model TripPlan {
+  id          String            @id @default(uuid())
+  userId      String
+  name        String            // e.g. "Japan Trip"
+  description String?
+  destination String?
+  startDate   DateTime?
+  endDate     DateTime?
+  coverImage  String?
+  color       String?           @default("#ec4899")
+  status      String            @default("PLANNING")
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  places      TripPlanPlace[]
+  notes       TripPlanNote[]
+  files       TripPlanFile[]
+  expenses    TripPlanExpense[]
+  events      TripPlanEvent[]
+
+  @@index([userId])
+  @@map("trip_plans")
+}
+
+model TripPlanPlace {
+  id         String   @id @default(uuid())
+  tripPlanId String
+  placeId    String
+  position   Int      @default(0)
+  dayNumber  Int?
+  notes      String?
+  createdAt  DateTime @default(now())
+
+  tripPlan   TripPlan @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+  place      Place    @relation(fields: [placeId], references: [id], onDelete: Cascade)
+
+  @@unique([tripPlanId, placeId])
+  @@index([tripPlanId])
+  @@index([placeId])
+  @@map("trip_plan_places")
+}
+
+model TripPlanNote {
+  id         String   @id @default(uuid())
+  tripPlanId String
+  noteId     String
+  createdAt  DateTime @default(now())
+
+  tripPlan   TripPlan @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+  note       Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@unique([tripPlanId, noteId])
+  @@index([tripPlanId])
+  @@index([noteId])
+  @@map("trip_plan_notes")
+}
+
+model TripPlanFile {
+  id         String   @id @default(uuid())
+  tripPlanId String
+  fileId     String
+  createdAt  DateTime @default(now())
+
+  tripPlan   TripPlan @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+  file       File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([tripPlanId, fileId])
+  @@index([tripPlanId])
+  @@index([fileId])
+  @@map("trip_plan_files")
+}
+
+model TripPlanExpense {
+  id         String   @id @default(uuid())
+  tripPlanId String
+  expenseId  String
+  createdAt  DateTime @default(now())
+
+  tripPlan   TripPlan @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+  expense    Expense  @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+
+  @@unique([tripPlanId, expenseId])
+  @@index([tripPlanId])
+  @@index([expenseId])
+  @@map("trip_plan_expenses")
+}
+
+model TripPlanEvent {
+  id         String        @id @default(uuid())
+  tripPlanId String
+  eventId    String
+  createdAt  DateTime      @default(now())
+
+  tripPlan   TripPlan      @relation(fields: [tripPlanId], references: [id], onDelete: Cascade)
+  event      CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([tripPlanId, eventId])
+  @@index([tripPlanId])
+  @@index([eventId])
+  @@map("trip_plan_events")
+}
+

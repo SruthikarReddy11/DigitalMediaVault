@@ -584,6 +584,8 @@ export interface UpdateAlbumInput {
 
 export * from './calendar';
 export * from './product';
+export * from './note';
+export * from './place';
 
 
 

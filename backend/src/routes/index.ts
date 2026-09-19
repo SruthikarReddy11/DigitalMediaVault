@@ -17,6 +17,9 @@ import contactRoutes from './contact.routes';
 import productRoutes from './product.routes';
 import cricketRoutes from './cricket.routes';
 import expenseRoutes from './expense.routes';
+import noteRoutes from './note.routes';
+import placeRoutes from './place.routes';
+import tripPlanRoutes from './tripPlan.routes';
 
 const router = Router();
 
@@ -38,6 +41,9 @@ router.use('/contacts', contactRoutes);
 router.use('/products', productRoutes);
 router.use('/cricket', cricketRoutes);
 router.use('/expenses', expenseRoutes);
+router.use('/notes', noteRoutes);
+router.use('/places', placeRoutes);
+router.use('/trip-plans', tripPlanRoutes);
 
 // Health check endpoint
 router.get('/health', (req, res) => {

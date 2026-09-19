@@ -3,8 +3,20 @@ import { AuthUser } from '../types';
 import { FileType, Prisma } from '@prisma/client';
 
 export interface GlobalSearchOptions {
-  category?: 'all' | 'files' | 'music' | 'videos' | 'photos' | 'folders';
+  category?: 'all' | 'files' | 'music' | 'videos' | 'photos' | 'folders' | 'notes';
   limit?: number;
+}
+
+export interface SearchNoteResult {
+  id: string;
+  title: string;
+  snippet?: string | null;
+  isPasswordProtected: boolean;
+  color: string;
+  tags: string[];
+  matchReason: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface SearchFolderResult {
@@ -70,6 +82,7 @@ export interface GlobalSearchResponse {
     videos: { count: number; items: SearchFileResult[] };
     photos: { count: number; items: SearchFileResult[] };
     folders: { count: number; items: SearchFolderResult[] };
+    notes: { count: number; items: SearchNoteResult[] };
   };
 }
 
@@ -93,6 +106,7 @@ export class SearchService {
           videos: { count: 0, items: [] },
           photos: { count: 0, items: [] },
           folders: { count: 0, items: [] },
+          notes: { count: 0, items: [] },
         },
       };
     }
@@ -390,6 +404,54 @@ export class SearchService {
       }
     }
 
+    // 5. Notes Search (Only non-hidden notes; search title & tags for protected notes, or title, content, tags for non-protected)
+    let noteItems: SearchNoteResult[] = [];
+    if (category === 'all' || category === 'notes') {
+      const rawNotes = await prisma.note.findMany({
+        where: {
+          userId: user.id,
+          isHidden: false, // Strict backend guarantee
+          OR: [
+            { title: { contains: rawQuery, mode: 'insensitive' } },
+            { tags: { has: rawQuery } },
+            {
+              AND: [
+                { isPasswordProtected: false },
+                { content: { contains: rawQuery, mode: 'insensitive' } },
+              ],
+            },
+          ],
+        },
+        orderBy: { updatedAt: 'desc' },
+      });
+
+      noteItems = rawNotes.map((n) => {
+        let matchReason = 'Title match';
+        if (n.tags && n.tags.some((t) => t.toLowerCase().includes(qLower))) {
+          matchReason = 'Tag match';
+        } else if (!n.isPasswordProtected && n.content && n.content.toLowerCase().includes(qLower)) {
+          matchReason = 'Content match';
+        }
+
+        let snippet: string | null = null;
+        if (!n.isPasswordProtected && n.content) {
+          snippet = n.content.slice(0, 140);
+        }
+
+        return {
+          id: n.id,
+          title: n.title,
+          snippet,
+          isPasswordProtected: n.isPasswordProtected,
+          color: n.color || '#8b5cf6',
+          tags: n.tags || [],
+          matchReason,
+          createdAt: n.createdAt.toISOString(),
+          updatedAt: n.updatedAt.toISOString(),
+        };
+      });
+    }
+
     // Apply category filters and limits
     const limitedFiles =
       category === 'all' || category === 'files' ? filesItems.slice(0, limitPerCategory) : [];
@@ -403,13 +465,16 @@ export class SearchService {
       category === 'all' || category === 'folders'
         ? matchingFolders.slice(0, limitPerCategory)
         : [];
+    const limitedNotes =
+      category === 'all' || category === 'notes' ? noteItems.slice(0, limitPerCategory) : [];
 
     const totalMatches =
       filesItems.length +
       musicItems.length +
       videoItems.length +
       photoItems.length +
-      matchingFolders.length;
+      matchingFolders.length +
+      noteItems.length;
 
     return {
       query: rawQuery,
@@ -434,6 +499,10 @@ export class SearchService {
         folders: {
           count: matchingFolders.length,
           items: limitedFolders,
+        },
+        notes: {
+          count: noteItems.length,
+          items: limitedNotes,
         },
       },
     };

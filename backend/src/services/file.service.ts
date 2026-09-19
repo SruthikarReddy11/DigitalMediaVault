@@ -302,7 +302,7 @@ export class FileService {
         select: { securityPin: true },
       });
 
-      if (!pin || String(pin).trim() !== String(owner?.securityPin)) {
+      if (owner?.securityPin && (!pin || String(pin).trim() !== String(owner.securityPin))) {
         const err: any = new Error('This user\'s 4-digit security PIN is required to access unauthorized private data.');
         err.statusCode = 403;
         err.code = 'PIN_REQUIRED';

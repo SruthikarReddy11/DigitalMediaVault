@@ -26,6 +26,8 @@ import { ProductsPage } from '../pages/ProductsPage';
 import { ProductDetailPage } from '../pages/ProductDetailPage';
 import { CricketLivePage } from '../pages/CricketLivePage';
 import { ExpenseTrackerPage } from '../pages/ExpenseTrackerPage';
+import { NotesPage } from '../pages/NotesPage';
+import { PlacesPage } from '../pages/PlacesPage';
 
 // Admin Pages
 import { AdminDashboard } from '../pages/admin/AdminDashboard';
@@ -114,6 +116,8 @@ export const AppRoutes: React.FC = () => {
         <Route path="/contacts" element={<ContactsPage />} />
         <Route path="/cricket-live" element={<CricketLivePage />} />
         <Route path="/expenses" element={<ExpenseTrackerPage />} />
+        <Route path="/notes" element={<NotesPage />} />
+        <Route path="/places" element={<PlacesPage />} />
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/products/:id" element={<ProductDetailPage />} />
         <Route path="/favorites" element={<Favorites />} />

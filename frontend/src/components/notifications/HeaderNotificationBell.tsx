@@ -11,8 +11,11 @@ import {
   ChevronRight,
   AlarmClock,
   Sparkles,
+  MapPin,
+  ExternalLink,
 } from 'lucide-react';
 import { calendarApi } from '../../services/calendarApi';
+import { placesApi } from '../../services/placesApi';
 import { CalendarReminder } from '../../types';
 import { getEventTypeConfig, getPriorityConfig } from '../../utils/calendarHelpers';
 
@@ -132,6 +135,17 @@ export const HeaderNotificationBell: React.FC = () => {
     }
   };
 
+  const handleMarkPlaceVisited = async (e: React.MouseEvent, placeId: string, reminderId: string) => {
+    e.stopPropagation();
+    try {
+      await placesApi.updateStatus(placeId, 'VISITED');
+      setReminders((prev) => prev.filter((r) => r.id !== reminderId));
+      window.dispatchEvent(new CustomEvent('calendar_events_updated'));
+    } catch (err) {
+      console.error('Failed to mark place as visited:', err);
+    }
+  };
+
   const now = new Date();
   const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
 
@@ -224,7 +238,84 @@ export const HeaderNotificationBell: React.FC = () => {
                     </p>
                     {dueNowOrOverdue.map((r) => {
                       const ev = r.event;
+                      const isPlace = r.reminderType === 'PLACE' || !!r.place;
+                      const place = r.place;
                       const typeConfig = ev ? getEventTypeConfig(ev.type) : null;
+
+                      if (isPlace && place) {
+                        return (
+                          <div
+                            key={r.id}
+                            onClick={() => {
+                              setIsOpen(false);
+                              navigate('/places');
+                            }}
+                            className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/30 hover:border-cyan-500/50 transition cursor-pointer space-y-2 group"
+                          >
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-white group-hover:text-cyan-300 transition truncate">
+                                  It's time to visit {place.name} 📍
+                                </p>
+                                <div className="flex items-center gap-2 text-[10px] text-cyan-300/80 mt-0.5">
+                                  <MapPin className="w-3 h-3 text-cyan-400" />
+                                  <span className="truncate">{place.address || place.category || 'Saved Place'}</span>
+                                </div>
+                              </div>
+
+                              <button
+                                onClick={(e) => handleDismiss(e, r.id)}
+                                className="text-slate-500 hover:text-white p-1 rounded-md"
+                                title="Dismiss"
+                              >
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+
+                            {/* 4 Place Actions: [View Place] [Open Google Maps] [Postpone] [Mark as Visited] */}
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-cyan-500/20 text-[10px]">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setIsOpen(false);
+                                  navigate('/places');
+                                }}
+                                className="px-2 py-0.5 rounded-md bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 font-bold flex items-center gap-1 transition"
+                              >
+                                <span>View Place</span>
+                              </button>
+
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(place.googleMapsUrl, '_blank');
+                                }}
+                                className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold flex items-center gap-1 transition"
+                              >
+                                <span>Maps</span>
+                                <ExternalLink className="w-2.5 h-2.5" />
+                              </button>
+
+                              <button
+                                onClick={(e) => handleSnooze(e, r.id, 60)}
+                                className="px-2 py-0.5 rounded-md bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition"
+                                title="Postpone 1 hour"
+                              >
+                                Postpone
+                              </button>
+
+                              <button
+                                onClick={(e) => handleMarkPlaceVisited(e, place.id, r.id)}
+                                className="px-2 py-0.5 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 font-bold flex items-center gap-1 transition"
+                              >
+                                <CheckCircle2 className="w-3 h-3" />
+                                <span>Visited</span>
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      }
+
                       return (
                         <div
                           key={r.id}

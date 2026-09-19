@@ -2,8 +2,10 @@
 
 const VAULT_BUTTON_ID = 'vaultxmedia-floating-save-btn';
 const VAULT_YT_BUTTON_ID = 'vaultxmedia-floating-yt-btn';
+const VAULT_MAPS_BUTTON_ID = 'vaultxmedia-floating-maps-btn';
 const VAULT_TOAST_ID = 'vaultxmedia-save-toast';
 const VAULT_MODAL_ID = 'vaultxmedia-secret-modal';
+const VAULT_PLACE_MODAL_ID = 'vaultxmedia-place-modal';
 
 /**
  * Check if the current page is an e-commerce product page
@@ -85,6 +87,23 @@ function isYouTubeWatchPage(): boolean {
       url.includes('/clip/') ||
       host.includes('youtu.be')
     );
+  }
+  return false;
+}
+
+/**
+ * Check if the current page is a Google Maps page (place, search, or directions)
+ */
+function isGoogleMapsPlacePage(): boolean {
+  const host = window.location.hostname.toLowerCase();
+  const url = window.location.href.toLowerCase();
+  if (
+    host.includes('maps.google.') ||
+    host.includes('maps.app.goo.gl') ||
+    (host.includes('google.') && (url.includes('/maps') || url.includes('/place/'))) ||
+    (host.includes('goo.gl') && url.includes('/maps'))
+  ) {
+    return true;
   }
   return false;
 }
@@ -678,6 +697,300 @@ function injectYouTubeSaveButton() {
   });
 
   document.body.appendChild(btn);
+}
+
+/**
+ * ============================================================================
+ * GOOGLE MAPS FLOATING BUTTON & PLACE SAVE MODAL
+ * ============================================================================
+ */
+function injectGoogleMapsSaveButton() {
+  if (!isGoogleMapsPlacePage()) {
+    const existing = document.getElementById(VAULT_MAPS_BUTTON_ID);
+    if (existing) existing.remove();
+    return;
+  }
+
+  let btn = document.getElementById(VAULT_MAPS_BUTTON_ID);
+  if (btn) return;
+
+  btn = document.createElement('button');
+  btn.id = VAULT_MAPS_BUTTON_ID;
+  btn.className = 'vaultx-floating-btn vaultx-maps-btn';
+  btn.setAttribute('type', 'button');
+  btn.setAttribute('title', 'Save place to VaultXMedia Places & Plans');
+
+  btn.innerHTML = `
+    <span class="vaultx-btn-icon">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+        <circle cx="12" cy="10" r="3"></circle>
+      </svg>
+    </span>
+    <span class="vaultx-btn-text">Save Place</span>
+  `;
+
+  btn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openGoogleMapsModal(window.location.href);
+  });
+
+  document.body.appendChild(btn);
+}
+
+function openGoogleMapsModal(
+  targetUrl: string = window.location.href,
+  webUrl = 'https://digital-media-vault.vercel.app'
+) {
+  const existing = document.getElementById(VAULT_PLACE_MODAL_ID);
+  if (existing) existing.remove();
+
+  const backdrop = document.createElement('div');
+  backdrop.id = VAULT_PLACE_MODAL_ID;
+  backdrop.className = 'vaultx-modal-backdrop';
+
+  const modal = document.createElement('div');
+  modal.className = 'vaultx-modal';
+
+  modal.innerHTML = `
+    <div class="vaultx-modal-header">
+      <div class="vaultx-modal-title-wrap">
+        <div class="vaultx-modal-icon-badge" style="background: rgba(14, 165, 233, 0.2); color: #38bdf8;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+            <circle cx="12" cy="10" r="3"></circle>
+          </svg>
+        </div>
+        <div>
+          <h3 class="vaultx-modal-title">Save to Places &amp; Plans</h3>
+          <p class="vaultx-modal-subtitle">Save Google Maps location &amp; set reminders</p>
+        </div>
+      </div>
+      <button class="vaultx-modal-close-btn" title="Close (Esc)">&times;</button>
+    </div>
+
+    <div class="vaultx-modal-body">
+      <div id="vaultx-place-step-container">
+        <div style="text-align:center; padding: 28px 0; color: #94a3b8; font-size: 13px;">
+          <div style="margin-bottom:8px; display:inline-block; animation: vaultx-pulse 1s infinite ease-in-out; font-size:24px;">📍</div>
+          <div>Resolving Google Maps place details...</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  backdrop.appendChild(modal);
+  document.body.appendChild(backdrop);
+
+  const closeModal = () => {
+    backdrop.remove();
+    document.removeEventListener('keydown', handleEsc);
+  };
+
+  const handleEsc = (e: KeyboardEvent) => {
+    if (e.key === 'Escape') closeModal();
+  };
+  document.addEventListener('keydown', handleEsc);
+
+  modal.querySelector('.vaultx-modal-close-btn')?.addEventListener('click', closeModal);
+  backdrop.addEventListener('click', (e) => {
+    if (e.target === backdrop) closeModal();
+  });
+
+  const stepContainer = modal.querySelector('#vaultx-place-step-container') as HTMLElement;
+
+  const resolveAndRender = async () => {
+    try {
+      const res: any = await chrome.runtime.sendMessage({
+        action: 'RESOLVE_PLACE',
+        url: targetUrl,
+      });
+
+      if (!res || !res.success || !res.data) {
+        stepContainer.innerHTML = `
+          <div class="vaultx-modal-error">
+            ${res?.error || 'Could not resolve place details automatically.'}
+          </div>
+          <div class="vaultx-modal-actions">
+            <button type="button" class="vaultx-btn-secondary" id="vaultx-place-cancel">Cancel</button>
+            <button type="button" class="vaultx-btn-primary" id="vaultx-place-retry">Retry</button>
+          </div>
+        `;
+        stepContainer.querySelector('#vaultx-place-cancel')?.addEventListener('click', closeModal);
+        stepContainer.querySelector('#vaultx-place-retry')?.addEventListener('click', resolveAndRender);
+        return;
+      }
+
+      const place = res.data;
+      renderPlaceSaveForm(place);
+    } catch (err: any) {
+      stepContainer.innerHTML = `
+        <div class="vaultx-modal-error">${err.message || 'Error communicating with extension worker.'}</div>
+        <div class="vaultx-modal-actions">
+          <button type="button" class="vaultx-btn-secondary" id="vaultx-place-err-close">Close</button>
+        </div>
+      `;
+      stepContainer.querySelector('#vaultx-place-err-close')?.addEventListener('click', closeModal);
+    }
+  };
+
+  const renderPlaceSaveForm = (place: any) => {
+    const photoHtml = place.photoUrl
+      ? `<img src="${place.photoUrl}" class="vaultx-place-preview-img" alt="${place.name}" onerror="this.style.display='none'" />`
+      : `<div class="vaultx-place-preview-placeholder">📍</div>`;
+
+    const ratingHtml = place.rating
+      ? `<span class="vaultx-place-tag vaultx-place-tag-rating">⭐ ${place.rating.toFixed(1)}${
+          place.userRatingsTotal ? ` (${place.userRatingsTotal.toLocaleString()})` : ''
+        }</span>`
+      : '';
+
+    const categoryHtml = place.category
+      ? `<span class="vaultx-place-tag">${place.category}</span>`
+      : '';
+
+    stepContainer.innerHTML = `
+      <form id="vaultx-save-place-form">
+        <div class="vaultx-place-preview-card">
+          ${photoHtml}
+          <div class="vaultx-place-preview-meta">
+            <div class="vaultx-place-preview-title" title="${place.name}">${place.name}</div>
+            <div class="vaultx-place-preview-address" title="${place.address || ''}">${place.address || 'Address not specified'}</div>
+            <div class="vaultx-place-preview-tags">
+              ${categoryHtml}
+              ${ratingHtml}
+            </div>
+          </div>
+        </div>
+
+        <div id="vaultx-place-form-error"></div>
+
+        <div style="margin-bottom:12px;">
+          <label class="vaultx-label">Status</label>
+          <select id="vaultx-place-status" class="vaultx-input" style="cursor:pointer;">
+            <option value="WANT_TO_VISIT" selected>📌 Want to Visit</option>
+            <option value="PLANNED">🗓️ Planned</option>
+            <option value="VISITED">✅ Visited</option>
+            <option value="FAVORITE">⭐ Favorite</option>
+          </select>
+        </div>
+
+        <div style="margin-bottom:12px;">
+          <label class="vaultx-label">Set Visit Reminder</label>
+          <select id="vaultx-place-reminder-preset" class="vaultx-input" style="cursor:pointer; margin-bottom:8px;">
+            <option value="NONE">No reminder</option>
+            <option value="1_DAY">In 1 day</option>
+            <option value="1_WEEK">In 1 week</option>
+            <option value="1_MONTH">In 1 month</option>
+            <option value="CUSTOM">Custom date &amp; time...</option>
+          </select>
+          <div id="vaultx-custom-reminder-wrap" style="display:none;">
+            <input type="datetime-local" id="vaultx-place-custom-date" class="vaultx-input" />
+          </div>
+        </div>
+
+        <div style="margin-bottom:14px;">
+          <label class="vaultx-label">Personal Notes (optional)</label>
+          <input type="text" id="vaultx-place-notes" class="vaultx-input" placeholder="e.g. Try the seafood pasta, reserve outdoor table..." />
+        </div>
+
+        <div class="vaultx-modal-actions">
+          <button type="button" class="vaultx-btn-secondary" id="vaultx-place-cancel-btn">Cancel</button>
+          <button type="submit" class="vaultx-btn-primary" id="vaultx-place-submit-btn" style="background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);">
+            Save Place &rarr;
+          </button>
+        </div>
+      </form>
+    `;
+
+    const form = stepContainer.querySelector('#vaultx-save-place-form') as HTMLFormElement;
+    const statusSelect = stepContainer.querySelector('#vaultx-place-status') as HTMLSelectElement;
+    const presetSelect = stepContainer.querySelector('#vaultx-place-reminder-preset') as HTMLSelectElement;
+    const customWrap = stepContainer.querySelector('#vaultx-custom-reminder-wrap') as HTMLElement;
+    const customInput = stepContainer.querySelector('#vaultx-place-custom-date') as HTMLInputElement;
+    const notesInput = stepContainer.querySelector('#vaultx-place-notes') as HTMLInputElement;
+    const submitBtn = stepContainer.querySelector('#vaultx-place-submit-btn') as HTMLButtonElement;
+    const errBox = stepContainer.querySelector('#vaultx-place-form-error') as HTMLElement;
+
+    presetSelect.addEventListener('change', () => {
+      if (presetSelect.value === 'CUSTOM') {
+        customWrap.style.display = 'block';
+        const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        tomorrow.setHours(10, 0, 0, 0);
+        customInput.value = tomorrow.toISOString().slice(0, 16);
+      } else {
+        customWrap.style.display = 'none';
+      }
+    });
+
+    stepContainer.querySelector('#vaultx-place-cancel-btn')?.addEventListener('click', closeModal);
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving Place...';
+      errBox.innerHTML = '';
+
+      let reminderDate: string | undefined = undefined;
+      const now = new Date();
+      if (presetSelect.value === '1_DAY') {
+        reminderDate = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString();
+      } else if (presetSelect.value === '1_WEEK') {
+        reminderDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      } else if (presetSelect.value === '1_MONTH') {
+        reminderDate = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      } else if (presetSelect.value === 'CUSTOM' && customInput.value) {
+        reminderDate = new Date(customInput.value).toISOString();
+      }
+
+      const payload = {
+        googleMapsUrl: place.googleMapsUrl || targetUrl,
+        name: place.name,
+        address: place.address,
+        placeId: place.placeId,
+        latitude: place.latitude,
+        longitude: place.longitude,
+        category: place.category,
+        rating: place.rating,
+        userRatingsTotal: place.userRatingsTotal,
+        photoUrl: place.photoUrl,
+        photoAttributions: place.photoAttributions,
+        status: statusSelect.value,
+        notes: notesInput.value.trim() || undefined,
+        reminderDate,
+      };
+
+      try {
+        const res: any = await chrome.runtime.sendMessage({
+          action: 'SAVE_PLACE',
+          data: payload,
+        });
+
+        if (res && res.success) {
+          closeModal();
+          showToast({
+            title: place.name || 'Place Saved',
+            store: 'Places & Plans',
+            imageUrl: place.photoUrl || undefined,
+            message: '✓ Saved to Places & Plans!',
+            url: `${webUrl}/places`,
+            isError: false,
+          });
+        } else {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Save Place →';
+          errBox.innerHTML = `<div class="vaultx-modal-error">${res?.error || 'Failed to save place.'}</div>`;
+        }
+      } catch (err: any) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save Place →';
+        errBox.innerHTML = `<div class="vaultx-modal-error">${err.message || 'Communication error.'}</div>`;
+      }
+    });
+  };
+
+  resolveAndRender();
 }
 
 /**
@@ -1315,23 +1628,39 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
       message.title || document.title,
       message.webUrl
     );
+  } else if (message.action === 'OPEN_PLACE_SAVE_MODAL') {
+    openGoogleMapsModal(
+      message.url || window.location.href
+    );
   }
 });
 
 function evaluatePageInjections() {
-  if (isYouTubeWatchPage()) {
+  if (isGoogleMapsPlacePage()) {
     const prodBtn = document.getElementById(VAULT_BUTTON_ID);
     if (prodBtn) prodBtn.remove();
+    const ytBtn = document.getElementById(VAULT_YT_BUTTON_ID);
+    if (ytBtn) ytBtn.remove();
+    injectGoogleMapsSaveButton();
+  } else if (isYouTubeWatchPage()) {
+    const prodBtn = document.getElementById(VAULT_BUTTON_ID);
+    if (prodBtn) prodBtn.remove();
+    const mapsBtn = document.getElementById(VAULT_MAPS_BUTTON_ID);
+    if (mapsBtn) mapsBtn.remove();
     injectYouTubeSaveButton();
   } else if (isProductPage()) {
     const ytBtn = document.getElementById(VAULT_YT_BUTTON_ID);
     if (ytBtn) ytBtn.remove();
+    const mapsBtn = document.getElementById(VAULT_MAPS_BUTTON_ID);
+    if (mapsBtn) mapsBtn.remove();
     injectProductSaveButton();
   } else {
     const prodBtn = document.getElementById(VAULT_BUTTON_ID);
     if (prodBtn) prodBtn.remove();
     const ytBtn = document.getElementById(VAULT_YT_BUTTON_ID);
     if (ytBtn) ytBtn.remove();
+    const mapsBtn = document.getElementById(VAULT_MAPS_BUTTON_ID);
+    if (mapsBtn) mapsBtn.remove();
   }
 }
 

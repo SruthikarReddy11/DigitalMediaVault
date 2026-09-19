@@ -49,6 +49,16 @@ export interface CalendarReminder {
   status: ReminderStatus;
   notifiedAt?: string | null;
   createdAt?: string;
+  reminderType?: 'CALENDAR' | 'PLACE';
+  place?: {
+    id: string;
+    name: string;
+    address?: string | null;
+    googleMapsUrl: string;
+    category?: string | null;
+    imageUrl?: string | null;
+    status: string;
+  };
   event?: {
     id: string;
     title: string;

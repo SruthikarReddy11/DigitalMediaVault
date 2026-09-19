@@ -729,7 +729,7 @@ export class CalendarService {
     const now = new Date();
     const future24h = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
-    const reminders = await prisma.calendarReminder.findMany({
+    const calendarReminders = await prisma.calendarReminder.findMany({
       where: {
         userId,
         event: {
@@ -760,7 +760,62 @@ export class CalendarService {
       orderBy: { triggerTime: 'asc' },
     });
 
-    return reminders;
+    const placeReminders = await prisma.placeReminder.findMany({
+      where: {
+        userId,
+        place: {
+          status: { notIn: ['VISITED', 'CANCELLED'] },
+        },
+        OR: [
+          { status: ReminderStatus.SENT },
+          {
+            status: ReminderStatus.PENDING,
+            triggerTime: { lte: future24h },
+          },
+        ],
+      },
+      include: {
+        place: {
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            googleMapsUrl: true,
+            category: true,
+            imageUrl: true,
+            status: true,
+          },
+        },
+      },
+      orderBy: { triggerTime: 'asc' },
+    });
+
+    const formattedPlaceReminders = placeReminders.map((pr) => ({
+      id: pr.id,
+      userId: pr.userId,
+      eventId: pr.placeId,
+      timeOffsetMinutes: 0,
+      triggerTime: pr.triggerTime,
+      status: pr.status,
+      notifiedAt: pr.notifiedAt,
+      createdAt: pr.createdAt,
+      reminderType: 'PLACE' as const,
+      place: pr.place,
+      event: {
+        id: pr.place.id,
+        title: `It's time to visit ${pr.place.name} 📍`,
+        type: 'PERSONAL' as any,
+        priority: 'NORMAL' as any,
+        startTime: pr.triggerTime,
+        endTime: new Date(pr.triggerTime.getTime() + 60 * 60 * 1000),
+        location: pr.place.address || pr.place.name,
+        isImportant: false,
+      },
+    }));
+
+    const unified = [...calendarReminders, ...formattedPlaceReminders];
+    unified.sort((a, b) => new Date(a.triggerTime).getTime() - new Date(b.triggerTime).getTime());
+    return unified;
   }
 
   /**
@@ -771,32 +826,66 @@ export class CalendarService {
       where: { id: reminderId, userId },
     });
 
-    if (!reminder) throw new Error('Reminder not found');
+    if (reminder) {
+      return prisma.calendarReminder.update({
+        where: { id: reminderId },
+        data: { status: ReminderStatus.DISMISSED },
+      });
+    }
 
-    return prisma.calendarReminder.update({
-      where: { id: reminderId },
-      data: { status: ReminderStatus.DISMISSED },
+    const placeReminder = await prisma.placeReminder.findFirst({
+      where: { id: reminderId, userId },
     });
+
+    if (placeReminder) {
+      return prisma.placeReminder.update({
+        where: { id: reminderId },
+        data: { status: ReminderStatus.DISMISSED },
+      });
+    }
+
+    throw new Error('Reminder not found');
   }
 
   /**
    * Snooze a reminder by X minutes
    */
   public static async snoozeReminder(userId: string, reminderId: string, minutes = 15) {
+    const newTriggerTime = new Date(Date.now() + minutes * 60 * 1000);
+
     const reminder = await prisma.calendarReminder.findFirst({
       where: { id: reminderId, userId },
     });
 
-    if (!reminder) throw new Error('Reminder not found');
+    if (reminder) {
+      return prisma.calendarReminder.update({
+        where: { id: reminderId },
+        data: {
+          status: ReminderStatus.PENDING,
+          triggerTime: newTriggerTime,
+        },
+      });
+    }
 
-    const newTriggerTime = new Date(Date.now() + minutes * 60 * 1000);
-
-    return prisma.calendarReminder.update({
-      where: { id: reminderId },
-      data: {
-        status: ReminderStatus.PENDING,
-        triggerTime: newTriggerTime,
-      },
+    const placeReminder = await prisma.placeReminder.findFirst({
+      where: { id: reminderId, userId },
     });
+
+    if (placeReminder) {
+      await prisma.place.update({
+        where: { id: placeReminder.placeId },
+        data: { reminderDate: newTriggerTime },
+      });
+
+      return prisma.placeReminder.update({
+        where: { id: reminderId },
+        data: {
+          status: ReminderStatus.PENDING,
+          triggerTime: newTriggerTime,
+        },
+      });
+    }
+
+    throw new Error('Reminder not found');
   }
 }

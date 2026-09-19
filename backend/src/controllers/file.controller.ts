@@ -157,7 +157,7 @@ export class FileController {
         });
 
         const pin = req.headers['x-security-pin'] || req.query?.pin;
-        if (!pin || String(pin).trim() !== String(owner?.securityPin)) {
+        if (owner?.securityPin && (!pin || String(pin).trim() !== String(owner.securityPin))) {
           res.status(403).json({
             success: false,
             error: {
@@ -256,7 +256,7 @@ export class FileController {
         });
 
         const pin = req.headers['x-security-pin'] || req.query?.pin;
-        if (!pin || String(pin).trim() !== String(owner?.securityPin)) {
+        if (owner?.securityPin && (!pin || String(pin).trim() !== String(owner.securityPin))) {
           res.status(403).json({
             success: false,
             error: {

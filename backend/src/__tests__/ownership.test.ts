@@ -139,9 +139,11 @@ describe('Security & Multi-User Ownership Tests', () => {
   });
 
   it('ADMIN CAN view and stream any user file (200 OK)', async () => {
+    const userA = await prisma.user.findFirst({ where: { email: { contains: 'alpha_' } } });
     const res = await request(app)
       .get(`/api/files/${userAFileId}`)
-      .set('Cookie', adminCookie);
+      .set('Cookie', adminCookie)
+      .set('x-security-pin', userA?.securityPin || '');
 
     expect(res.status).toBe(200);
     expect(res.body.data.originalName).toBe('alpha_secret.txt');

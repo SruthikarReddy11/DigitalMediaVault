@@ -97,6 +97,16 @@ export function classifyUrl(rawUrl: string): UrlClassification {
     return 'YOUTUBE';
   }
 
+  // 1.5 Google Maps place / search / directions URLs
+  if (
+    host.includes('maps.google.') ||
+    host.includes('maps.app.goo.gl') ||
+    (host.includes('google.') && (url.includes('/maps') || url.includes('/place/'))) ||
+    (host.includes('goo.gl') && url.includes('/maps'))
+  ) {
+    return 'GOOGLE_MAPS';
+  }
+
   const cleanPath = url.split('?')[0];
   if (
     cleanPath.endsWith('.mp4') ||
@@ -409,6 +419,11 @@ async function smartSaveUrl(
     return await saveProductToVault(targetUrl, tabId, productData);
   } else if (classification === 'YOUTUBE') {
     return await saveVideoToVault(targetUrl, title, tabId);
+  } else if (classification === 'GOOGLE_MAPS') {
+    if (tabId) {
+      chrome.tabs.sendMessage(tabId, { action: 'OPEN_PLACE_SAVE_MODAL', url: targetUrl }).catch(() => {});
+    }
+    return { success: true };
   } else {
     if (tabId) {
       await openSecretVaultModal(tabId, targetUrl, title);
@@ -603,6 +618,45 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       }
       const checkRes = await vaultApi.checkProductExists(url, settings.token, settings.apiUrl);
       sendResponse(checkRes);
+    });
+    return true;
+  }
+
+  if (message.action === 'RESOLVE_PLACE') {
+    storage.getSettings().then(async (s) => {
+      try {
+        let token = s.token;
+        if (!token) {
+          token = await autoSyncSessionFromCookies(s.webUrl, s.apiUrl);
+        }
+        const data = await vaultApi.resolvePlace(message.url, token || undefined, s.apiUrl);
+        sendResponse({ success: true, data });
+      } catch (err: any) {
+        sendResponse({ success: false, error: err.message || 'Failed to resolve place details.' });
+      }
+    });
+    return true;
+  }
+
+  if (message.action === 'SAVE_PLACE') {
+    storage.getSettings().then(async (s) => {
+      try {
+        let token = s.token;
+        if (!token) {
+          token = await autoSyncSessionFromCookies(s.webUrl, s.apiUrl);
+        }
+        if (!token) {
+          return sendResponse({
+            success: false,
+            error: 'Authentication required. Please log into VaultXMedia.',
+            needAuth: true,
+          });
+        }
+        const data = await vaultApi.savePlace(message.data, token, s.apiUrl);
+        sendResponse({ success: true, data });
+      } catch (err: any) {
+        sendResponse({ success: false, error: err.message || 'Failed to save place.' });
+      }
     });
     return true;
   }
