@@ -488,6 +488,187 @@ function extractInPageProductData(): any {
   };
 }
 
+/**
+ * Enables smooth drag-and-drop repositioning for floating buttons.
+ * Clamps coordinates to the viewport boundaries and preserves the user's
+ * preferred location across pages using localStorage.
+ */
+function makeDraggable(el: HTMLElement, storageKey = 'vaultx_floating_pos') {
+  let isDragging = false;
+  let hasMoved = false;
+  let startX = 0;
+  let startY = 0;
+  let initialLeft = 0;
+  let initialTop = 0;
+
+  // Restore saved position
+  const restorePos = () => {
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const { x, y } = JSON.parse(saved);
+        if (typeof x === 'number' && typeof y === 'number') {
+          const width = el.offsetWidth || 160;
+          const height = el.offsetHeight || 44;
+          const maxX = Math.max(10, window.innerWidth - width - 10);
+          const maxY = Math.max(10, window.innerHeight - height - 10);
+          const clampX = Math.min(Math.max(10, x), maxX);
+          const clampY = Math.min(Math.max(10, y), maxY);
+
+          el.style.setProperty('left', `${clampX}px`, 'important');
+          el.style.setProperty('top', `${clampY}px`, 'important');
+          el.style.setProperty('right', 'auto', 'important');
+          el.style.setProperty('bottom', 'auto', 'important');
+        }
+      }
+    } catch {}
+  };
+
+  requestAnimationFrame(restorePos);
+
+  const onPointerDown = (e: MouseEvent | TouchEvent) => {
+    if ('button' in e && e.button !== 0) return;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+
+    const target = e.target as HTMLElement;
+    if (target.closest('input, textarea, select, a, button:not(.vaultx-floating-btn)')) return;
+
+    isDragging = true;
+    hasMoved = false;
+    startX = clientX;
+    startY = clientY;
+
+    const rect = el.getBoundingClientRect();
+    initialLeft = rect.left;
+    initialTop = rect.top;
+
+    window.addEventListener('mousemove', onMouseMove, { passive: false });
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd);
+  };
+
+  const moveAt = (clientX: number, clientY: number, evt: Event) => {
+    if (!isDragging) return;
+    const dx = clientX - startX;
+    const dy = clientY - startY;
+
+    if (!hasMoved) {
+      if (Math.hypot(dx, dy) > 4) {
+        hasMoved = true;
+        el.classList.add('vaultx-dragging');
+      }
+    }
+
+    if (hasMoved) {
+      evt.preventDefault();
+      const width = el.offsetWidth || 160;
+      const height = el.offsetHeight || 44;
+      const maxX = Math.max(10, window.innerWidth - width - 10);
+      const maxY = Math.max(10, window.innerHeight - height - 10);
+
+      const newX = Math.min(Math.max(10, initialLeft + dx), maxX);
+      const newY = Math.min(Math.max(10, initialTop + dy), maxY);
+
+      el.style.setProperty('left', `${newX}px`, 'important');
+      el.style.setProperty('top', `${newY}px`, 'important');
+      el.style.setProperty('right', 'auto', 'important');
+      el.style.setProperty('bottom', 'auto', 'important');
+    }
+  };
+
+  const onMouseMove = (e: MouseEvent) => moveAt(e.clientX, e.clientY, e);
+  const onTouchMove = (e: TouchEvent) => {
+    if (e.touches.length > 0) moveAt(e.touches[0].clientX, e.touches[0].clientY, e);
+  };
+
+  const endDrag = () => {
+    if (!isDragging) return;
+    isDragging = false;
+    el.classList.remove('vaultx-dragging');
+
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup', onMouseUp);
+    window.removeEventListener('touchmove', onTouchMove);
+    window.removeEventListener('touchend', onTouchEnd);
+
+    if (hasMoved) {
+      const blockClick = (ev: MouseEvent) => {
+        ev.stopPropagation();
+        ev.preventDefault();
+        window.removeEventListener('click', blockClick, true);
+      };
+      window.addEventListener('click', blockClick, true);
+
+      try {
+        const rect = el.getBoundingClientRect();
+        localStorage.setItem(storageKey, JSON.stringify({ x: rect.left, y: rect.top }));
+      } catch {}
+    }
+  };
+
+  const onMouseUp = () => endDrag();
+  const onTouchEnd = () => endDrag();
+
+  el.addEventListener('mousedown', onPointerDown);
+  el.addEventListener('touchstart', onPointerDown, { passive: true });
+}
+
+/**
+ * Makes a popup modal draggable by clicking and dragging its header.
+ */
+function makeModalDraggable(modal: HTMLElement, header: HTMLElement | null) {
+  if (!header) return;
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let initialLeft = 0;
+  let initialTop = 0;
+
+  header.addEventListener('mousedown', (e: MouseEvent) => {
+    if (e.button !== 0) return;
+    if ((e.target as HTMLElement).closest('button, input, select, textarea')) return;
+
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+
+    const rect = modal.getBoundingClientRect();
+    initialLeft = rect.left;
+    initialTop = rect.top;
+
+    modal.classList.add('vaultx-modal-dragging');
+
+    const onMove = (ev: MouseEvent) => {
+      if (!isDragging) return;
+      const dx = ev.clientX - startX;
+      const dy = ev.clientY - startY;
+
+      const maxX = Math.max(10, window.innerWidth - modal.offsetWidth - 10);
+      const maxY = Math.max(10, window.innerHeight - modal.offsetHeight - 10);
+
+      const newX = Math.min(Math.max(10, initialLeft + dx), maxX);
+      const newY = Math.min(Math.max(10, initialTop + dy), maxY);
+
+      modal.style.setProperty('left', `${newX}px`, 'important');
+      modal.style.setProperty('top', `${newY}px`, 'important');
+      modal.style.setProperty('transform', 'none', 'important');
+      modal.style.setProperty('margin', '0', 'important');
+    };
+
+    const onUp = () => {
+      isDragging = false;
+      modal.classList.remove('vaultx-modal-dragging');
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+}
+
 function injectProductSaveButton() {
   let btn = document.getElementById(VAULT_BUTTON_ID);
 
@@ -624,6 +805,7 @@ function injectProductSaveButton() {
   });
 
   document.body.appendChild(btn);
+  makeDraggable(btn, 'vaultx_floating_btn_pos');
 }
 
 /**
@@ -713,6 +895,7 @@ function injectYouTubeSaveButton() {
   });
 
   document.body.appendChild(btn);
+  makeDraggable(btn, 'vaultx_floating_btn_pos');
 }
 
 /**
@@ -753,6 +936,7 @@ function injectGoogleMapsSaveButton() {
   });
 
   document.body.appendChild(btn);
+  makeDraggable(btn, 'vaultx_floating_btn_pos');
 }
 
 function openGoogleMapsModal(
@@ -798,6 +982,7 @@ function openGoogleMapsModal(
 
   backdrop.appendChild(modal);
   document.body.appendChild(backdrop);
+  makeModalDraggable(modal, modal.querySelector('.vaultx-modal-header'));
 
   const closeModal = () => {
     backdrop.remove();
@@ -816,6 +1001,12 @@ function openGoogleMapsModal(
 
   const stepContainer = modal.querySelector('#vaultx-place-step-container') as HTMLElement;
 
+  // Extract page DOM metadata as resilient client fallbacks
+  const domTitle = (document.querySelector('h1.DUwDvf, h1')?.textContent || document.title.replace(/- Google Maps.*/i, '')).trim();
+  const domAddress = (document.querySelector('button[data-item-id*="address"] div.Io6YTe, button[data-item-id*="address"]')?.textContent || '').trim();
+  const domImgEl = document.querySelector('button[aria-label*="Photo"] img, img[src*="googleusercontent.com"], img[src*="ggpht.com"], .widget-scene img') as HTMLImageElement;
+  const domImg = domImgEl?.src || '';
+
   const resolveAndRender = async () => {
     try {
       const res: any = await chrome.runtime.sendMessage({
@@ -830,31 +1021,70 @@ function openGoogleMapsModal(
           </div>
           <div class="vaultx-modal-actions">
             <button type="button" class="vaultx-btn-secondary" id="vaultx-place-cancel">Cancel</button>
+            <button type="button" class="vaultx-btn-secondary" id="vaultx-place-manual-btn">Enter Details Manually</button>
             <button type="button" class="vaultx-btn-primary" id="vaultx-place-retry">Retry</button>
           </div>
         `;
         stepContainer.querySelector('#vaultx-place-cancel')?.addEventListener('click', closeModal);
         stepContainer.querySelector('#vaultx-place-retry')?.addEventListener('click', resolveAndRender);
+        stepContainer.querySelector('#vaultx-place-manual-btn')?.addEventListener('click', () => {
+          renderPlaceSaveForm({
+            name: domTitle || 'Saved Place',
+            address: domAddress || '',
+            photoUrl: domImg || '',
+            googleMapsUrl: targetUrl,
+          });
+        });
         return;
       }
 
       const place = res.data;
       renderPlaceSaveForm(place);
     } catch (err: any) {
+      const errMsg = String(err?.message || '');
+      if (errMsg.includes('context invalidated')) {
+        stepContainer.innerHTML = `
+          <div class="vaultx-modal-error" style="line-height: 1.5;">
+            <strong>⚠️ Extension Reconnected/Updated</strong><br/>
+            The extension was reloaded in Chrome. Please refresh this page to reconnect with the extension.
+          </div>
+          <div class="vaultx-modal-actions">
+            <button type="button" class="vaultx-btn-secondary" id="vaultx-place-err-close">Close</button>
+            <button type="button" class="vaultx-btn-primary" id="vaultx-place-reload-btn" style="background: linear-gradient(135deg, #0ea5e9 0%, #2563eb 100%);">
+              ↻ Refresh Page
+            </button>
+          </div>
+        `;
+        stepContainer.querySelector('#vaultx-place-reload-btn')?.addEventListener('click', () => {
+          window.location.reload();
+        });
+        stepContainer.querySelector('#vaultx-place-err-close')?.addEventListener('click', closeModal);
+        return;
+      }
+
       stepContainer.innerHTML = `
-        <div class="vaultx-modal-error">${err.message || 'Error communicating with extension worker.'}</div>
+        <div class="vaultx-modal-error">${errMsg || 'Error communicating with extension worker.'}</div>
         <div class="vaultx-modal-actions">
           <button type="button" class="vaultx-btn-secondary" id="vaultx-place-err-close">Close</button>
+          <button type="button" class="vaultx-btn-secondary" id="vaultx-place-err-manual">Enter Manually</button>
+          <button type="button" class="vaultx-btn-primary" id="vaultx-place-retry">Retry</button>
         </div>
       `;
       stepContainer.querySelector('#vaultx-place-err-close')?.addEventListener('click', closeModal);
+      stepContainer.querySelector('#vaultx-place-retry')?.addEventListener('click', resolveAndRender);
+      stepContainer.querySelector('#vaultx-place-err-manual')?.addEventListener('click', () => {
+        renderPlaceSaveForm({
+          name: domTitle || 'Saved Place',
+          address: domAddress || '',
+          photoUrl: domImg || '',
+          googleMapsUrl: targetUrl,
+        });
+      });
     }
   };
 
   const renderPlaceSaveForm = (place: any) => {
-    const photoHtml = place.photoUrl
-      ? `<img src="${place.photoUrl}" class="vaultx-place-preview-img" alt="${place.name}" onerror="this.style.display='none'" />`
-      : `<div class="vaultx-place-preview-placeholder">📍</div>`;
+    let currentPhotoUrl = (place.photoUrl || place.imageUrl || domImg || '').trim();
 
     const ratingHtml = place.rating
       ? `<span class="vaultx-place-tag vaultx-place-tag-rating">⭐ ${place.rating.toFixed(1)}${
@@ -869,7 +1099,13 @@ function openGoogleMapsModal(
     stepContainer.innerHTML = `
       <form id="vaultx-save-place-form">
         <div class="vaultx-place-preview-card">
-          ${photoHtml}
+          <div id="vaultx-place-img-box" style="flex-shrink:0;">
+            ${
+              currentPhotoUrl
+                ? `<img src="${currentPhotoUrl}" class="vaultx-place-preview-img" alt="${place.name}" onerror="this.outerHTML='<div class=\\'vaultx-place-preview-placeholder\\'>📍</div>';" />`
+                : `<div class="vaultx-place-preview-placeholder">📍</div>`
+            }
+          </div>
           <div class="vaultx-place-preview-meta">
             <div class="vaultx-place-preview-title" title="${place.name}">${place.name}</div>
             <div class="vaultx-place-preview-address" title="${place.address || ''}">${place.address || 'Address not specified'}</div>
@@ -881,6 +1117,42 @@ function openGoogleMapsModal(
         </div>
 
         <div id="vaultx-place-form-error"></div>
+
+        <!-- Custom Image URL or Upload Section -->
+        <div class="vaultx-img-section">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <label class="vaultx-label" style="margin-bottom:0; font-size:12px;">Place Image / Photo</label>
+            <button type="button" id="vaultx-place-clear-img" class="vaultx-btn-text-link" style="color:#f87171; display:${currentPhotoUrl ? 'inline' : 'none'};">
+              ✕ Clear Photo
+            </button>
+          </div>
+
+          <div class="vaultx-img-tabs">
+            <button type="button" class="vaultx-img-tab active" id="vaultx-tab-btn-url">🔗 Image URL</button>
+            <button type="button" class="vaultx-img-tab" id="vaultx-tab-btn-file">📁 Upload Image</button>
+          </div>
+
+          <!-- URL Input View -->
+          <div id="vaultx-tab-pane-url" style="display:block;">
+            <div style="display:flex; gap:6px;">
+              <input type="url" id="vaultx-place-img-url" class="vaultx-input" placeholder="Paste image link (https://...)" value="${currentPhotoUrl && !currentPhotoUrl.startsWith('data:') ? currentPhotoUrl : ''}" style="font-size:12px; flex:1;" />
+              <button type="button" id="vaultx-place-img-apply-btn" class="vaultx-btn-secondary" style="padding:6px 12px; font-size:12px; white-space:nowrap;">
+                Apply
+              </button>
+            </div>
+          </div>
+
+          <!-- File Upload View -->
+          <div id="vaultx-tab-pane-file" style="display:none;">
+            <label for="vaultx-place-file-input" class="vaultx-upload-dropzone">
+              <span style="font-size:18px; margin-bottom:2px;">🖼️</span>
+              <span style="font-size:12px; color:#f1f5f9; font-weight:500;">Click to choose photo from computer</span>
+              <span style="font-size:10px; color:#94a3b8; margin-top:2px;">Supports JPG, PNG, WEBP</span>
+              <input type="file" id="vaultx-place-file-input" accept="image/*" style="display:none;" />
+            </label>
+            <div id="vaultx-place-upload-msg" style="font-size:11px; color:#10b981; margin-top:6px; text-align:center; display:none;"></div>
+          </div>
+        </div>
 
         <div style="margin-bottom:12px;">
           <label class="vaultx-label">Status</label>
@@ -928,6 +1200,101 @@ function openGoogleMapsModal(
     `;
 
     const form = stepContainer.querySelector('#vaultx-save-place-form') as HTMLFormElement;
+    const imgBox = stepContainer.querySelector('#vaultx-place-img-box') as HTMLElement;
+    const clearImgBtn = stepContainer.querySelector('#vaultx-place-clear-img') as HTMLButtonElement;
+    const tabUrlBtn = stepContainer.querySelector('#vaultx-tab-btn-url') as HTMLButtonElement;
+    const tabFileBtn = stepContainer.querySelector('#vaultx-tab-btn-file') as HTMLButtonElement;
+    const paneUrl = stepContainer.querySelector('#vaultx-tab-pane-url') as HTMLElement;
+    const paneFile = stepContainer.querySelector('#vaultx-tab-pane-file') as HTMLElement;
+    const imgUrlInput = stepContainer.querySelector('#vaultx-place-img-url') as HTMLInputElement;
+    const applyUrlBtn = stepContainer.querySelector('#vaultx-place-img-apply-btn') as HTMLButtonElement;
+    const fileInput = stepContainer.querySelector('#vaultx-place-file-input') as HTMLInputElement;
+    const uploadMsg = stepContainer.querySelector('#vaultx-place-upload-msg') as HTMLElement;
+
+    const setPhoto = (url: string, uploadNotice?: string) => {
+      currentPhotoUrl = url.trim();
+      if (currentPhotoUrl) {
+        imgBox.innerHTML = `<img src="${currentPhotoUrl}" class="vaultx-place-preview-img" alt="${place.name}" onerror="this.outerHTML='<div class=\\'vaultx-place-preview-placeholder\\'>📍</div>';" />`;
+        clearImgBtn.style.display = 'inline';
+      } else {
+        imgBox.innerHTML = `<div class="vaultx-place-preview-placeholder">📍</div>`;
+        clearImgBtn.style.display = 'none';
+      }
+      if (uploadNotice && uploadMsg) {
+        uploadMsg.style.display = 'block';
+        uploadMsg.textContent = uploadNotice;
+      } else if (uploadMsg) {
+        uploadMsg.style.display = 'none';
+      }
+    };
+
+    tabUrlBtn.addEventListener('click', () => {
+      tabUrlBtn.classList.add('active');
+      tabFileBtn.classList.remove('active');
+      paneUrl.style.display = 'block';
+      paneFile.style.display = 'none';
+    });
+
+    tabFileBtn.addEventListener('click', () => {
+      tabFileBtn.classList.add('active');
+      tabUrlBtn.classList.remove('active');
+      paneFile.style.display = 'block';
+      paneUrl.style.display = 'none';
+    });
+
+    applyUrlBtn.addEventListener('click', () => {
+      setPhoto(imgUrlInput.value.trim());
+    });
+    imgUrlInput.addEventListener('keydown', (ke) => {
+      if (ke.key === 'Enter') {
+        ke.preventDefault();
+        setPhoto(imgUrlInput.value.trim());
+      }
+    });
+
+    clearImgBtn.addEventListener('click', () => {
+      imgUrlInput.value = '';
+      if (fileInput) fileInput.value = '';
+      setPhoto('');
+    });
+
+    fileInput.addEventListener('change', () => {
+      const file = fileInput.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (re) => {
+        const rawBase64 = re.target?.result as string;
+        const tempImg = new Image();
+        tempImg.onload = () => {
+          const canvas = document.createElement('canvas');
+          let w = tempImg.width;
+          let h = tempImg.height;
+          const maxDim = 1200;
+          if (w > maxDim || h > maxDim) {
+            if (w > h) {
+              h = Math.round((h * maxDim) / w);
+              w = maxDim;
+            } else {
+              w = Math.round((w * maxDim) / h);
+              h = maxDim;
+            }
+          }
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(tempImg, 0, 0, w, h);
+          const optDataUrl = canvas.toDataURL('image/jpeg', 0.88);
+          setPhoto(optDataUrl, `✓ Uploaded: ${file.name} (${Math.round(file.size / 1024)} KB)`);
+        };
+        tempImg.onerror = () => {
+          setPhoto(rawBase64, `✓ Uploaded: ${file.name}`);
+        };
+        tempImg.src = rawBase64;
+      };
+      reader.readAsDataURL(file);
+    });
+
     const statusSelect = stepContainer.querySelector('#vaultx-place-status') as HTMLSelectElement;
     const favCheckbox = stepContainer.querySelector('#vaultx-place-favorite') as HTMLInputElement;
     const presetSelect = stepContainer.querySelector('#vaultx-place-reminder-preset') as HTMLSelectElement;
@@ -988,8 +1355,8 @@ function openGoogleMapsModal(
         category: place.category,
         rating: place.rating,
         userRatingsTotal: place.userRatingsTotal,
-        imageUrl: place.photoUrl || place.imageUrl,
-        photoUrl: place.photoUrl || place.imageUrl,
+        imageUrl: currentPhotoUrl || place.photoUrl || place.imageUrl || null,
+        photoUrl: currentPhotoUrl || place.photoUrl || place.imageUrl || null,
         photoAttributions: place.photoAttributions,
         status: statusSelect.value,
         tags,
@@ -1008,7 +1375,7 @@ function openGoogleMapsModal(
           showToast({
             title: place.name || 'Place Saved',
             store: 'Places & Plans',
-            imageUrl: place.photoUrl || undefined,
+            imageUrl: currentPhotoUrl || place.photoUrl || undefined,
             message: '✓ Saved to Places & Plans!',
             url: `${webUrl}/places`,
             isError: false,
@@ -1092,6 +1459,7 @@ function openSecretVaultModal(
 
   backdrop.appendChild(modal);
   document.body.appendChild(backdrop);
+  makeModalDraggable(modal, modal.querySelector('.vaultx-modal-header'));
 
   // Close handlers
   const closeModal = () => {
