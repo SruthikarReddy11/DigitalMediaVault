@@ -56,4 +56,29 @@ export class TripPlanController {
       next(err);
     }
   }
+
+  public static async addPlace(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const tripId = String(req.params.id);
+      const { placeId } = req.body;
+      if (!placeId) {
+        return res.status(400).json({ success: false, error: { message: 'Place ID is required.' } });
+      }
+      const trip = await TripPlanService.addPlace(req.user!.id, tripId, String(placeId));
+      res.json({ success: true, data: trip });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async removePlace(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const tripId = String(req.params.id);
+      const placeId = String(req.params.placeId);
+      const trip = await TripPlanService.removePlace(req.user!.id, tripId, placeId);
+      res.json({ success: true, data: trip });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

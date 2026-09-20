@@ -568,15 +568,26 @@ export const PlaceDetailsPage: React.FC = () => {
               </div>
 
               {/* Associated Trip Plans */}
-              {place.tripPlans && place.tripPlans.length > 0 && (
-                <div className="pt-2 border-t border-slate-800/80 flex items-center gap-2">
-                  <Luggage className="w-4 h-4 text-pink-400" />
-                  <span className="text-xs text-slate-400">Included in:</span>
-                  <span className="px-2.5 py-0.5 rounded-md text-xs font-bold text-pink-300 bg-pink-500/15 border border-pink-500/30">
-                    {place.tripPlans[0].tripPlan.name}
+              <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Luggage className="w-4 h-4 text-pink-400 shrink-0" />
+                  <span className="text-xs text-slate-400">
+                    Trip Plan:{' '}
+                    <strong className="text-white">
+                      {place.tripPlans && place.tripPlans.length > 0
+                        ? place.tripPlans[0].tripPlan.name
+                        : 'None'}
+                    </strong>
                   </span>
                 </div>
-              )}
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="text-pink-400 hover:text-pink-300 text-xs font-bold hover:underline"
+                >
+                  {place.tripPlans && place.tripPlans.length > 0 ? 'Change' : '+ Add to Trip'}
+                </button>
+              </div>
             </div>
 
             {/* Notes & Tags */}

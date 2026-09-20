@@ -286,4 +286,76 @@ export class TripPlanService {
     await prisma.tripPlan.delete({ where: { id } });
     return { success: true };
   }
+
+  /**
+   * Add a place to a trip plan
+   */
+  public static async addPlace(userId: string, tripPlanId: string, placeId: string) {
+    const trip = await prisma.tripPlan.findFirst({ where: { id: tripPlanId, userId } });
+    if (!trip) {
+      const err: any = new Error('Trip plan not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const place = await prisma.place.findFirst({ where: { id: placeId, userId } });
+    if (!place) {
+      const err: any = new Error('Saved place not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    const existing = await prisma.tripPlanPlace.findUnique({
+      where: {
+        tripPlanId_placeId: { tripPlanId, placeId },
+      },
+    });
+
+    if (!existing) {
+      const count = await prisma.tripPlanPlace.count({ where: { tripPlanId } });
+      await prisma.tripPlanPlace.create({
+        data: {
+          tripPlanId,
+          placeId,
+          position: count,
+        },
+      });
+
+      await ActivityService.log({
+        userId,
+        action: 'TRIP_PLAN_PLACE_ADDED',
+        resourceType: 'TRIP_PLAN',
+        resourceId: tripPlanId,
+        metadata: { placeId, placeName: place.name, tripName: trip.name },
+      });
+    }
+
+    return this.getById(userId, tripPlanId);
+  }
+
+  /**
+   * Remove a place from a trip plan
+   */
+  public static async removePlace(userId: string, tripPlanId: string, placeId: string) {
+    const trip = await prisma.tripPlan.findFirst({ where: { id: tripPlanId, userId } });
+    if (!trip) {
+      const err: any = new Error('Trip plan not found.');
+      err.statusCode = 404;
+      throw err;
+    }
+
+    await prisma.tripPlanPlace.deleteMany({
+      where: { tripPlanId, placeId },
+    });
+
+    await ActivityService.log({
+      userId,
+      action: 'TRIP_PLAN_PLACE_REMOVED',
+      resourceType: 'TRIP_PLAN',
+      resourceId: tripPlanId,
+      metadata: { placeId, tripName: trip.name },
+    });
+
+    return this.getById(userId, tripPlanId);
+  }
 }

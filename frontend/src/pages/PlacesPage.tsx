@@ -132,10 +132,12 @@ export const PlacesPage: React.FC = () => {
   const [tripStartDate, setTripStartDate] = useState('');
   const [tripEndDate, setTripEndDate] = useState('');
   const [tripColor, setTripColor] = useState('#ec4899');
+  const [tripPlaceIds, setTripPlaceIds] = useState<string[]>([]);
   const [isSavingTrip, setIsSavingTrip] = useState(false);
 
   // Trip Detail Drawer State
   const [selectedTripDetail, setSelectedTripDetail] = useState<TripPlan | null>(null);
+  const [isAddingPlacesToTrip, setIsAddingPlacesToTrip] = useState(false);
 
   // Delete Place Confirmation
   const [deletingPlace, setDeletingPlace] = useState<Place | null>(null);
@@ -357,6 +359,7 @@ export const PlacesPage: React.FC = () => {
         startDate: tripStartDate || undefined,
         endDate: tripEndDate || undefined,
         color: tripColor,
+        placeIds: tripPlaceIds.length > 0 ? tripPlaceIds : undefined,
       };
       await placesApi.createTrip(payload);
       setIsTripModalOpen(false);
@@ -365,11 +368,39 @@ export const PlacesPage: React.FC = () => {
       setTripDescription('');
       setTripStartDate('');
       setTripEndDate('');
+      setTripPlaceIds([]);
       fetchTrips();
+      fetchPlaces();
     } catch (err) {
       console.error(err);
     } finally {
       setIsSavingTrip(false);
+    }
+  };
+
+  // Handle Add Place to Active Trip
+  const handleAddPlaceToTrip = async (placeId: string) => {
+    if (!selectedTripDetail) return;
+    try {
+      const updated = await placesApi.addPlaceToTrip(selectedTripDetail.id, placeId);
+      setSelectedTripDetail(updated);
+      fetchTrips();
+      fetchPlaces();
+    } catch (err) {
+      console.error('Failed to add place to trip:', err);
+    }
+  };
+
+  // Handle Remove Place from Active Trip
+  const handleRemovePlaceFromTrip = async (placeId: string) => {
+    if (!selectedTripDetail) return;
+    try {
+      const updated = await placesApi.removePlaceFromTrip(selectedTripDetail.id, placeId);
+      setSelectedTripDetail(updated);
+      fetchTrips();
+      fetchPlaces();
+    } catch (err) {
+      console.error('Failed to remove place from trip:', err);
     }
   };
 
@@ -392,6 +423,7 @@ export const PlacesPage: React.FC = () => {
     try {
       const detail = await placesApi.getTripById(tripId);
       setSelectedTripDetail(detail);
+      setIsAddingPlacesToTrip(false);
     } catch (err) {
       console.error(err);
     }
@@ -1404,6 +1436,49 @@ export const PlacesPage: React.FC = () => {
               />
             </div>
 
+            {/* Select Places to Add */}
+            {places.length > 0 && (
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 mb-1 flex items-center justify-between">
+                  <span>Add Saved Places ({tripPlaceIds.length} selected)</span>
+                  <span className="text-[10px] text-slate-500">Optional</span>
+                </label>
+                <div className="max-h-36 overflow-y-auto space-y-1.5 p-2 bg-slate-950 border border-slate-800 rounded-xl">
+                  {places.map((p) => {
+                    const isSelected = tripPlaceIds.includes(p.id);
+                    return (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => {
+                          if (isSelected) {
+                            setTripPlaceIds(tripPlaceIds.filter((id) => id !== p.id));
+                          } else {
+                            setTripPlaceIds([...tripPlaceIds, p.id]);
+                          }
+                        }}
+                        className={`w-full text-left p-2 rounded-lg text-xs flex items-center justify-between transition cursor-pointer ${
+                          isSelected
+                            ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
+                            : 'bg-slate-900/60 hover:bg-slate-900 text-slate-300 border border-transparent'
+                        }`}
+                      >
+                        <div className="min-w-0 pr-2">
+                          <p className="font-semibold truncate">{p.name}</p>
+                          {p.city && <p className="text-[10px] text-slate-500 truncate">{p.city}</p>}
+                        </div>
+                        <span className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
+                          isSelected ? 'bg-pink-600 border-pink-500 text-white font-bold' : 'border-slate-700'
+                        }`}>
+                          {isSelected ? '✓' : ''}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 type="button"
@@ -1463,36 +1538,121 @@ export const PlacesPage: React.FC = () => {
 
             {/* Places associated with this trip */}
             <div className="space-y-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-cyan-400" />
-                <span>Trip Places ({selectedTripDetail.places?.length || 0})</span>
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <MapPin className="w-4 h-4 text-cyan-400" />
+                  <span>Trip Places ({selectedTripDetail.places?.length || 0})</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setIsAddingPlacesToTrip(!isAddingPlacesToTrip)}
+                  className="px-2.5 py-1 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>{isAddingPlacesToTrip ? 'Done' : '+ Add Places'}</span>
+                </button>
+              </div>
+
+              {/* Add Places to Trip Drawer Picker */}
+              {isAddingPlacesToTrip && (
+                <div className="p-3.5 rounded-2xl bg-slate-900 border border-cyan-500/40 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-400">Select places to attach:</span>
+                    <span className="text-[10px] text-slate-400">Click Add to attach instantly</span>
+                  </div>
+
+                  {places.filter((p) => !selectedTripDetail.places?.some((tp) => (tp.place?.id || tp.placeId) === p.id)).length === 0 ? (
+                    <p className="text-xs text-slate-500 italic py-2">
+                      All your saved places are already added to this trip plan!
+                    </p>
+                  ) : (
+                    <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
+                      {places
+                        .filter((p) => !selectedTripDetail.places?.some((tp) => (tp.place?.id || tp.placeId) === p.id))
+                        .map((p) => (
+                          <div
+                            key={p.id}
+                            className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 hover:border-cyan-500/40 flex items-center justify-between gap-2"
+                          >
+                            <div className="min-w-0">
+                              <p className="text-xs font-bold text-white truncate">{p.name}</p>
+                              <p className="text-[10px] text-slate-400 truncate">{p.city || p.address || 'No address'}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleAddPlaceToTrip(p.id)}
+                              className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-[11px] shrink-0 transition cursor-pointer flex items-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Add</span>
+                            </button>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {(!selectedTripDetail.places || selectedTripDetail.places.length === 0) ? (
-                <p className="text-xs text-slate-500 italic p-3 bg-slate-900/40 rounded-xl">
-                  No places saved under this trip yet.
-                </p>
+                <div className="p-4 bg-slate-900/40 rounded-xl border border-slate-800 text-center space-y-2">
+                  <p className="text-xs text-slate-400">
+                    No places saved under this trip yet.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingPlacesToTrip(true)}
+                    className="text-xs text-cyan-400 font-bold hover:underline"
+                  >
+                    + Add your first place to this trip
+                  </button>
+                </div>
               ) : (
                 <div className="space-y-2">
-                  {selectedTripDetail.places.map((tp) => (
-                    <div
-                      key={tp.id}
-                      className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between gap-3"
-                    >
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-white truncate">{tp.place.name}</p>
-                        <p className="text-[11px] text-slate-400 truncate">{tp.place.address}</p>
-                      </div>
-                      <a
-                        href={tp.place.googleMapsUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-cyan-400 hover:text-cyan-300 p-1"
+                  {selectedTripDetail.places.map((tp) => {
+                    const placeId = tp.place?.id || tp.placeId;
+                    return (
+                      <div
+                        key={tp.id}
+                        className="p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 flex items-center justify-between gap-3 group"
                       >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    </div>
-                  ))}
+                        <div
+                          onClick={() => {
+                            if (placeId) navigate(`/places/${placeId}`);
+                          }}
+                          className="min-w-0 cursor-pointer flex-1"
+                        >
+                          <p className="text-xs font-bold text-white hover:text-cyan-300 transition truncate">
+                            {tp.place?.name}
+                          </p>
+                          <p className="text-[11px] text-slate-400 truncate">{tp.place?.address || tp.place?.city}</p>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {tp.place?.googleMapsUrl && (
+                            <a
+                              href={tp.place.googleMapsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-slate-400 hover:text-cyan-300 p-1.5 rounded-lg hover:bg-slate-800 transition"
+                              title="Open in Google Maps"
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (placeId) handleRemovePlaceFromTrip(placeId);
+                            }}
+                            className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition cursor-pointer"
+                            title="Remove from trip"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

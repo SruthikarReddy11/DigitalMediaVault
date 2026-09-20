@@ -14,8 +14,9 @@ import {
   AlertCircle,
   Check,
   Star,
+  Luggage,
 } from 'lucide-react';
-import { Place, PlaceStatus, UpdatePlaceInput } from '../../types';
+import { Place, PlaceStatus, UpdatePlaceInput, TripPlan } from '../../types';
 import { placesApi } from '../../services/placesApi';
 
 interface EditPlaceModalProps {
@@ -77,6 +78,19 @@ export const EditPlaceModal: React.FC<EditPlaceModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
+  // Trip Plan State
+  const [trips, setTrips] = useState<TripPlan[]>([]);
+  const initialTripId = place.tripPlans && place.tripPlans.length > 0
+    ? (place.tripPlans[0].tripPlan?.id || '')
+    : '';
+  const [selectedTripId, setSelectedTripId] = useState<string>(initialTripId);
+
+  useEffect(() => {
+    if (isOpen) {
+      placesApi.listTrips().then((data) => setTrips(data || [])).catch(console.error);
+    }
+  }, [isOpen]);
+
   // Reset form when place changes
   useEffect(() => {
     if (place) {
@@ -103,6 +117,10 @@ export const EditPlaceModal: React.FC<EditPlaceModalProps> = ({
       );
       setReminderTime(place.reminderTime || '09:00');
       setReminderOption(place.reminderOption || 'EXACT');
+      const tid = place.tripPlans && place.tripPlans.length > 0
+        ? (place.tripPlans[0].tripPlan?.id || '')
+        : '';
+      setSelectedTripId(tid);
       setError('');
     }
   }, [place]);
@@ -190,6 +208,7 @@ export const EditPlaceModal: React.FC<EditPlaceModalProps> = ({
         reminderDate: reminderDate ? new Date(`${reminderDate}T${reminderTime}:00`) : null,
         reminderTime: reminderDate ? reminderTime : null,
         reminderOption: reminderDate ? reminderOption : null,
+        tripPlanId: selectedTripId ? selectedTripId : null,
       };
 
       const updated = await placesApi.updatePlace(place.id, payload);
@@ -282,6 +301,25 @@ export const EditPlaceModal: React.FC<EditPlaceModalProps> = ({
                   {STATUS_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1.5">
+                  <Luggage className="w-3.5 h-3.5 text-pink-400" />
+                  <span>Trip Plan (Optional)</span>
+                </label>
+                <select
+                  value={selectedTripId}
+                  onChange={(e) => setSelectedTripId(e.target.value)}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/80 border border-slate-800 focus:border-cyan-500 text-sm text-white focus:outline-none transition cursor-pointer"
+                >
+                  <option value="">-- No Trip Plan --</option>
+                  {trips.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name} {t.destination ? `(${t.destination})` : ''}
                     </option>
                   ))}
                 </select>

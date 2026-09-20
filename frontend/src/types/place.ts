@@ -166,6 +166,7 @@ export interface TripPlan {
   };
   places?: {
     id: string;
+    placeId?: string;
     position: number;
     place: Place;
   }[];

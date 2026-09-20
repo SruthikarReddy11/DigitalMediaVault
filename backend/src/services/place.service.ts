@@ -230,6 +230,17 @@ export class PlaceService {
       calendarEventId = calEvent.id;
     }
 
+    // Validate optional Trip Plan
+    let validTripPlanId: string | null = null;
+    if (input.tripPlanId) {
+      const trip = await prisma.tripPlan.findFirst({
+        where: { id: input.tripPlanId, userId },
+      });
+      if (trip) {
+        validTripPlanId = trip.id;
+      }
+    }
+
     const place = await prisma.place.create({
       data: {
         userId,
@@ -275,9 +286,9 @@ export class PlaceService {
               ],
             }
           : undefined,
-        tripPlans: input.tripPlanId
+        tripPlans: validTripPlanId
           ? {
-              create: [{ tripPlanId: input.tripPlanId }],
+              create: [{ tripPlanId: validTripPlanId }],
             }
           : undefined,
       },
@@ -285,7 +296,7 @@ export class PlaceService {
         reminders: true,
         tripPlans: {
           include: {
-            tripPlan: { select: { id: true, name: true, color: true } },
+            tripPlan: { select: { id: true, name: true, color: true, destination: true } },
           },
         },
       },
@@ -536,6 +547,26 @@ export class PlaceService {
       }
     }
 
+    // Trip Plan Association update
+    if (input.tripPlanId !== undefined) {
+      await prisma.tripPlanPlace.deleteMany({ where: { placeId } });
+      if (input.tripPlanId && typeof input.tripPlanId === 'string' && input.tripPlanId.trim().length > 0) {
+        const trip = await prisma.tripPlan.findFirst({
+          where: { id: input.tripPlanId.trim(), userId },
+        });
+        if (trip) {
+          const count = await prisma.tripPlanPlace.count({ where: { tripPlanId: trip.id } });
+          await prisma.tripPlanPlace.create({
+            data: {
+              tripPlanId: trip.id,
+              placeId,
+              position: count,
+            },
+          });
+        }
+      }
+    }
+
     const updated = await prisma.place.update({
       where: { id: placeId },
       data: updateData,
@@ -543,7 +574,7 @@ export class PlaceService {
         reminders: true,
         tripPlans: {
           include: {
-            tripPlan: { select: { id: true, name: true, color: true } },
+            tripPlan: { select: { id: true, name: true, color: true, destination: true } },
           },
         },
       },
@@ -559,7 +590,10 @@ export class PlaceService {
       userAgent: meta?.userAgent,
     });
 
-    return updated;
+    return {
+      ...updated,
+      images: Array.isArray(updated.images) && updated.images.length > 0 ? updated.images : (updated.imageUrl ? [updated.imageUrl] : []),
+    };
   }
 
   /**

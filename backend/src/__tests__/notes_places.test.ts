@@ -280,5 +280,63 @@ describe('Secure Notes & Places/Plans Integration Tests', () => {
       expect(detailRes.body.data.notes.length).toBe(1);
       expect(detailRes.body.data.notes[0].note.title).toBe('My Project Ideas');
     });
+
+    it('should add a place to a trip plan via POST /api/trip-plans/:id/places', async () => {
+      // Create a second place
+      const placeRes = await request(app)
+        .post('/api/places')
+        .set('Cookie', userCookie)
+        .send({
+          name: 'Agra Fort',
+          address: 'Agra, Uttar Pradesh',
+          googleMapsUrl: 'https://maps.google.com/?q=Agra+Fort',
+          status: 'PLANNED',
+        });
+      expect(placeRes.status).toBe(201);
+      const secondPlaceId = placeRes.body.data.id;
+
+      // Add to trip
+      const addRes = await request(app)
+        .post(`/api/trip-plans/${testTripId}/places`)
+        .set('Cookie', userCookie)
+        .send({ placeId: secondPlaceId });
+
+      expect(addRes.status).toBe(200);
+      expect(addRes.body.data.places.length).toBe(2);
+      expect(addRes.body.data.places.some((p: any) => p.placeId === secondPlaceId)).toBe(true);
+
+      // Remove from trip
+      const removeRes = await request(app)
+        .delete(`/api/trip-plans/${testTripId}/places/${secondPlaceId}`)
+        .set('Cookie', userCookie);
+
+      expect(removeRes.status).toBe(200);
+      expect(removeRes.body.data.places.some((p: any) => p.placeId === secondPlaceId)).toBe(false);
+    });
+
+    it('should update place trip plan association via PUT /api/places/:id', async () => {
+      // Update place to link to testTripId
+      const updatePlaceRes = await request(app)
+        .put(`/api/places/${testPlaceId}`)
+        .set('Cookie', userCookie)
+        .send({
+          tripPlanId: testTripId,
+        });
+
+      expect(updatePlaceRes.status).toBe(200);
+      expect(updatePlaceRes.body.data.tripPlans.length).toBeGreaterThanOrEqual(1);
+      expect(updatePlaceRes.body.data.tripPlans[0].tripPlan.id).toBe(testTripId);
+
+      // Unlink place from trip plan
+      const unlinkRes = await request(app)
+        .put(`/api/places/${testPlaceId}`)
+        .set('Cookie', userCookie)
+        .send({
+          tripPlanId: null,
+        });
+
+      expect(unlinkRes.status).toBe(200);
+      expect(unlinkRes.body.data.tripPlans.length).toBe(0);
+    });
   });
 });

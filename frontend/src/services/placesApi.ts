@@ -109,4 +109,20 @@ export const placesApi = {
     const res = await api.delete(`/trip-plans/${id}`);
     return res.data.data;
   },
+
+  /**
+   * Add a place to a trip plan
+   */
+  addPlaceToTrip: async (tripId: string, placeId: string): Promise<TripPlan> => {
+    const res = await api.post(`/trip-plans/${tripId}/places`, { placeId });
+    return res.data.data;
+  },
+
+  /**
+   * Remove a place from a trip plan
+   */
+  removePlaceFromTrip: async (tripId: string, placeId: string): Promise<TripPlan> => {
+    const res = await api.delete(`/trip-plans/${tripId}/places/${placeId}`);
+    return res.data.data;
+  },
 };
