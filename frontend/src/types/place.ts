@@ -19,6 +19,9 @@ export interface PlaceReminder {
 export interface ResolvedPlaceData {
   placeId?: string | null;
   name: string;
+  description?: string | null;
+  bestTimeToVisit?: string | null;
+  price?: string | null;
   address?: string | null;
   city?: string | null;
   state?: string | null;
@@ -36,6 +39,7 @@ export interface ResolvedPlaceData {
     weekdayText?: string[];
   } | null;
   imageUrl?: string | null;
+  images?: string[];
   photoReference?: string | null;
   photoAttributions?: string[];
   isFallback?: boolean;
@@ -46,6 +50,10 @@ export interface Place {
   userId: string;
   placeId?: string | null;
   name: string;
+  description?: string | null;
+  bestTimeToVisit?: string | null;
+  price?: string | null;
+  images: string[];
   address?: string | null;
   city?: string | null;
   state?: string | null;
@@ -84,6 +92,10 @@ export interface Place {
 export interface CreatePlaceInput {
   googleMapsUrl: string;
   name?: string;
+  description?: string;
+  bestTimeToVisit?: string;
+  price?: string;
+  images?: string[];
   placeId?: string;
   address?: string;
   city?: string;
@@ -112,12 +124,17 @@ export interface CreatePlaceInput {
 
 export interface UpdatePlaceInput {
   name?: string;
-  address?: string;
-  city?: string;
-  state?: string;
-  country?: string;
-  category?: string;
-  notes?: string;
+  description?: string | null;
+  bestTimeToVisit?: string | null;
+  price?: string | null;
+  images?: string[];
+  imageUrl?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  category?: string | null;
+  notes?: string | null;
   tags?: string[];
   status?: PlaceStatus;
   reminderDate?: string | Date | null;

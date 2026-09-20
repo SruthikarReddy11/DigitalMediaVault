@@ -6,6 +6,10 @@ import { ActivityService } from './activity.service';
 export interface CreatePlaceInput {
   googleMapsUrl: string;
   name?: string;
+  description?: string;
+  bestTimeToVisit?: string;
+  price?: string;
+  images?: string[];
   placeId?: string;
   address?: string;
   city?: string;
@@ -34,6 +38,11 @@ export interface CreatePlaceInput {
 
 export interface UpdatePlaceInput {
   name?: string;
+  description?: string | null;
+  bestTimeToVisit?: string | null;
+  price?: string | null;
+  images?: string[];
+  imageUrl?: string | null;
   address?: string;
   city?: string;
   state?: string;
@@ -149,6 +158,22 @@ export class PlaceService {
     const photoReference = input.photoReference || placeData?.photoReference || null;
     const photoAttributions = input.photoAttributions || placeData?.photoAttributions || [];
 
+    const description = input.description !== undefined ? (input.description?.trim() || null) : (placeData?.description || null);
+    const bestTimeToVisit = input.bestTimeToVisit !== undefined ? (input.bestTimeToVisit?.trim() || null) : (placeData?.bestTimeToVisit || null);
+    const price = input.price !== undefined ? (input.price?.trim() || null) : (placeData?.price || null);
+
+    // Build images array
+    let images: string[] = [];
+    if (Array.isArray(input.images) && input.images.length > 0) {
+      images = input.images.filter((img) => typeof img === 'string' && img.trim().length > 0);
+    } else if (Array.isArray(placeData?.images) && placeData!.images.length > 0) {
+      images = [...placeData!.images];
+    }
+    if (imageUrl && !images.includes(imageUrl)) {
+      images.unshift(imageUrl);
+    }
+    const finalImageUrl = imageUrl || (images.length > 0 ? images[0] : null);
+
     // Safely sanitize status to prevent Prisma enum runtime crashes
     let status: PlaceStatus = PlaceStatus.WANT_TO_VISIT;
     const tags = Array.isArray(input.tags) ? [...input.tags] : [];
@@ -210,6 +235,10 @@ export class PlaceService {
         userId,
         placeId: input.placeId || placeData?.placeId || null,
         name,
+        description,
+        bestTimeToVisit,
+        price,
+        images,
         address,
         city,
         state,
@@ -223,7 +252,7 @@ export class PlaceService {
         phoneNumber,
         website,
         openingHours: openingHours ? openingHours : undefined,
-        imageUrl,
+        imageUrl: finalImageUrl,
         photoReference,
         photoAttributions,
         notes: input.notes?.trim() || null,
@@ -336,7 +365,10 @@ export class PlaceService {
       },
     });
 
-    return places;
+    return places.map((p) => ({
+      ...p,
+      images: Array.isArray(p.images) && p.images.length > 0 ? p.images : (p.imageUrl ? [p.imageUrl] : []),
+    }));
   }
 
   /**
@@ -404,7 +436,10 @@ export class PlaceService {
       throw err;
     }
 
-    return place;
+    return {
+      ...place,
+      images: Array.isArray(place.images) && place.images.length > 0 ? place.images : (place.imageUrl ? [place.imageUrl] : []),
+    };
   }
 
   /**
@@ -429,6 +464,9 @@ export class PlaceService {
 
     const updateData: any = {};
     if (input.name !== undefined) updateData.name = input.name.trim();
+    if (input.description !== undefined) updateData.description = input.description?.trim() || null;
+    if (input.bestTimeToVisit !== undefined) updateData.bestTimeToVisit = input.bestTimeToVisit?.trim() || null;
+    if (input.price !== undefined) updateData.price = input.price?.trim() || null;
     if (input.address !== undefined) updateData.address = input.address?.trim() || null;
     if (input.city !== undefined) updateData.city = input.city?.trim() || null;
     if (input.state !== undefined) updateData.state = input.state?.trim() || null;
@@ -436,6 +474,18 @@ export class PlaceService {
     if (input.category !== undefined) updateData.category = input.category?.trim() || null;
     if (input.notes !== undefined) updateData.notes = input.notes?.trim() || null;
     if (input.tags !== undefined) updateData.tags = input.tags;
+    if (input.images !== undefined) {
+      updateData.images = input.images.filter(img => typeof img === 'string' && img.trim().length > 0);
+      if (updateData.images.length > 0) {
+        updateData.imageUrl = updateData.images[0];
+      }
+    }
+    if (input.imageUrl !== undefined) {
+      updateData.imageUrl = input.imageUrl;
+      if (input.imageUrl && updateData.images && !updateData.images.includes(input.imageUrl)) {
+        updateData.images.unshift(input.imageUrl);
+      }
+    }
 
     if (input.status !== undefined) {
       const upper = String(input.status).toUpperCase();

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Compass,
   MapPin,
@@ -22,8 +23,13 @@ import {
   Share2,
   ChevronRight,
   Filter,
+  Upload,
+  DollarSign,
+  Sun,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { placesApi } from '../services/placesApi';
+import { EditPlaceModal } from '../components/places/EditPlaceModal';
 import {
   Place,
   PlaceStatus,
@@ -70,6 +76,7 @@ const STATUS_CONFIG: Record<
 };
 
 export const PlacesPage: React.FC = () => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'PLACES' | 'TRIPS'>('PLACES');
   const [places, setPlaces] = useState<Place[]>([]);
   const [trips, setTrips] = useState<TripPlan[]>([]);
@@ -86,6 +93,21 @@ export const PlacesPage: React.FC = () => {
   const [isResolving, setIsResolving] = useState(false);
   const [resolveError, setResolveError] = useState('');
   const [resolvedPreview, setResolvedPreview] = useState<ResolvedPlaceData | null>(null);
+
+  // Complete details for saving
+  const [saveName, setSaveName] = useState('');
+  const [saveDescription, setSaveDescription] = useState('');
+  const [saveBestTimeToVisit, setSaveBestTimeToVisit] = useState('');
+  const [savePrice, setSavePrice] = useState('');
+  const [saveCountry, setSaveCountry] = useState('');
+  const [saveState, setSaveState] = useState('');
+  const [saveCity, setSaveCity] = useState('');
+  const [saveAddress, setSaveAddress] = useState('');
+  const [saveCategory, setSaveCategory] = useState('');
+  const [saveImages, setSaveImages] = useState<string[]>([]);
+  const [saveNewImageUrl, setSaveNewImageUrl] = useState('');
+  const [saveImageError, setSaveImageError] = useState('');
+
   const [saveStatus, setSaveStatus] = useState<PlaceStatus>('WANT_TO_VISIT');
   const [saveNotes, setSaveNotes] = useState('');
   const [saveTags, setSaveTags] = useState<string[]>([]);
@@ -120,8 +142,6 @@ export const PlacesPage: React.FC = () => {
 
   // Edit Place Modal State
   const [editingPlace, setEditingPlace] = useState<Place | null>(null);
-  const [editNotes, setEditNotes] = useState('');
-  const [editStatus, setEditStatus] = useState<PlaceStatus>('WANT_TO_VISIT');
 
   const fetchPlaces = async () => {
     try {
@@ -162,11 +182,71 @@ export const PlacesPage: React.FC = () => {
       setResolveError('');
       const data = await placesApi.resolveUrl(inputUrl.trim());
       setResolvedPreview(data);
+      setSaveName(data.name || '');
+      setSaveDescription(data.description || '');
+      setSaveBestTimeToVisit(data.bestTimeToVisit || '');
+      setSavePrice(data.price || '');
+      setSaveCountry(data.country || '');
+      setSaveState(data.state || '');
+      setSaveCity(data.city || '');
+      setSaveAddress(data.address || '');
+      setSaveCategory(data.category || '');
+      const imgs = Array.isArray(data.images) && data.images.length > 0
+        ? [...data.images]
+        : data.imageUrl
+        ? [data.imageUrl]
+        : [];
+      setSaveImages(imgs);
+      setSaveNewImageUrl('');
+      setSaveImageError('');
     } catch (err: any) {
       setResolveError(err.response?.data?.error?.message || 'Could not resolve Google Maps place.');
     } finally {
       setIsResolving(false);
     }
+  };
+
+  const handleAddSaveImageUrl = () => {
+    const trimmed = saveNewImageUrl.trim();
+    if (!trimmed) return;
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && !trimmed.startsWith('/')) {
+      setSaveImageError('Please enter a valid URL (http:// or https://)');
+      return;
+    }
+    if (saveImages.includes(trimmed)) {
+      setSaveImageError('Image URL is already added.');
+      return;
+    }
+    setSaveImages((prev) => [...prev, trimmed]);
+    setSaveNewImageUrl('');
+    setSaveImageError('');
+  };
+
+  const handleSaveFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (loadEvt) => {
+      const result = loadEvt.target?.result as string;
+      if (result) {
+        setSaveImages((prev) => [...prev, result]);
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleRemoveSaveImage = (indexToRemove: number) => {
+    setSaveImages((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const handleSetSaveCover = (indexToCover: number) => {
+    if (indexToCover === 0) return;
+    setSaveImages((prev) => {
+      const item = prev[indexToCover];
+      const rest = prev.filter((_, idx) => idx !== indexToCover);
+      return [item, ...rest];
+    });
   };
 
   // Handle Save Place Confirmation
@@ -177,21 +257,25 @@ export const PlacesPage: React.FC = () => {
       setIsSaving(true);
       const payload: CreatePlaceInput = {
         googleMapsUrl: inputUrl.trim(),
-        name: resolvedPreview?.name,
+        name: saveName.trim() || resolvedPreview?.name || 'Saved Place',
+        description: saveDescription.trim() || undefined,
+        bestTimeToVisit: saveBestTimeToVisit.trim() || undefined,
+        price: savePrice.trim() || undefined,
+        images: saveImages,
         placeId: resolvedPreview?.placeId || undefined,
-        address: resolvedPreview?.address || undefined,
-        city: resolvedPreview?.city || undefined,
-        state: resolvedPreview?.state || undefined,
-        country: resolvedPreview?.country || undefined,
+        address: saveAddress.trim() || resolvedPreview?.address || undefined,
+        city: saveCity.trim() || resolvedPreview?.city || undefined,
+        state: saveState.trim() || resolvedPreview?.state || undefined,
+        country: saveCountry.trim() || resolvedPreview?.country || undefined,
         latitude: resolvedPreview?.latitude || undefined,
         longitude: resolvedPreview?.longitude || undefined,
-        category: resolvedPreview?.category || undefined,
+        category: saveCategory.trim() || resolvedPreview?.category || undefined,
         rating: resolvedPreview?.rating || undefined,
         userRatingsTotal: resolvedPreview?.userRatingsTotal || undefined,
         phoneNumber: resolvedPreview?.phoneNumber || undefined,
         website: resolvedPreview?.website || undefined,
         openingHours: resolvedPreview?.openingHours || undefined,
-        imageUrl: resolvedPreview?.imageUrl || undefined,
+        imageUrl: saveImages.length > 0 ? saveImages[0] : (resolvedPreview?.imageUrl || undefined),
         photoReference: resolvedPreview?.photoReference || undefined,
         photoAttributions: resolvedPreview?.photoAttributions || [],
         notes: saveNotes.trim() || undefined,
@@ -208,6 +292,16 @@ export const PlacesPage: React.FC = () => {
       setIsSaveModalOpen(false);
       setInputUrl('');
       setResolvedPreview(null);
+      setSaveName('');
+      setSaveDescription('');
+      setSaveBestTimeToVisit('');
+      setSavePrice('');
+      setSaveCountry('');
+      setSaveState('');
+      setSaveCity('');
+      setSaveAddress('');
+      setSaveCategory('');
+      setSaveImages([]);
       setSaveNotes('');
       setSaveTags([]);
       setSaveReminderDate('');
@@ -475,6 +569,16 @@ export const PlacesPage: React.FC = () => {
       {renderTripCreateModal()}
       {renderTripDetailDrawer()}
       {renderDeletePlaceModal()}
+
+      <EditPlaceModal
+        place={editingPlace}
+        isOpen={!!editingPlace}
+        onClose={() => setEditingPlace(null)}
+        onSuccess={(updated) => {
+          setPlaces((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+          setEditingPlace(null);
+        }}
+      />
     </div>
   );
 
@@ -488,7 +592,8 @@ export const PlacesPage: React.FC = () => {
     return (
       <div
         key={place.id}
-        className="rounded-3xl bg-slate-900/80 border border-slate-800/90 hover:border-slate-700 shadow-xl hover:shadow-cyan-500/5 transition-all duration-200 overflow-hidden flex flex-col justify-between group"
+        onClick={() => navigate(`/places/${place.id}`)}
+        className="rounded-3xl bg-slate-900/80 border border-slate-800/90 hover:border-cyan-500/40 shadow-xl hover:shadow-cyan-500/10 transition-all duration-200 overflow-hidden flex flex-col justify-between group cursor-pointer"
       >
         {/* Top: Place Image with Status Badge */}
         <div className="relative h-44 bg-slate-950 overflow-hidden">
@@ -564,6 +669,7 @@ export const PlacesPage: React.FC = () => {
               href={place.googleMapsUrl}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-400 hover:text-cyan-300 hover:underline pt-1"
             >
               <span>Open in Google Maps</span>
@@ -604,7 +710,8 @@ export const PlacesPage: React.FC = () => {
         {/* Card Actions Footer: [Set Reminder] [Edit] [Mark as Visited] */}
         <div className="px-4 py-3 border-t border-slate-800/80 bg-slate-950/40 flex items-center justify-between gap-1.5">
           <button
-            onClick={() => {
+            onClick={(e) => {
+              e.stopPropagation();
               setReminderModalPlace(place);
               setModalReminderDate(
                 place.reminderDate ? new Date(place.reminderDate).toISOString().split('T')[0] : ''
@@ -621,7 +728,10 @@ export const PlacesPage: React.FC = () => {
 
           {place.status !== 'VISITED' ? (
             <button
-              onClick={() => handleUpdateStatus(place.id, 'VISITED')}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleUpdateStatus(place.id, 'VISITED');
+              }}
               className="px-2.5 py-1.5 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-bold flex items-center gap-1 border border-emerald-500/30 transition cursor-pointer"
               title="Mark as Visited"
             >
@@ -637,19 +747,21 @@ export const PlacesPage: React.FC = () => {
 
           <div className="flex items-center gap-1">
             <button
-              onClick={() => {
+              onClick={(e) => {
+                e.stopPropagation();
                 setEditingPlace(place);
-                setEditNotes(place.notes || '');
-                setEditStatus(place.status);
               }}
               className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition"
-              title="Edit notes & status"
+              title="Edit place details"
             >
               <Edit3 className="w-3.5 h-3.5" />
             </button>
 
             <button
-              onClick={() => setDeletingPlace(place)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setDeletingPlace(place);
+              }}
               className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800 transition"
               title="Delete place"
             >
@@ -818,41 +930,216 @@ export const PlacesPage: React.FC = () => {
             )}
           </div>
 
-          {/* PREVIEW CARD */}
+          {/* PREVIEW & COMPLETE DETAILS FORM */}
           {resolvedPreview && (
-            <div className="rounded-2xl bg-slate-950 border border-cyan-500/30 p-4 space-y-3 animate-in fade-in duration-150">
-              <div className="flex items-start gap-3">
-                {resolvedPreview.imageUrl ? (
-                  <img
-                    src={resolvedPreview.imageUrl}
-                    alt={resolvedPreview.name}
-                    className="w-20 h-20 rounded-xl object-cover border border-slate-800 shrink-0"
+            <div className="rounded-2xl bg-slate-950 border border-cyan-500/30 p-5 space-y-4 animate-in fade-in duration-150 max-h-[65vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800">
+              {/* Place Name & Category */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                    Place Name <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={saveName}
+                    onChange={(e) => setSaveName(e.target.value)}
+                    placeholder="Place name"
+                    className="w-full px-3.5 py-2 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl text-xs text-white focus:outline-none"
                   />
-                ) : (
-                  <div className="w-20 h-20 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-600 shrink-0">
-                    <MapPin className="w-8 h-8 opacity-50" />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1">Category</label>
+                  <input
+                    type="text"
+                    value={saveCategory}
+                    onChange={(e) => setSaveCategory(e.target.value)}
+                    placeholder="e.g. Landmark, Beach"
+                    className="w-full px-3.5 py-2 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Best Time to Visit & Price */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center gap-1">
+                    <Sun className="w-3 h-3 text-amber-400" />
+                    <span>Best Time to Visit</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={saveBestTimeToVisit}
+                    onChange={(e) => setSaveBestTimeToVisit(e.target.value)}
+                    placeholder="e.g. October to March, Winter"
+                    className="w-full px-3.5 py-2 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-300 mb-1 flex items-center gap-1">
+                    <DollarSign className="w-3 h-3 text-emerald-400" />
+                    <span>Price / Entry Fee / Budget</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={savePrice}
+                    onChange={(e) => setSavePrice(e.target.value)}
+                    placeholder="e.g. ₹500 / person, Free, $25"
+                    className="w-full px-3.5 py-2 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-300 mb-1">
+                  Place Description
+                </label>
+                <textarea
+                  rows={2}
+                  value={saveDescription}
+                  onChange={(e) => setSaveDescription(e.target.value)}
+                  placeholder="Describe highlights, history, sightseeing tips..."
+                  className="w-full p-2.5 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl text-xs text-white focus:outline-none resize-none"
+                />
+              </div>
+
+              {/* Country, State, City */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 mb-1">City</label>
+                  <input
+                    type="text"
+                    value={saveCity}
+                    onChange={(e) => setSaveCity(e.target.value)}
+                    placeholder="e.g. Agra"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 mb-1">State</label>
+                  <input
+                    type="text"
+                    value={saveState}
+                    onChange={(e) => setSaveState(e.target.value)}
+                    placeholder="e.g. Uttar Pradesh"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-400 mb-1">Country</label>
+                  <input
+                    type="text"
+                    value={saveCountry}
+                    onChange={(e) => setSaveCountry(e.target.value)}
+                    placeholder="e.g. India"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-400 mb-1">Full Address</label>
+                <input
+                  type="text"
+                  value={saveAddress}
+                  onChange={(e) => setSaveAddress(e.target.value)}
+                  placeholder="Full street address..."
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl text-xs text-white focus:outline-none"
+                />
+              </div>
+
+              {/* Multiple Images Gallery */}
+              <div className="pt-2 border-t border-slate-900 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-bold text-cyan-400 flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5" />
+                    <span>Multiple Photos & Gallery ({saveImages.length})</span>
+                  </label>
+                  <span className="text-[10px] text-slate-400">First image is used as cover</span>
+                </div>
+
+                {/* Thumbnails */}
+                {saveImages.length > 0 && (
+                  <div className="flex items-center gap-2 overflow-x-auto py-1">
+                    {saveImages.map((img, idx) => (
+                      <div
+                        key={idx}
+                        className={`relative w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 group bg-slate-900 ${
+                          idx === 0 ? 'border-cyan-500' : 'border-slate-800'
+                        }`}
+                      >
+                        <img src={img} alt="Thumb" className="w-full h-full object-cover" />
+                        {idx === 0 && (
+                          <span className="absolute top-0.5 left-0.5 bg-cyan-500 text-slate-950 text-[8px] font-extrabold px-1 rounded">
+                            COVER
+                          </span>
+                        )}
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center gap-1">
+                          {idx !== 0 && (
+                            <button
+                              type="button"
+                              onClick={() => handleSetSaveCover(idx)}
+                              className="p-1 rounded bg-cyan-600 text-white text-[9px] font-bold"
+                              title="Set as cover"
+                            >
+                              Cover
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveSaveImage(idx)}
+                            className="p-1 rounded bg-rose-600 text-white hover:bg-rose-500"
+                            title="Remove image"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
 
-                <div className="min-w-0 flex-1 space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold text-cyan-400 uppercase tracking-wider">
-                      {resolvedPreview.category || 'Place'}
-                    </span>
-                    {resolvedPreview.rating && (
-                      <span className="text-[11px] font-bold text-amber-300 flex items-center gap-0.5">
-                        <Star className="w-3 h-3 fill-amber-400 text-amber-400" />
-                        <span>{resolvedPreview.rating}</span>
-                      </span>
-                    )}
-                  </div>
-                  <h4 className="text-sm font-bold text-white truncate">
-                    {resolvedPreview.name}
-                  </h4>
-                  <p className="text-xs text-slate-400 line-clamp-2">
-                    {resolvedPreview.address || 'Address detected'}
-                  </p>
+                {/* Add Image Inputs */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={saveNewImageUrl}
+                    onChange={(e) => {
+                      setSaveNewImageUrl(e.target.value);
+                      setSaveImageError('');
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddSaveImageUrl();
+                      }
+                    }}
+                    placeholder="Paste another image URL (https://...)"
+                    className="flex-1 px-3 py-1.5 bg-slate-900 border border-slate-800 focus:border-cyan-500 rounded-xl text-xs text-white focus:outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddSaveImageUrl}
+                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-cyan-300 text-xs font-bold rounded-xl transition flex items-center gap-1"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Add URL</span>
+                  </button>
+                  <label className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl transition flex items-center gap-1 cursor-pointer shrink-0">
+                    <Upload className="w-3 h-3 text-pink-400" />
+                    <span>Upload</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleSaveFileUpload}
+                      className="hidden"
+                    />
+                  </label>
                 </div>
+                {saveImageError && (
+                  <p className="text-[11px] text-rose-400">{saveImageError}</p>
+                )}
               </div>
 
               {/* Status, Trip, Reminder Configuration */}
@@ -863,7 +1150,7 @@ export const PlacesPage: React.FC = () => {
                   <select
                     value={saveStatus}
                     onChange={(e: any) => setSaveStatus(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none cursor-pointer"
                   >
                     <option value="WANT_TO_VISIT">Want to Visit</option>
                     <option value="PLANNED">Planned</option>
@@ -880,7 +1167,7 @@ export const PlacesPage: React.FC = () => {
                   <select
                     value={selectedTripId}
                     onChange={(e) => setSelectedTripId(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none cursor-pointer"
                   >
                     <option value="">-- None --</option>
                     {trips.map((t) => (
@@ -900,7 +1187,7 @@ export const PlacesPage: React.FC = () => {
                     type="date"
                     value={saveReminderDate}
                     onChange={(e) => setSaveReminderDate(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                    className="w-full px-3 py-1.5 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none cursor-pointer"
                   />
                 </div>
 
@@ -912,7 +1199,7 @@ export const PlacesPage: React.FC = () => {
                   <select
                     value={saveReminderOption}
                     onChange={(e) => setSaveReminderOption(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
+                    className="w-full px-3 py-2 bg-slate-900 border border-slate-800 rounded-xl text-xs text-white focus:outline-none cursor-pointer"
                   >
                     <option value="EXACT">Exact date & time</option>
                     <option value="ONE_DAY_BEFORE">1 day before</option>
@@ -941,7 +1228,7 @@ export const PlacesPage: React.FC = () => {
                 type="button"
                 onClick={handleConfirmSavePlace}
                 disabled={isSaving}
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-cyan-500/25 transition flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-bold text-xs shadow-lg shadow-cyan-500/25 transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
                 {isSaving ? (
                   <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

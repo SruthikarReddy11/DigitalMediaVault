@@ -17,7 +17,6 @@ import {
   Eye,
   KeyRound,
   User as UserIcon,
-  Radio,
 } from 'lucide-react';
 import { filesApi } from '../services/filesApi';
 import { DashboardStats, FileItem } from '../types';
@@ -160,34 +159,6 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* Cricket Live Match Quick Access Banner */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-slate-900 via-rose-950/30 to-slate-900 border border-rose-500/30 p-4 sm:p-5 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-rose-500/20 border border-rose-500/40 flex items-center justify-center text-rose-400 shrink-0 shadow-lg shadow-rose-500/20">
-            <Radio className="w-6 h-6 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-full bg-rose-500/25 text-rose-300 border border-rose-500/40 text-[10px] font-black tracking-wider uppercase flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
-                <span>LIVE NOW</span>
-              </span>
-              <span className="text-xs font-bold text-slate-200">Cricket Live Arena</span>
-            </div>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Watch live cricket tournament feeds or paste any match stream iframe to broadcast live!
-            </p>
-          </div>
-        </div>
-
-        <Link
-          to="/cricket-live"
-          className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-2xl bg-gradient-to-r from-rose-600 to-pink-600 hover:from-rose-500 hover:to-pink-500 text-white text-xs sm:text-sm font-bold shadow-lg shadow-rose-600/30 transition-all cursor-pointer active:scale-95 shrink-0"
-        >
-          <Play className="w-3.5 h-3.5 fill-white" />
-          <span>Watch Live Match</span>
-        </Link>
-      </div>
 
       {/* Media Type Quick Category Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3.5 sm:gap-4">

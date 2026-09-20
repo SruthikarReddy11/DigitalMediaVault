@@ -1,6 +1,9 @@
 export interface ResolvedPlaceData {
   placeId?: string | null;
   name: string;
+  description?: string | null;
+  bestTimeToVisit?: string | null;
+  price?: string | null;
   address?: string | null;
   city?: string | null;
   state?: string | null;
@@ -18,6 +21,7 @@ export interface ResolvedPlaceData {
     weekdayText?: string[];
   } | null;
   imageUrl?: string | null;
+  images?: string[];
   photoReference?: string | null;
   photoAttributions?: string[];
   isFallback?: boolean;
@@ -220,16 +224,23 @@ export class GooglePlacesService {
               }
             }
 
-            // Extract first photo & attributions
+            // Extract photos & attributions
             let photoReference: string | null = null;
             let photoAttributions: string[] = [];
             let imageUrl: string | null = null;
+            const images: string[] = [];
 
             if (Array.isArray(r.photos) && r.photos.length > 0) {
               const firstPhoto = r.photos[0];
               photoReference = firstPhoto.photo_reference;
               photoAttributions = firstPhoto.html_attributions || [];
               imageUrl = `/api/places/photo?ref=${encodeURIComponent(photoReference!)}`;
+
+              for (const photo of r.photos.slice(0, 10)) {
+                if (photo.photo_reference) {
+                  images.push(`/api/places/photo?ref=${encodeURIComponent(photo.photo_reference)}`);
+                }
+              }
             }
 
             // Opening hours
@@ -244,6 +255,9 @@ export class GooglePlacesService {
             return {
               placeId: r.place_id || placeId,
               name: r.name || meta.placeName || 'Saved Place',
+              description: null,
+              bestTimeToVisit: null,
+              price: null,
               address: r.formatted_address || null,
               city,
               state,
@@ -258,6 +272,7 @@ export class GooglePlacesService {
               website: r.website || null,
               openingHours,
               imageUrl,
+              images,
               photoReference,
               photoAttributions,
               isFallback: false,
@@ -273,6 +288,9 @@ export class GooglePlacesService {
     return {
       placeId: meta.placeId || null,
       name: meta.placeName || meta.searchQuery || 'Saved Place',
+      description: null,
+      bestTimeToVisit: null,
+      price: null,
       address: meta.placeName ? `${meta.placeName}` : null,
       latitude: meta.coordinates?.lat || null,
       longitude: meta.coordinates?.lng || null,
@@ -284,6 +302,7 @@ export class GooglePlacesService {
       website: null,
       openingHours: null,
       imageUrl: null,
+      images: [],
       photoReference: null,
       photoAttributions: [],
       isFallback: true,

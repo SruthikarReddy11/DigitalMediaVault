@@ -731,6 +731,10 @@ model Place {
   userId            String
   placeId           String?          // Google Place ID (ChIJ...)
   name              String
+  description       String?
+  bestTimeToVisit   String?
+  price             String?
+  images            String[]         @default([])
   address           String?
   city              String?
   state             String?
