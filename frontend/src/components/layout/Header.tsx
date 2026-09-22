@@ -5,8 +5,6 @@ import {
   Search,
   ArrowLeft,
   UploadCloud,
-  Moon,
-  Sun,
   LogOut,
   User as UserIcon,
   Settings,
@@ -33,7 +31,6 @@ import {
   WifiOff,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { useTheme } from '../../contexts/ThemeContext';
 import { useAudioPlayer } from '../../contexts/AudioPlayerContext';
 import { getMediaUrl } from '../../services/api';
 import { searchApi } from '../../services/searchApi';
@@ -71,7 +68,6 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload }) => {
   const { user, logout, isAdmin } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -440,19 +436,6 @@ export const Header: React.FC<HeaderProps> = ({ onToggleSidebar, onOpenUpload })
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/25 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-700 pointer-events-none" />
               <UploadCloud className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]" />
               <span className="hidden sm:inline tracking-wide drop-shadow-[0_1px_2px_rgba(0,0,0,0.5)]">Upload</span>
-            </button>
-
-            {/* Theme Toggle Button */}
-            <button
-              onClick={toggleTheme}
-              className="p-2 text-slate-400 hover:text-white bg-slate-900/80 border border-white/[0.08] hover:border-cyan-500/40 rounded-2xl transition cursor-pointer shadow-sm hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] active:scale-95"
-              aria-label="Toggle Theme"
-            >
-              {theme === 'dark' ? (
-                <Sun className="w-4 h-4 text-amber-400" />
-              ) : (
-                <Moon className="w-4 h-4 text-indigo-400" />
-              )}
             </button>
 
             {/* Calendar & Smart Reminders Bell */}

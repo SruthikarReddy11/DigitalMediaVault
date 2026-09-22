@@ -258,7 +258,7 @@ export const ForgotPassword: React.FC = () => {
                       setIdentifier(e.target.value);
                       if (errorMessage) setErrorMessage(null);
                     }}
-                    placeholder="e.g. sruthikar or your.email@example.com"
+                    placeholder="e.g. username or your.email@example.com"
                     className="w-full bg-slate-950 border border-slate-800 focus:border-brand-500 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-200 focus:outline-none transition"
                   />
                 </div>
