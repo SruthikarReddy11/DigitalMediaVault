@@ -130,10 +130,8 @@ export const Register: React.FC = () => {
     const uname = registeredData.user.username;
     const uemail = registeredData.user.email;
     const uid = registeredData.user.id;
-    const origin = window.location.origin;
 
     const qrImageUrl = `${getApiBaseUrl()}/auth/registration-qr/${uid}`;
-    const oneClickActivateUrl = `${origin}/admin?activate_user=${uid}`;
 
     const subject = encodeURIComponent(`Vault Account Registration Approval - @${uname}`);
     const body = encodeURIComponent(
@@ -149,9 +147,8 @@ export const Register: React.FC = () => {
       `REGISTRATION QR CODE & ACTIVATION\n` +
       `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
       `📷 Direct Registration QR Image Link:\n${qrImageUrl}\n\n` +
-      `⚡ Quick 1-Click Admin Activation Link:\n${oneClickActivateUrl}\n\n` +
-      `📋 QR Code Status: The QR code image is copied to my clipboard (Press Ctrl+V to paste here) or available via the direct link above.\n\n` +
-      `Please upload or scan the QR code (or click the quick activation link) to approve my account.\n\n` +
+      `📋 QR Code Status: My registration QR code image is attached / copied to my clipboard (Press Ctrl+V to paste here).\n\n` +
+      `Please upload or scan this QR code in the Admin Console to approve and activate my account.\n\n` +
       `Thank you!`
     );
     return { subject, body };
@@ -323,7 +320,7 @@ export const Register: React.FC = () => {
                         to paste your QR code image.
                       </p>
                       <p className="text-[10px] text-slate-400">
-                        The email draft also contains direct QR code links and a 1-click approval button for the Admin.
+                        The email draft includes your direct QR code image link for Admin verification.
                       </p>
                     </div>
                   </div>
