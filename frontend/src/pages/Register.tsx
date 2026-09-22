@@ -83,53 +83,53 @@ export const Register: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const getMailDraftContent = () => {
+    if (!registeredData) return { subject: '', body: '' };
+    const uname = registeredData.user.username;
+    const uemail = registeredData.user.email;
+    const uid = registeredData.user.id;
+
+    const subject = encodeURIComponent(`Vault Account Registration Approval - @${uname}`);
+    const body = encodeURIComponent(
+      `Hello Admin,\n\nI have registered for an account on the Digital Media Vault.\n\n` +
+      `Account Registration Details:\n` +
+      `- Username: ${uname}\n` +
+      `- Email: ${uemail}\n` +
+      `- User ID: ${uid}\n\n` +
+      `I have attached my registration QR code image (saved in Downloads as vault-registration-${uname}.png).\n\n` +
+      `Please upload or scan this QR code in the Admin Console to approve and activate my account.\n\n` +
+      `Thank you!`
+    );
+    return { subject, body };
+  };
+
   const handleSendToAdmin = () => {
     if (!registeredData) return;
 
-    // 1. Download QR Code automatically so user can attach it
+    // 1. Automatically download QR Code image so user has it ready to attach
     downloadQrImage();
 
-    // 2. Draft email via mailto
-    const uname = registeredData.user.username;
-    const uemail = registeredData.user.email;
-    const uid = registeredData.user.id;
-
-    const subject = encodeURIComponent(`Vault Account Registration Approval - @${uname}`);
-    const body = encodeURIComponent(
-      `Hello Admin,\n\nI have registered for an account on the Digital Media Vault.\n\n` +
-      `Account Registration Details:\n` +
-      `- Username: ${uname}\n` +
-      `- Email: ${uemail}\n` +
-      `- User ID: ${uid}\n\n` +
-      `I have attached my registration QR code image (saved in Downloads as vault-registration-${uname}.png).\n\n` +
-      `Please upload or scan this QR code in the Admin Console to approve and activate my account.\n\n` +
-      `Thank you!`
-    );
-
-    window.open(`mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`, '_blank');
+    // 2. Open Gmail compose draft directly in browser (guaranteed to open mail draft in Chrome)
+    const { subject, body } = getMailDraftContent();
+    const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${ADMIN_EMAIL}&su=${subject}&body=${body}`;
+    window.open(gmailUrl, '_blank');
+    success('QR code downloaded & email draft opened!');
   };
 
-  const handleOpenGmailWeb = () => {
+  const handleOpenDefaultMailApp = () => {
     if (!registeredData) return;
     downloadQrImage();
 
-    const uname = registeredData.user.username;
-    const uemail = registeredData.user.email;
-    const uid = registeredData.user.id;
+    const { subject, body } = getMailDraftContent();
+    const mailtoUrl = `mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`;
 
-    const subject = encodeURIComponent(`Vault Account Registration Approval - @${uname}`);
-    const body = encodeURIComponent(
-      `Hello Admin,\n\nI have registered for an account on the Digital Media Vault.\n\n` +
-      `Account Registration Details:\n` +
-      `- Username: ${uname}\n` +
-      `- Email: ${uemail}\n` +
-      `- User ID: ${uid}\n\n` +
-      `I have attached my registration QR code image (saved in Downloads as vault-registration-${uname}.png).\n\n` +
-      `Please upload or scan this QR code in the Admin Console to approve and activate my account.\n\n` +
-      `Thank you!`
-    );
-
-    window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${ADMIN_EMAIL}&su=${subject}&body=${body}`, '_blank');
+    // Target _self prevents Chrome from opening an empty blank browser tab
+    const link = document.createElement('a');
+    link.href = mailtoUrl;
+    link.target = '_self';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleCopyAdminEmail = () => {
@@ -234,12 +234,12 @@ export const Register: React.FC = () => {
               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-white/[0.06]">
                 <button
                   type="button"
-                  onClick={handleOpenGmailWeb}
+                  onClick={handleOpenDefaultMailApp}
                   className="flex items-center justify-center gap-1.5 py-2 px-3 bg-slate-800/80 hover:bg-slate-700/80 text-xs font-semibold text-slate-200 rounded-xl transition border border-white/[0.08] cursor-pointer"
-                  title="Open Gmail Web"
+                  title="Open Default Desktop or Mobile Mail App"
                 >
-                  <ExternalLink className="w-3.5 h-3.5 text-cyan-400" />
-                  <span>Open in Gmail</span>
+                  <Mail className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>Default Mail App</span>
                 </button>
 
                 <button

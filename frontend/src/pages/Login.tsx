@@ -73,7 +73,7 @@ export const Login: React.FC = () => {
                 </p>
                 <div className="pt-1">
                   <a
-                    href="mailto:sruthikarreddy11@gmail.com?subject=Vault%20Account%20Registration%20Approval%20Inquiry"
+                    href="https://mail.google.com/mail/?view=cm&fs=1&to=sruthikarreddy11@gmail.com&su=Vault%20Account%20Registration%20Approval%20Inquiry"
                     target="_blank"
                     rel="noreferrer"
                     className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-400 hover:text-cyan-300 underline"
