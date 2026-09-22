@@ -51,4 +51,28 @@ export const adminApi = {
     });
     return res.data.data;
   },
+
+  async previewQr(qrData: string) {
+    const res = await api.post<{
+      success: boolean;
+      data: {
+        user: { id: string; name: string; username: string; email: string; role: Role; isActive: boolean; createdAt: string };
+        isPending: boolean;
+        message: string;
+      };
+    }>('/admin/preview-qr', { qrData });
+    return res.data.data;
+  },
+
+  async activateUserFromQr(qrData: string) {
+    const res = await api.post<{
+      success: boolean;
+      data: {
+        user: { id: string; name: string; username: string; email: string; role: Role; isActive: boolean; createdAt: string };
+        alreadyActive: boolean;
+        message: string;
+      };
+    }>('/admin/activate-qr', { qrData });
+    return res.data.data;
+  },
 };

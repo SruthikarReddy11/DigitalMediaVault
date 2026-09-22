@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { User } from '../types';
-import { authApi } from '../services/authApi';
+import { authApi, RegisterResponse } from '../services/authApi';
 
 interface AuthContextType {
   user: User | null;
@@ -9,11 +9,11 @@ interface AuthContextType {
   isAdmin: boolean;
   login: (data: { identifier: string; password: string }) => Promise<void>;
   register: (data: {
-    name: string;
     username: string;
     email: string;
     password: string;
     confirmPassword: string;
+    name?: string;
     mobileNumber?: string | null;
     gender?: string | null;
     dob?: string | null;
@@ -23,7 +23,7 @@ interface AuthContextType {
     village?: string | null;
     pincode?: string | null;
     occupation?: string | null;
-  }) => Promise<{ user: User; token: string; securityPin?: string }>;
+  }) => Promise<RegisterResponse>;
   logout: () => Promise<void>;
   updateUser: (user: User) => void;
   refreshUser: () => Promise<User | null>;
@@ -96,7 +96,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const register = async (data: {
-    name: string;
+    name?: string | null;
     username: string;
     email: string;
     password: string;
@@ -116,9 +116,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const res = await authApi.register(data);
       if (res.token) {
         localStorage.setItem('pdl_auth_token', res.token);
+        setUser(res.user);
+        saveUserToCache(res.user);
       }
-      setUser(res.user);
-      saveUserToCache(res.user);
       return res;
     } finally {
       setIsLoading(false);

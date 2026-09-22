@@ -13,3 +13,8 @@ export const adminUserQuerySchema = z.object({
   page: z.string().regex(/^\d+$/).transform(Number).optional().default('1'),
   limit: z.string().regex(/^\d+$/).transform(Number).optional().default('20'),
 });
+
+export const qrActivationSchema = z.object({
+  qrData: z.string().min(1, 'QR code data is required'),
+});
+

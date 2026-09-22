@@ -151,4 +151,30 @@ export class AdminController {
       next(err);
     }
   }
+
+  public static async previewQr(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { qrData } = req.body;
+      const result = await AdminService.previewQrDetails(qrData);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async activateQr(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const { qrData } = req.body;
+      const result = await AdminService.activateUserFromQr(qrData, req.user!.id);
+      res.json({
+        success: true,
+        data: result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
 }

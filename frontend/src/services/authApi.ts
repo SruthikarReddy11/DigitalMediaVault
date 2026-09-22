@@ -16,13 +16,22 @@ export interface UserSession {
   expiresAt: string;
 }
 
+export interface RegisterResponse {
+  user: User;
+  token?: string;
+  securityPin?: string;
+  status?: 'ACTIVE' | 'PENDING_ADMIN_APPROVAL';
+  qrCodeUrl?: string;
+  qrPayload?: string;
+}
+
 export const authApi = {
   async register(data: {
-    name: string;
     username: string;
     email: string;
     password: string;
     confirmPassword: string;
+    name?: string | null;
     mobileNumber?: string | null;
     gender?: string | null;
     dob?: string | null;
@@ -32,8 +41,8 @@ export const authApi = {
     village?: string | null;
     pincode?: string | null;
     occupation?: string | null;
-  }) {
-    const res = await api.post<{ success: boolean; data: { user: User; token: string; securityPin?: string } }>('/auth/register', data);
+  }): Promise<RegisterResponse> {
+    const res = await api.post<{ success: boolean; data: RegisterResponse }>('/auth/register', data);
     return res.data.data;
   },
 

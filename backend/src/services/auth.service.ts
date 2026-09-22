@@ -13,6 +13,8 @@ import { ActivityService } from './activity.service';
 import { StorageFactory } from '../storage/StorageFactory';
 import { parseUserAgent, formatIpLocation } from '../utils/deviceParser';
 import path from 'path';
+import QRCode from 'qrcode';
+import crypto from 'crypto';
 
 /**
  * Normalizes phone numbers to clean 10 digits (stripping non-digits, country code +91/91, and leading zeros)
@@ -53,7 +55,7 @@ export function normalizeDateOnly(date: Date | string | null | undefined): strin
 }
 
 export interface RegisterDto {
-  name: string;
+  name?: string | null;
   username: string;
   email: string;
   password: string;
@@ -76,6 +78,66 @@ export interface LoginDto {
 export class AuthService {
   public static generateSecurityPin(): string {
     return Math.floor(1000 + Math.random() * 9000).toString();
+  }
+
+  public static createRegistrationQrPayload(user: { id: string; username: string; email: string; createdAt: Date }) {
+    const rawData = `${user.id}:${user.username.toLowerCase()}:${user.email.toLowerCase()}:${user.createdAt.getTime()}`;
+    const signature = crypto
+      .createHmac('sha256', config.session.secret || 'vault-secret-key-salt')
+      .update(rawData)
+      .digest('hex');
+
+    return JSON.stringify({
+      type: 'VAULT_ACCOUNT_REGISTRATION',
+      version: 1,
+      userId: user.id,
+      username: user.username,
+      email: user.email,
+      timestamp: user.createdAt.getTime(),
+      signature,
+    });
+  }
+
+  public static verifyRegistrationQrPayload(payloadStr: string): { userId: string; username: string; email: string } {
+    let parsed: any;
+    try {
+      parsed = JSON.parse(payloadStr);
+    } catch {
+      const err: any = new Error('Invalid QR code format. Content is not valid JSON.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    if (
+      !parsed ||
+      parsed.type !== 'VAULT_ACCOUNT_REGISTRATION' ||
+      !parsed.userId ||
+      !parsed.username ||
+      !parsed.email ||
+      !parsed.signature
+    ) {
+      const err: any = new Error('Invalid QR code data structure.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    const rawData = `${parsed.userId}:${parsed.username.toLowerCase()}:${parsed.email.toLowerCase()}:${parsed.timestamp}`;
+    const expectedSig = crypto
+      .createHmac('sha256', config.session.secret || 'vault-secret-key-salt')
+      .update(rawData)
+      .digest('hex');
+
+    if (parsed.signature !== expectedSig) {
+      const err: any = new Error('QR code signature verification failed or data has been altered.');
+      err.statusCode = 400;
+      throw err;
+    }
+
+    return {
+      userId: parsed.userId,
+      username: parsed.username,
+      email: parsed.email,
+    };
   }
 
   public static formatUser(user: {
@@ -137,7 +199,15 @@ export class AuthService {
   public static async register(
     data: RegisterDto,
     meta?: { ip?: string; userAgent?: string }
-  ): Promise<{ user: AuthUser; token: string; expiresAt: Date; securityPin: string }> {
+  ): Promise<{
+    user: AuthUser;
+    token?: string;
+    expiresAt?: Date;
+    securityPin: string;
+    status: 'ACTIVE' | 'PENDING_ADMIN_APPROVAL';
+    qrCodeUrl: string;
+    qrPayload: string;
+  }> {
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
@@ -162,21 +232,23 @@ export class AuthService {
 
     const passwordHash = await hashPassword(data.password);
 
-    // If first user, make ADMIN, otherwise USER
+    // If first user, make ADMIN and auto-activate; otherwise USER requiring admin QR activation
     const userCount = await prisma.user.count();
     const role = userCount === 0 ? 'ADMIN' : 'USER';
+    const isActive = userCount === 0;
     const securityPin = this.generateSecurityPin();
+    const displayName = (data.name && data.name.trim()) ? data.name.trim() : data.username.trim();
 
     const user = await prisma.user.create({
       data: {
-        name: data.name.trim(),
+        name: displayName,
         username: data.username.toLowerCase().trim(),
         email: data.email.toLowerCase().trim(),
         passwordHash,
         securityPin,
         role,
-        isActive: true,
-        lastLoginAt: new Date(),
+        isActive,
+        lastLoginAt: isActive ? new Date() : null,
         mobileNumber: data.mobileNumber?.trim() || null,
         gender: data.gender?.trim() || null,
         dob: data.dob ? new Date(data.dob) : null,
@@ -196,6 +268,7 @@ export class AuthService {
         securityPin: true,
         role: true,
         isActive: true,
+        createdAt: true,
         mobileNumber: true,
         gender: true,
         dob: true,
@@ -208,7 +281,23 @@ export class AuthService {
       },
     });
 
-    const { token, expiresAt } = await this.createSession(user.id, meta);
+    // Generate tamper-evident QR code containing the registration payload
+    const qrPayload = this.createRegistrationQrPayload({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      createdAt: user.createdAt,
+    });
+
+    const qrCodeUrl = await QRCode.toDataURL(qrPayload, {
+      width: 400,
+      margin: 2,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff',
+      },
+      errorCorrectionLevel: 'H',
+    });
 
     await ActivityService.log({
       userId: user.id,
@@ -220,23 +309,34 @@ export class AuthService {
         username: user.username,
         email: user.email,
         role: user.role,
-        mobileNumber: user.mobileNumber || null,
-        gender: user.gender || null,
-        dob: user.dob ? user.dob.toISOString().split('T')[0] : null,
-        country: user.country || null,
-        state: user.state || null,
-        district: user.district || null,
-        village: user.village || null,
-        pincode: user.pincode || null,
-        occupation: user.occupation || null,
+        isActive: user.isActive,
         securityPinAssigned: !!securityPin,
-        registeredAt: new Date().toISOString(),
+        registeredAt: user.createdAt.toISOString(),
       },
       ipAddress: meta?.ip,
       userAgent: meta?.userAgent,
     });
 
-    return { user: this.formatUser(user), token, expiresAt, securityPin };
+    if (isActive) {
+      const { token, expiresAt } = await this.createSession(user.id, meta);
+      return {
+        user: this.formatUser(user),
+        token,
+        expiresAt,
+        securityPin,
+        status: 'ACTIVE',
+        qrCodeUrl,
+        qrPayload,
+      };
+    }
+
+    return {
+      user: this.formatUser(user),
+      securityPin,
+      status: 'PENDING_ADMIN_APPROVAL',
+      qrCodeUrl,
+      qrPayload,
+    };
   }
 
   public static async regeneratePin(userId: string): Promise<string> {
@@ -295,15 +395,17 @@ export class AuthService {
         resourceId: user.id,
         metadata: {
           attemptedIdentifier: identifier,
-          reason: 'Account is disabled',
+          reason: 'Account is pending admin approval',
         },
         ipAddress: meta?.ip,
         userAgent: meta?.userAgent,
       });
 
-      const err: any = new Error('Account is disabled. Please contact an administrator.');
+      const err: any = new Error(
+        'Your account is pending admin approval. Please ensure your registration QR code has been sent to Admin.'
+      );
       err.statusCode = 403;
-      err.code = 'ACCOUNT_DISABLED';
+      err.code = 'ACCOUNT_PENDING_APPROVAL';
       throw err;
     }
 

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, Mail, ArrowRight } from 'lucide-react';
+import { Lock, Mail, ArrowRight, AlertCircle, ExternalLink } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '../contexts/ToastContext';
 import { Logo3D } from '../components/common/Logo3D';
@@ -13,18 +13,30 @@ export const Login: React.FC = () => {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [pendingNotice, setPendingNotice] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!identifier || !password) return;
 
     setIsLoading(true);
+    setPendingNotice(null);
     try {
       await login({ identifier, password });
       success('Welcome back!');
       navigate('/');
     } catch (err: any) {
-      error(err.message || 'Invalid email/username or password.');
+      if (
+        err.code === 'ACCOUNT_PENDING_APPROVAL' ||
+        err.message?.toLowerCase().includes('pending admin approval')
+      ) {
+        setPendingNotice(
+          err.message ||
+            'Your account is pending admin approval. Please ensure your registration QR code has been sent to Admin.'
+        );
+      } else {
+        error(err.message || 'Invalid email/username or password.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -50,6 +62,29 @@ export const Login: React.FC = () => {
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10 px-4">
         <div className="bg-slate-900/90 border border-slate-800 backdrop-blur-xl py-8 px-6 sm:px-10 rounded-3xl shadow-2xl">
           <form onSubmit={handleSubmit} className="space-y-4">
+            {pendingNotice && (
+              <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-left space-y-2 animate-fade-in">
+                <div className="flex items-center gap-2 text-amber-300 font-bold text-xs">
+                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Account Pending Admin Approval</span>
+                </div>
+                <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                  {pendingNotice}
+                </p>
+                <div className="pt-1">
+                  <a
+                    href="mailto:sruthikarreddy11@gmail.com?subject=Vault%20Account%20Registration%20Approval%20Inquiry"
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-cyan-400 hover:text-cyan-300 underline"
+                  >
+                    <span>Contact Admin</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                 Email or Username

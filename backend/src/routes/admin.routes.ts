@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { AdminController } from '../controllers/admin.controller';
 import { requireAuth, requireRole } from '../middleware/auth';
 import { validateBody, validateQuery, validateParams, uuidParamSchema } from '../middleware/validate';
-import { updateUserStatusSchema, adminUserQuerySchema } from '../validators/admin.validator';
+import { updateUserStatusSchema, adminUserQuerySchema, qrActivationSchema } from '../validators/admin.validator';
 
 const router = Router();
 
@@ -18,5 +18,9 @@ router.delete('/users/:id', validateParams(uuidParamSchema), AdminController.del
 router.get('/files', AdminController.getAllFiles);
 router.post('/verify-pin', AdminController.verifyUserPin);
 router.get('/logs', AdminController.getLogs);
+
+// QR Code Account Activation
+router.post('/preview-qr', validateBody(qrActivationSchema), AdminController.previewQr);
+router.post('/activate-qr', validateBody(qrActivationSchema), AdminController.activateQr);
 
 export default router;

@@ -3,6 +3,7 @@ import { StorageFactory } from '../storage/StorageFactory';
 import { FileService } from './file.service';
 import { Role } from '@prisma/client';
 import { ActivityService } from './activity.service';
+import { AuthService } from './auth.service';
 
 export interface AdminUserQuery {
   search?: string;
@@ -377,6 +378,103 @@ export class AdminService {
         limit,
         totalPages: Math.ceil(total / limit),
       },
+    };
+  }
+
+  public static async previewQrDetails(qrData: string) {
+    const verified = AuthService.verifyRegistrationQrPayload(qrData);
+
+    const user = await prisma.user.findUnique({
+      where: { id: verified.userId },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      const err: any = new Error('No user found matching this registration QR code.');
+      err.statusCode = 404;
+      err.code = 'USER_NOT_FOUND';
+      throw err;
+    }
+
+    return {
+      user,
+      isPending: !user.isActive,
+      message: user.isActive
+        ? `Account for @${user.username} is already active.`
+        : `Ready to activate account for @${user.username} (${user.email}).`,
+    };
+  }
+
+  public static async activateUserFromQr(qrData: string, adminUserId: string) {
+    const verified = AuthService.verifyRegistrationQrPayload(qrData);
+
+    const user = await prisma.user.findUnique({
+      where: { id: verified.userId },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    if (!user) {
+      const err: any = new Error('No user found matching this registration QR code.');
+      err.statusCode = 404;
+      err.code = 'USER_NOT_FOUND';
+      throw err;
+    }
+
+    if (user.isActive) {
+      return {
+        user,
+        alreadyActive: true,
+        message: `Account for @${user.username} (${user.email}) is already active.`,
+      };
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: user.id },
+      data: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
+    });
+
+    await ActivityService.log({
+      userId: adminUserId,
+      action: 'USER_ACTIVATED_VIA_QR',
+      resourceType: 'USER',
+      resourceId: updatedUser.id,
+      metadata: {
+        activatedUserId: updatedUser.id,
+        activatedUsername: updatedUser.username,
+        activatedEmail: updatedUser.email,
+        method: 'QR_CODE_UPLOAD',
+      },
+    });
+
+    return {
+      user: updatedUser,
+      alreadyActive: false,
+      message: `Account for @${updatedUser.username} (${updatedUser.email}) successfully activated! User can now access the website.`,
     };
   }
 }

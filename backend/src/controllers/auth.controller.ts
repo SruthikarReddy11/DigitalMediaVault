@@ -15,21 +15,18 @@ const cookieOptions = {
 export class AuthController {
   public static async register(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
-      const { user, token, expiresAt, securityPin } = await AuthService.register(req.body, {
+      const result = await AuthService.register(req.body, {
         ip: req.ip,
         userAgent: req.get('user-agent'),
       });
 
-      res.cookie(config.session.cookieName, token, cookieOptions);
+      if (result.token) {
+        res.cookie(config.session.cookieName, result.token, cookieOptions);
+      }
 
       res.status(201).json({
         success: true,
-        data: {
-          user,
-          token,
-          expiresAt,
-          securityPin,
-        },
+        data: result,
       });
     } catch (err) {
       next(err);
