@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Users as UsersIcon,
   Search,
@@ -77,6 +78,23 @@ export const AdminUsers: React.FC = () => {
   useEffect(() => {
     fetchUsers();
   }, [search, roleFilter, statusFilter]);
+
+  const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const userToActivate = params.get('activate_user');
+    if (userToActivate && currentUser?.role === 'ADMIN') {
+      adminApi.updateUserStatus(userToActivate, { isActive: true })
+        .then((res) => {
+          success(`Account for @${res.username} successfully approved and activated!`);
+          fetchUsers();
+        })
+        .catch((err: any) => {
+          console.warn('Direct activation error:', err);
+        });
+    }
+  }, [location.search, currentUser]);
 
   const handleToggleStatus = async (targetUser: AdminUser) => {
     try {

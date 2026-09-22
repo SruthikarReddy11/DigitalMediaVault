@@ -36,6 +36,7 @@ export const Register: React.FC = () => {
   const [registeredData, setRegisteredData] = useState<RegisterResponse | null>(null);
   const [emailCopied, setEmailCopied] = useState(false);
   const [detailsCopied, setDetailsCopied] = useState(false);
+  const [showGuideBanner, setShowGuideBanner] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,31 +47,62 @@ export const Register: React.FC = () => {
     }
 
     if (password.length < 8) {
-      error('Password must be at least 8 characters long.');
+      error('Password must be at least 8 characters.');
       return;
     }
 
     setIsLoading(true);
     try {
-      const res = await register({
-        username: username.trim(),
-        email: email.trim(),
+      const response = await register({
+        username,
+        email,
         password,
         confirmPassword,
       });
 
-      if (res.status === 'PENDING_ADMIN_APPROVAL' || res.qrCodeUrl) {
-        setRegisteredData(res);
-        success('Registration submitted! Please send your QR code to the admin.');
-      } else {
-        success('Account created successfully! Welcome to your digital vault.');
-        navigate('/');
-      }
+      setRegisteredData(response);
+      success('Account profile generated! Send the QR code to Admin for activation.');
     } catch (err: any) {
       error(err.message || 'Registration failed. Please check your information.');
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const getQrBlob = async (): Promise<Blob | null> => {
+    if (!registeredData?.qrCodeUrl) return null;
+    try {
+      const res = await fetch(registeredData.qrCodeUrl);
+      return await res.blob();
+    } catch {
+      const parts = registeredData.qrCodeUrl.split(',');
+      if (parts.length < 2) return null;
+      const byteString = atob(parts[1]);
+      const mimeString = parts[0].split(':')[1]?.split(';')[0] || 'image/png';
+      const ab = new ArrayBuffer(byteString.length);
+      const ia = new Uint8Array(ab);
+      for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+      }
+      return new Blob([ab], { type: mimeString });
+    }
+  };
+
+  const copyQrImageToClipboard = async (): Promise<boolean> => {
+    try {
+      const blob = await getQrBlob();
+      if (blob && window.ClipboardItem && navigator.clipboard?.write) {
+        await navigator.clipboard.write([
+          new ClipboardItem({
+            'image/png': blob,
+          }),
+        ]);
+        return true;
+      }
+    } catch (err) {
+      console.warn('Clipboard image copy not permitted or unsupported:', err);
+    }
+    return false;
   };
 
   const downloadQrImage = () => {
@@ -88,37 +120,87 @@ export const Register: React.FC = () => {
     const uname = registeredData.user.username;
     const uemail = registeredData.user.email;
     const uid = registeredData.user.id;
+    const origin = window.location.origin;
+
+    const qrImageUrl = `${origin}/api/auth/registration-qr/${uid}`;
+    const oneClickActivateUrl = `${origin}/admin?activate_user=${uid}`;
 
     const subject = encodeURIComponent(`Vault Account Registration Approval - @${uname}`);
     const body = encodeURIComponent(
-      `Hello Admin,\n\nI have registered for an account on the Digital Media Vault.\n\n` +
-      `Account Registration Details:\n` +
-      `- Username: ${uname}\n` +
-      `- Email: ${uemail}\n` +
-      `- User ID: ${uid}\n\n` +
-      `I have attached my registration QR code image (saved in Downloads as vault-registration-${uname}.png).\n\n` +
+      `Hello Admin,\n\n` +
+      `I have registered for an account on the Digital Media Vault.\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `ACCOUNT REGISTRATION DETAILS\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `• Username: @${uname}\n` +
+      `• Email: ${uemail}\n` +
+      `• User ID: ${uid}\n\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `REGISTRATION QR CODE & ACTIVATION\n` +
+      `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+      `📷 Direct QR Code Image Link:\n${qrImageUrl}\n\n` +
+      `⚡ One-Click Admin Approval Link:\n${oneClickActivateUrl}\n\n` +
+      `📋 Attached/Pasted: My registration QR code image (saved as vault-registration-${uname}.png or pasted below via Ctrl+V).\n\n` +
       `Please upload or scan this QR code in the Admin Console to approve and activate my account.\n\n` +
       `Thank you!`
     );
     return { subject, body };
   };
 
-  const handleSendToAdmin = () => {
+  const handleSendToAdmin = async () => {
     if (!registeredData) return;
 
-    // 1. Automatically download QR Code image so user has it ready to attach
+    // 1. Copy image to clipboard so user can instantly paste into Gmail (Ctrl+V)
+    const copiedToClipboard = await copyQrImageToClipboard();
+
+    // 2. Automatically download QR Code image so user has file ready to attach
     downloadQrImage();
 
-    // 2. Open Gmail compose draft directly in browser (guaranteed to open mail draft in Chrome)
+    setShowGuideBanner(true);
+
+    // 3. Try native Web Share API with file attachment (works on Android Chrome, iOS Safari, etc.)
+    if (navigator.canShare) {
+      try {
+        const blob = await getQrBlob();
+        if (blob) {
+          const file = new File([blob], `vault-registration-${registeredData.user.username}.png`, {
+            type: 'image/png',
+          });
+          if (navigator.canShare({ files: [file] })) {
+            const { subject } = getMailDraftContent();
+            await navigator.share({
+              title: decodeURIComponent(subject),
+              text: `Registration details for @${registeredData.user.username} (${registeredData.user.email})`,
+              files: [file],
+            });
+            success('Sharing QR code to Admin via your preferred mail app!');
+            return;
+          }
+        }
+      } catch (e: any) {
+        if (e.name !== 'AbortError') {
+          console.warn('Web Share failed, opening Gmail compose draft instead:', e);
+        }
+      }
+    }
+
+    // 4. Open Gmail compose draft directly in browser
     const { subject, body } = getMailDraftContent();
     const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${ADMIN_EMAIL}&su=${subject}&body=${body}`;
     window.open(gmailUrl, '_blank');
-    success('QR code downloaded & email draft opened!');
+
+    if (copiedToClipboard) {
+      success('QR Code copied to clipboard & downloaded! In Gmail, press Ctrl+V to paste it.');
+    } else {
+      success('QR code downloaded & email draft opened! Attach the file in Gmail.');
+    }
   };
 
-  const handleOpenDefaultMailApp = () => {
+  const handleOpenDefaultMailApp = async () => {
     if (!registeredData) return;
+    await copyQrImageToClipboard();
     downloadQrImage();
+    setShowGuideBanner(true);
 
     const { subject, body } = getMailDraftContent();
     const mailtoUrl = `mailto:${ADMIN_EMAIL}?subject=${subject}&body=${body}`;
@@ -228,6 +310,23 @@ export const Register: React.FC = () => {
                 <p className="text-[11px] text-slate-400">
                   Sends QR code to <strong className="text-slate-200">Admin</strong>
                 </p>
+
+                {showGuideBanner && (
+                  <div className="p-3.5 bg-gradient-to-br from-cyan-950/60 to-blue-950/60 border border-cyan-500/30 rounded-2xl text-left space-y-2 animate-fade-in shadow-lg">
+                    <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-300">
+                      <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>How to attach QR in Gmail:</span>
+                    </div>
+                    <ul className="text-[11px] text-slate-300 space-y-1.5 list-disc list-inside">
+                      <li>
+                        <strong className="text-white">Press Ctrl + V</strong> to paste the QR code image directly into the email body (already copied to your clipboard!).
+                      </li>
+                      <li>
+                        Or click the <strong>📎 attach file</strong> icon and select the downloaded <span className="font-mono text-cyan-300 text-[10px]">vault-registration-{registeredData.user.username}.png</span> file.
+                      </li>
+                    </ul>
+                  </div>
+                )}
               </div>
 
               {/* Secondary Sharing & Action Options */}

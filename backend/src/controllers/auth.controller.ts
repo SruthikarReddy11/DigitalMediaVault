@@ -3,6 +3,7 @@ import { AuthenticatedRequest } from '../types';
 import { AuthService } from '../services/auth.service';
 import { config } from '../config';
 import { prisma } from '../database/prisma';
+import QRCode from 'qrcode';
 
 const cookieOptions = {
   httpOnly: true,
@@ -209,6 +210,41 @@ export class AuthController {
       res.setHeader('Pragma', 'no-cache');
       res.setHeader('Expires', '0');
       stream.pipe(res);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  public static async getRegistrationQr(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+    try {
+      const userId = String(req.params.userId);
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, username: true, email: true, createdAt: true },
+      });
+
+      if (!user) {
+        res.status(404).send('User not found');
+        return;
+      }
+
+      const qrPayload = AuthService.createRegistrationQrPayload({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        createdAt: user.createdAt,
+      });
+
+      const qrBuffer = await QRCode.toBuffer(qrPayload, {
+        width: 400,
+        margin: 2,
+        color: { dark: '#0f172a', light: '#ffffff' },
+        errorCorrectionLevel: 'H',
+      });
+
+      res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      res.send(qrBuffer);
     } catch (err) {
       next(err);
     }

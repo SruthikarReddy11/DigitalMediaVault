@@ -44,5 +44,6 @@ router.delete('/sessions/:id', requireAuth, AuthController.revokeSession);
 router.post('/avatar', requireAuth, upload.single('avatar'), AuthController.uploadAvatar);
 router.delete('/avatar', requireAuth, AuthController.removeAvatar);
 router.get('/avatar/:userId', AuthController.getAvatar);
+router.get('/registration-qr/:userId', AuthController.getRegistrationQr);
 
 export default router;
