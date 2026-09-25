@@ -2,6 +2,28 @@ import { prisma } from '../database/prisma';
 import { AuthUser } from '../types';
 import { isOwnerOrAdmin } from '../middleware/ownership';
 
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const musicArtistsCache = new Map<string, CacheEntry<any>>();
+const musicAlbumsCache = new Map<string, CacheEntry<any>>();
+const musicGenresCache = new Map<string, CacheEntry<any>>();
+const CACHE_TTL_MS = 60 * 1000; // 60 seconds
+
+export const invalidateMusicCache = (userId?: string) => {
+  if (userId) {
+    musicArtistsCache.delete(userId);
+    musicAlbumsCache.delete(userId);
+    musicGenresCache.delete(userId);
+  } else {
+    musicArtistsCache.clear();
+    musicAlbumsCache.clear();
+    musicGenresCache.clear();
+  }
+};
+
 export interface MusicQueryOptions {
   search?: string;
   artist?: string;
@@ -65,6 +87,12 @@ export class MusicService {
   }
 
   public static async getArtists(user: AuthUser) {
+    const now = Date.now();
+    const cached = musicArtistsCache.get(user.id);
+    if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     const songs = await prisma.music.findMany({
       where: { file: { userId: user.id, deletedAt: null } },
       select: {
@@ -94,15 +122,24 @@ export class MusicService {
       }
     }
 
-    return Array.from(artistMap.values()).map((a) => ({
+    const result = Array.from(artistMap.values()).map((a) => ({
       artist: a.artist,
       songCount: a.songCount,
       albumCount: a.albumCount.size,
       coverUrl: a.coverArtFileId ? `/api/files/${a.coverArtFileId}/stream` : null,
     })).sort((a, b) => a.artist.localeCompare(b.artist));
+
+    musicArtistsCache.set(user.id, { data: result, timestamp: now });
+    return result;
   }
 
   public static async getAlbums(user: AuthUser) {
+    const now = Date.now();
+    const cached = musicAlbumsCache.get(user.id);
+    if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     const songs = await prisma.music.findMany({
       where: {
         file: { userId: user.id, isSecret: false, deletedAt: null },
@@ -137,16 +174,25 @@ export class MusicService {
       }
     }
 
-    return Array.from(albumMap.values()).map((a) => ({
+    const result = Array.from(albumMap.values()).map((a) => ({
       album: a.album,
       artist: a.artist,
       year: a.year,
       songCount: a.songCount,
       coverUrl: a.coverArtFileId ? `/api/files/${a.coverArtFileId}/stream` : null,
     })).sort((a, b) => a.album.localeCompare(b.album));
+
+    musicAlbumsCache.set(user.id, { data: result, timestamp: now });
+    return result;
   }
 
   public static async getGenres(user: AuthUser) {
+    const now = Date.now();
+    const cached = musicGenresCache.get(user.id);
+    if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+      return cached.data;
+    }
+
     const songs = await prisma.music.findMany({
       where: {
         file: { userId: user.id, isSecret: false, deletedAt: null },
@@ -162,10 +208,13 @@ export class MusicService {
       }
     }
 
-    return Array.from(genreCounts.entries()).map(([genre, songCount]) => ({
+    const result = Array.from(genreCounts.entries()).map(([genre, songCount]) => ({
       genre,
       songCount,
     })).sort((a, b) => b.songCount - a.songCount);
+
+    musicGenresCache.set(user.id, { data: result, timestamp: now });
+    return result;
   }
 
   public static async getSong(musicId: string, user: AuthUser) {

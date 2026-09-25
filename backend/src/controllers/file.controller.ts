@@ -7,6 +7,26 @@ import { prisma } from '../database/prisma';
 import { isOwnerOrAdmin } from '../middleware/ownership';
 import { StreamExtractorService } from '../services/streamExtractor.service';
 
+interface FileStreamCacheItem {
+  id: string;
+  userId: string;
+  storageKey: string;
+  mimeType: string;
+  size: number;
+  updatedAtTime: number;
+  cachedAt: number;
+}
+
+const fileStreamMetadataCache = new Map<string, FileStreamCacheItem>();
+
+export const invalidateFileStreamCache = (fileId?: string) => {
+  if (fileId) {
+    fileStreamMetadataCache.delete(fileId);
+  } else {
+    fileStreamMetadataCache.clear();
+  }
+};
+
 export class FileController {
   public static async uploadFiles(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
@@ -132,14 +152,40 @@ export class FileController {
   public static async streamFile(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const fileId = String(req.params.id);
-      const file = await prisma.file.findUnique({ where: { id: fileId } });
+      const now = Date.now();
+      let file = fileStreamMetadataCache.get(fileId);
 
-      if (!file) {
-        res.status(404).json({
-          success: false,
-          error: { code: 'NOT_FOUND', message: 'File not found.' },
+      if (!file || (now - file.cachedAt) > 5 * 60 * 1000) {
+        const dbFile = await prisma.file.findUnique({
+          where: { id: fileId },
+          select: {
+            id: true,
+            userId: true,
+            storageKey: true,
+            mimeType: true,
+            size: true,
+            updatedAt: true,
+          },
         });
-        return;
+
+        if (!dbFile) {
+          res.status(404).json({
+            success: false,
+            error: { code: 'NOT_FOUND', message: 'File not found.' },
+          });
+          return;
+        }
+
+        file = {
+          id: dbFile.id,
+          userId: dbFile.userId,
+          storageKey: dbFile.storageKey,
+          mimeType: dbFile.mimeType,
+          size: Number(dbFile.size),
+          updatedAtTime: new Date(dbFile.updatedAt).getTime(),
+          cachedAt: now,
+        };
+        fileStreamMetadataCache.set(fileId, file);
       }
 
       if (file.userId !== req.user!.id) {
@@ -175,8 +221,15 @@ export class FileController {
         return;
       }
 
+      // HTTP ETag handling for 304 Not Modified
+      const etag = `W/"${file.id}-${file.updatedAtTime}"`;
+      if (req.headers['if-none-match'] === etag) {
+        res.status(304).end();
+        return;
+      }
+
       const storage = StorageFactory.getStorage();
-      const fileSize = Number(file.size);
+      const fileSize = file.size;
       const range = req.headers.range;
 
       const origin = req.headers.origin;
@@ -187,7 +240,8 @@ export class FileController {
         res.setHeader('Access-Control-Allow-Origin', '*');
       }
       res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-      res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length');
+      res.setHeader('Access-Control-Expose-Headers', 'Content-Range, Accept-Ranges, Content-Length, ETag');
+      res.setHeader('ETag', etag);
 
       if (range) {
         const parts = range.replace(/bytes=/, '').split('-');
@@ -207,7 +261,7 @@ export class FileController {
           'Accept-Ranges': 'bytes',
           'Content-Length': String(chunksize),
           'Content-Type': file.mimeType || 'application/octet-stream',
-          'Cache-Control': 'private, max-age=3600',
+          'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
         });
 
         stream.pipe(res);
@@ -218,7 +272,7 @@ export class FileController {
           'Content-Length': String(fileSize),
           'Content-Type': file.mimeType || 'application/octet-stream',
           'Accept-Ranges': 'bytes',
-          'Cache-Control': 'private, max-age=3600',
+          'Cache-Control': 'public, max-age=86400, stale-while-revalidate=604800',
         });
 
         stream.pipe(res);
@@ -293,6 +347,7 @@ export class FileController {
   public static async renameFile(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const id = String(req.params.id);
+      invalidateFileStreamCache(id);
       const updated = await FileService.renameFile(id, req.body.name, req.user!);
       res.json({
         success: true,
@@ -306,6 +361,7 @@ export class FileController {
   public static async moveFile(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const id = String(req.params.id);
+      invalidateFileStreamCache(id);
       const updated = await FileService.moveFile(id, req.body.folderId, req.user!);
       res.json({
         success: true,
@@ -319,6 +375,7 @@ export class FileController {
   public static async moveToTrash(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const id = String(req.params.id);
+      invalidateFileStreamCache(id);
       const result = await FileService.moveToTrash(id, req.user!);
       res.json({
         success: true,
@@ -332,6 +389,7 @@ export class FileController {
   public static async restoreFromTrash(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const id = String(req.params.id);
+      invalidateFileStreamCache(id);
       const result = await FileService.restoreFromTrash(id, req.user!);
       res.json({
         success: true,
@@ -345,6 +403,7 @@ export class FileController {
   public static async permanentDelete(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const id = String(req.params.id);
+      invalidateFileStreamCache(id);
       const result = await FileService.permanentDelete(id, req.user!);
       res.json({
         success: true,

@@ -29,6 +29,7 @@ import { ImageLightbox } from '../components/gallery/ImageLightbox';
 import { FilePreviewModal } from '../components/files/FilePreviewModal';
 import { UpcomingEventsWidget } from '../components/dashboard/UpcomingEventsWidget';
 import { useToast } from '../contexts/ToastContext';
+import { browserCache } from '../utils/browserCache';
 
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
@@ -47,6 +48,8 @@ export const Dashboard: React.FC = () => {
     try {
       const data = await filesApi.getDashboardStats();
       setStats(data);
+      // Pre-warm browser cache for images in the background
+      browserCache.preloadImages();
     } catch (err) {
       console.error('Failed to load dashboard stats:', err);
     } finally {

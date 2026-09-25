@@ -1,6 +1,7 @@
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from '../types';
 import { AuthService } from '../services/auth.service';
+import { invalidateSessionCache } from '../middleware/auth';
 import { config } from '../config';
 import { prisma } from '../database/prisma';
 import QRCode from 'qrcode';
@@ -63,6 +64,7 @@ export class AuthController {
         userAgent: req.get('user-agent'),
       });
 
+      invalidateSessionCache();
       res.clearCookie(config.session.cookieName, { path: '/' });
 
       res.json({

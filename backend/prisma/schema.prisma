@@ -158,6 +158,8 @@ model File {
   @@index([userId, isSecret])
   @@index([userId, deletedAt])
   @@index([userId, fileType])
+  @@index([userId, isSecret, deletedAt, fileType, createdAt])
+  @@index([userId, isSecret, deletedAt, folderId])
   @@map("files")
 }
 
@@ -199,6 +201,7 @@ model Music {
   @@index([artist])
   @@index([album])
   @@index([genre])
+  @@index([coverArtFileId])
   @@map("music")
 }
 

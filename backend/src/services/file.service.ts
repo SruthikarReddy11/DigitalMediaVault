@@ -603,17 +603,18 @@ export class FileService {
       NOT: { storageKey: { contains: 'covers/' } },
     };
 
-    const [totalFiles, images, videos, music, pdfs, documents, spreadsheets, archives, others, favorites, recentFiles, recentActivity] =
+    const [typeGroups, totalAgg, favorites, recentFiles, recentActivity] =
       await Promise.all([
-        prisma.file.count({ where: { userId: user.id, isSecret: false, deletedAt: null, ...notCoverFilter } }),
-        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'IMAGE', deletedAt: null, ...notCoverFilter } }),
-        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'VIDEO', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'AUDIO', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'PDF', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'DOCUMENT', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'SPREADSHEET', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'ARCHIVE', deletedAt: null } }),
-        prisma.file.count({ where: { userId: user.id, isSecret: false, fileType: 'OTHER', deletedAt: null } }),
+        prisma.file.groupBy({
+          by: ['fileType'],
+          where: { userId: user.id, isSecret: false, deletedAt: null, ...notCoverFilter },
+          _count: { _all: true },
+        }),
+        prisma.file.aggregate({
+          where: { userId: user.id, isSecret: false, deletedAt: null, ...notCoverFilter },
+          _sum: { size: true },
+          _count: { _all: true },
+        }),
         prisma.favorite.count({ where: { userId: user.id } }),
         prisma.file.findMany({
           where: { userId: user.id, isSecret: false, deletedAt: null, ...notCoverFilter },
@@ -631,25 +632,25 @@ export class FileService {
         }),
       ]);
 
-    // Aggregate total storage used (excluding secret files)
-    const filesForSize = await prisma.file.findMany({
-      where: { userId: user.id, isSecret: false },
-      select: { size: true },
-    });
+    const countsMap = new Map<string, number>();
+    for (const g of typeGroups) {
+      countsMap.set(g.fileType, g._count._all);
+    }
 
-    const storageUsedBytes = filesForSize.reduce((acc, f) => acc + Number(f.size), 0);
+    const totalFiles = totalAgg._count._all;
+    const storageUsedBytes = Number(totalAgg._sum.size || 0);
 
     return {
       totalFiles,
       countsByType: {
-        images,
-        videos,
-        music,
-        pdfs,
-        documents,
-        spreadsheets,
-        archives,
-        others,
+        images: countsMap.get('IMAGE') || 0,
+        videos: countsMap.get('VIDEO') || 0,
+        music: countsMap.get('AUDIO') || 0,
+        pdfs: countsMap.get('PDF') || 0,
+        documents: countsMap.get('DOCUMENT') || 0,
+        spreadsheets: countsMap.get('SPREADSHEET') || 0,
+        archives: countsMap.get('ARCHIVE') || 0,
+        others: countsMap.get('OTHER') || 0,
       },
       favorites,
       storageUsedBytes,

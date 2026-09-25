@@ -43,6 +43,7 @@ import { Modal } from '../components/common/Modal';
 import { EmptyState } from '../components/common/EmptyState';
 import { ShareModal } from '../components/share/ShareModal';
 import { useToast } from '../contexts/ToastContext';
+import { browserCache } from '../utils/browserCache';
 
 type ViewMode = 'grid' | 'timeline' | 'albums' | 'favorites';
 
@@ -53,10 +54,10 @@ export const Gallery: React.FC = () => {
   // Gallery view mode
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
 
-  // Images state
-  const [images, setImages] = useState<FileItem[]>([]);
+  // Images state initialized from browser cache for 0ms instant display
+  const [images, setImages] = useState<FileItem[]>(() => browserCache.getImagesSync() || []);
   const [folders, setFolders] = useState<FolderItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !browserCache.getImagesSync()?.length);
 
   // Timeline state
   const [timelineGroups, setTimelineGroups] = useState<PhotoTimelineGroup[]>([]);
@@ -100,9 +101,12 @@ export const Gallery: React.FC = () => {
   const [deleteTarget, setDeleteTarget] = useState<FileItem | null>(null);
   const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState(false);
 
-  // Fetch images for Grid / Favorites
+  // Fetch images for Grid / Favorites with SWR caching
   const fetchImages = async () => {
-    setIsLoading(true);
+    const isDefaultFilter = !search && selectedFolder === 'all' && viewMode === 'grid';
+    if (!isDefaultFilter || images.length === 0) {
+      setIsLoading(true);
+    }
     try {
       const res = await filesApi.listFiles({
         fileType: 'IMAGE',
@@ -114,6 +118,9 @@ export const Gallery: React.FC = () => {
         limit: 100,
       });
       setImages(res.data);
+      if (isDefaultFilter) {
+        browserCache.setImages(res.data);
+      }
     } catch (err) {
       console.error('Failed to load gallery images:', err);
     } finally {
@@ -121,15 +128,21 @@ export const Gallery: React.FC = () => {
     }
   };
 
-  // Fetch Timeline groups
+  // Fetch Timeline groups with SWR caching
   const fetchTimeline = async () => {
-    setIsLoadingTimeline(true);
+    const isDefaultFilter = selectedFolder === 'all' && viewMode === 'timeline';
+    if (timelineGroups.length === 0) {
+      setIsLoadingTimeline(true);
+    }
     try {
       const data = await galleryApi.getTimeline({
         folderId: selectedFolder === 'all' ? undefined : selectedFolder === 'root' ? null : selectedFolder,
         favoriteOnly: viewMode === 'favorites',
       });
       setTimelineGroups(data);
+      if (isDefaultFilter) {
+        browserCache.setTimeline(data);
+      }
     } catch (err) {
       console.error('Failed to load timeline:', err);
     } finally {
@@ -139,6 +152,20 @@ export const Gallery: React.FC = () => {
 
   useEffect(() => {
     foldersApi.getFolders().then(setFolders).catch(console.error);
+
+    // Asynchronously check IndexedDB for images if not populated yet
+    browserCache.getImages().then((cached) => {
+      if (cached && cached.length > 0) {
+        setImages((prev) => (prev.length === 0 ? cached : prev));
+        setIsLoading(false);
+      }
+    });
+
+    browserCache.getTimeline().then((cached) => {
+      if (cached && cached.length > 0) {
+        setTimelineGroups((prev) => (prev.length === 0 ? cached : prev));
+      }
+    });
   }, []);
 
   useEffect(() => {

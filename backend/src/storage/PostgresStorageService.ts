@@ -2,11 +2,24 @@ import { Readable } from 'stream';
 import crypto from 'crypto';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { v4 as uuidv4 } from 'uuid';
 import { prisma } from '../database/prisma';
 import { config } from '../config';
 import { IStorageService, StorageReadStreamOptions, StorageSaveOptions } from './IStorageService';
 import { LocalStorageService } from './LocalStorageService';
+
+const BLOB_CACHE_DIR = path.join(os.tmpdir(), 'pdl-blob-cache');
+try {
+  if (!fs.existsSync(BLOB_CACHE_DIR)) {
+    fs.mkdirSync(BLOB_CACHE_DIR, { recursive: true });
+  }
+} catch {}
+
+const getBlobCachePath = (storageKey: string) => {
+  const hash = crypto.createHash('md5').update(storageKey).digest('hex');
+  return path.join(BLOB_CACHE_DIR, `${hash}.bin`);
+};
 
 const DANGEROUS_EXTENSIONS = new Set([
   '.exe',
@@ -127,6 +140,25 @@ export class PostgresStorageService implements IStorageService {
     storageKey: string,
     options?: StorageReadStreamOptions
   ): Promise<{ stream: Readable; size: number; mimeType?: string }> {
+    const cachePath = getBlobCachePath(storageKey);
+
+    // If already cached locally, stream from disk directly to avoid remote DB query
+    if (fs.existsSync(cachePath)) {
+      try {
+        const stat = fs.statSync(cachePath);
+        const totalSize = stat.size;
+        const start = options?.start ?? 0;
+        const end = options?.end !== undefined ? options?.end : totalSize - 1;
+        const stream = fs.createReadStream(cachePath, { start, end });
+        return {
+          stream,
+          size: totalSize,
+        };
+      } catch {
+        // Fallback to database if disk read fails
+      }
+    }
+
     const blob = await prisma.storageBlob.findUnique({
       where: { storageKey },
       select: { data: true, size: true, mimeType: true },
@@ -139,6 +171,9 @@ export class PostgresStorageService implements IStorageService {
 
     const totalSize = Number(blob.size);
     let chunkBuffer = blob.data;
+
+    // Cache to disk asynchronously for future instant requests
+    fs.writeFile(cachePath, blob.data, () => {});
 
     if (options?.start !== undefined || options?.end !== undefined) {
       const start = options.start ?? 0;
@@ -154,6 +189,13 @@ export class PostgresStorageService implements IStorageService {
   }
 
   async getBuffer(storageKey: string): Promise<Buffer> {
+    const cachePath = getBlobCachePath(storageKey);
+    if (fs.existsSync(cachePath)) {
+      try {
+        return fs.readFileSync(cachePath);
+      } catch {}
+    }
+
     const blob = await prisma.storageBlob.findUnique({
       where: { storageKey },
       select: { data: true },
@@ -163,10 +205,18 @@ export class PostgresStorageService implements IStorageService {
       return this.localStorage.getBuffer(storageKey);
     }
 
+    fs.writeFile(cachePath, blob.data, () => {});
     return blob.data;
   }
 
   async delete(storageKey: string): Promise<boolean> {
+    const cachePath = getBlobCachePath(storageKey);
+    if (fs.existsSync(cachePath)) {
+      try {
+        fs.unlinkSync(cachePath);
+      } catch {}
+    }
+
     let deleted = false;
     try {
       await prisma.storageBlob.delete({

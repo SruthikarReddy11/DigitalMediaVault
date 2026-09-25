@@ -43,6 +43,7 @@ import { ShareModal } from '../components/share/ShareModal';
 import { Modal } from '../components/common/Modal';
 import { EmptyState } from '../components/common/EmptyState';
 import { useToast } from '../contexts/ToastContext';
+import { browserCache } from '../utils/browserCache';
 
 type Tab = 'songs' | 'albums' | 'artists' | 'genres' | 'playlists' | 'equalizer' | 'offline';
 
@@ -72,12 +73,13 @@ export const Music: React.FC = () => {
 
   const [activeTab, setActiveTab] = useState<Tab>('songs');
   const [shareSongTarget, setShareSongTarget] = useState<MusicItem | null>(null);
-  const [songs, setSongs] = useState<MusicItem[]>([]);
+  // Songs state initialized from browser cache for 0ms instant display
+  const [songs, setSongs] = useState<MusicItem[]>(() => browserCache.getSongsSync() || []);
   const [albums, setAlbums] = useState<Array<{ album: string; artist: string; year?: number; songCount: number; coverUrl?: string | null }>>([]);
   const [artists, setArtists] = useState<Array<{ artist: string; songCount: number; albumCount: number; coverUrl?: string | null }>>([]);
   const [genres, setGenres] = useState<Array<{ genre: string; songCount: number }>>([]);
   const [playlists, setPlaylists] = useState<PlaylistItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => !browserCache.getSongsSync()?.length);
 
   // Filters
   const [search, setSearchTerm] = useState('');
@@ -94,7 +96,10 @@ export const Music: React.FC = () => {
   const [newPlaylistDesc, setNewPlaylistDesc] = useState('');
 
   const fetchMusicData = async () => {
-    setIsLoading(true);
+    const isDefaultFilter = !search && !filterArtist && !filterAlbum && !filterGenre && !onlyFavorites;
+    if (!isDefaultFilter || songs.length === 0) {
+      setIsLoading(true);
+    }
     try {
       const [songsData, albumsData, artistsData, genresData, playlistsData] = await Promise.all([
         musicApi.getSongs({
@@ -115,12 +120,46 @@ export const Music: React.FC = () => {
       setArtists(artistsData);
       setGenres(genresData);
       setPlaylists(playlistsData);
+
+      if (isDefaultFilter) {
+        browserCache.setSongs(songsData);
+        browserCache.setMusicMeta({
+          albums: albumsData,
+          artists: artistsData,
+          genres: genresData,
+          playlists: playlistsData,
+        });
+
+        // AUTOMATIC PRELOAD: As requested, after songs finish loading,
+        // automatically prefetch and store images in the browser so that
+        // when the user opens the images page, the images will display automatically and instantly!
+        browserCache.preloadImages();
+      }
     } catch (err) {
       console.error('Failed to load music data:', err);
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    // Check IndexedDB storage on mount to show cached content immediately
+    browserCache.getSongs().then((cached) => {
+      if (cached && cached.length > 0) {
+        setSongs((prev) => (prev.length === 0 ? cached : prev));
+        setIsLoading(false);
+      }
+    });
+
+    browserCache.getMusicMeta().then((meta) => {
+      if (meta) {
+        if (meta.albums.length > 0) setAlbums((prev) => (prev.length === 0 ? meta.albums : prev));
+        if (meta.artists.length > 0) setArtists((prev) => (prev.length === 0 ? meta.artists : prev));
+        if (meta.genres.length > 0) setGenres((prev) => (prev.length === 0 ? meta.genres : prev));
+        if (meta.playlists.length > 0) setPlaylists((prev) => (prev.length === 0 ? meta.playlists : prev));
+      }
+    });
+  }, []);
 
   useEffect(() => {
     fetchMusicData();
