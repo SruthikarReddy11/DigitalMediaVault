@@ -4,15 +4,9 @@ const PROD_API_FALLBACK = 'https://digital-media-vault-api-g2hc.onrender.com/api
 
 const getBaseUrl = (): string => {
   if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname.startsWith('192.168.') ||
-      hostname.startsWith('10.')
-    ) {
-      return '/api';
-    }
+    // In any browser (localhost, local IP, or Vercel production), always use /api
+    // Vercel rewrites /api/* to the Render backend at the edge, eliminating CORS entirely.
+    return '/api';
   }
   return import.meta.env.VITE_API_URL || PROD_API_FALLBACK;
 };
@@ -57,29 +51,10 @@ export const getMediaUrl = (url: string | null | undefined): string => {
     return url;
   }
 
-  const isLocal =
-    typeof window !== 'undefined' &&
-    (window.location.hostname === 'localhost' ||
-      window.location.hostname === '127.0.0.1' ||
-      window.location.hostname.startsWith('192.168.') ||
-      window.location.hostname.startsWith('10.'));
+  // Always use same-origin relative path through /api reverse proxy
+  let fullUrl = url.startsWith('/') ? url : `/${url}`;
 
-  const rawBase = isLocal ? '' : (import.meta.env.VITE_API_URL || PROD_API_FALLBACK);
-  let fullUrl = url;
-
-  if (rawBase) {
-    const cleanBase = String(rawBase).replace(/\/+$/, '');
-    const cleanPath = url.startsWith('/') ? url : `/${url}`;
-    if (cleanBase.endsWith('/api') && cleanPath.startsWith('/api/')) {
-      fullUrl = `${cleanBase}${cleanPath.substring(4)}`;
-    } else {
-      fullUrl = `${cleanBase}${cleanPath}`;
-    }
-  } else {
-    fullUrl = url.startsWith('/') ? url : `/${url}`;
-  }
-
-  // Attach token for cross-device & mobile 3rd-party cookie restriction bypass
+  // Attach token for media playback and download
   const token = localStorage.getItem('pdl_auth_token');
   if (token && !fullUrl.includes('token=')) {
     const separator = fullUrl.includes('?') ? '&' : '?';
