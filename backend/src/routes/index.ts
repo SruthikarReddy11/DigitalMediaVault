@@ -43,9 +43,31 @@ router.use('/notes', noteRoutes);
 router.use('/places', placeRoutes);
 router.use('/trip-plans', tripPlanRoutes);
 
+import { DatabaseKeepAliveService } from '../services/dbKeepAlive.service';
+import { prisma } from '../database/prisma';
+
 // Health check endpoint
-router.get('/health', (req, res) => {
+router.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Anti-hibernation database ping endpoint (zero writes, read-only SELECT 1)
+router.get('/ping', async (_req, res) => {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    res.json({
+      status: 'ok',
+      database: 'connected',
+      keepAlive: DatabaseKeepAliveService.getStats(),
+      timestamp: new Date().toISOString(),
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      status: 'error',
+      database: 'disconnected',
+      error: err.message,
+    });
+  }
 });
 
 export default router;

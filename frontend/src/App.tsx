@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter } from 'react-router-dom';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { ToastProvider } from './contexts/ToastContext';
@@ -7,6 +7,15 @@ import { AudioPlayerProvider } from './contexts/AudioPlayerContext';
 import { AppRoutes } from './routes/AppRoutes';
 
 export const App: React.FC = () => {
+  useEffect(() => {
+    // Keep backend & database awake while browser tab is active
+    const keepAliveTimer = setInterval(() => {
+      fetch('/api/ping').catch(() => {});
+    }, 60 * 1000);
+
+    return () => clearInterval(keepAliveTimer);
+  }, []);
+
   return (
     <BrowserRouter>
       <ThemeProvider>
