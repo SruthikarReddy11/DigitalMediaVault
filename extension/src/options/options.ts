@@ -188,7 +188,7 @@ presetLocal.addEventListener('click', () => {
 });
 
 presetProd.addEventListener('click', () => {
-  settingApiUrl.value = 'https://digital-media-vault-api.onrender.com/api';
+  settingApiUrl.value = 'https://digital-media-vault-api-g2hc.onrender.com/api';
   settingWebUrl.value = 'https://digital-media-vault.vercel.app';
 });
 

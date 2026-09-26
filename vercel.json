@@ -3,7 +3,7 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://digital-media-vault-api.onrender.com/api/$1"
+      "destination": "https://digital-media-vault-api-g2hc.onrender.com/api/$1"
     },
     {
       "source": "/(.*)",

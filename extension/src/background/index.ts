@@ -27,7 +27,7 @@ async function autoSyncSessionFromCookies(webUrl: string, apiUrl: string): Promi
     const candidates = [
       {
         domain: 'digital-media-vault.vercel.app',
-        api: 'https://digital-media-vault-api.onrender.com/api',
+        api: 'https://digital-media-vault-api-g2hc.onrender.com/api',
         web: 'https://digital-media-vault.vercel.app',
       },
       {

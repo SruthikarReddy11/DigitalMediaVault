@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const PROD_API_FALLBACK = 'https://digital-media-vault-api.onrender.com/api';
+const PROD_API_FALLBACK = 'https://digital-media-vault-api-g2hc.onrender.com/api';
 
 const getBaseUrl = (): string => {
   if (typeof window !== 'undefined') {

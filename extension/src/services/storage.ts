@@ -1,7 +1,7 @@
 import { AuthUser, ExtensionSettings } from '../types';
 
 export const DEFAULT_SETTINGS: ExtensionSettings = {
-  apiUrl: 'https://digital-media-vault-api.onrender.com/api',
+  apiUrl: 'https://digital-media-vault-api-g2hc.onrender.com/api',
   webUrl: 'https://digital-media-vault.vercel.app',
   token: null,
   user: null,
