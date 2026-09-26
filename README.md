@@ -1,3 +1,12 @@
+---
+title: Digital Media Vault API
+emoji: ⚡
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+---
+
 # Personal Digital Library & Media Vault 📚🎵🖼️
 
 A production-grade, multi-user **Personal Digital Library & Media Gallery** built with **React 18**, **TypeScript**, **Tailwind CSS**, **Node.js**, **Express**, **PostgreSQL**, and **Prisma ORM**.
