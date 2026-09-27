@@ -32,6 +32,21 @@ export interface ListFilesOptions {
   includeTrash?: boolean;
 }
 
+interface DashboardCacheItem {
+  stats: any;
+  cachedAt: number;
+}
+const dashboardStatsCache = new Map<string, DashboardCacheItem>();
+const DASHBOARD_CACHE_TTL_MS = 30 * 1000; // 30 seconds
+
+export const invalidateDashboardStatsCache = (userId?: string) => {
+  if (userId) {
+    dashboardStatsCache.delete(userId);
+  } else {
+    dashboardStatsCache.clear();
+  }
+};
+
 export class FileService {
   public static async uploadFile(
     user: AuthUser,
@@ -186,6 +201,7 @@ export class FileService {
       },
     });
 
+    invalidateDashboardStatsCache(user.id);
     return this.serializeFile(dbFile, user.id);
   }
 
@@ -522,6 +538,7 @@ export class FileService {
       },
     });
 
+    invalidateDashboardStatsCache(user.id);
     return { success: true, message: 'File moved to trash.' };
   }
 
@@ -557,6 +574,7 @@ export class FileService {
       },
     });
 
+    invalidateDashboardStatsCache(user.id);
     return { success: true, message: 'File restored.' };
   }
 
@@ -594,10 +612,17 @@ export class FileService {
       },
     });
 
+    invalidateDashboardStatsCache(user.id);
     return { success: true, message: 'File permanently deleted.' };
   }
 
   public static async getDashboardStats(user: AuthUser) {
+    const now = Date.now();
+    const cached = dashboardStatsCache.get(user.id);
+    if (cached && (now - cached.cachedAt) < DASHBOARD_CACHE_TTL_MS) {
+      return cached.stats;
+    }
+
     const notCoverFilter = {
       coverForMusic: { none: {} as const },
       NOT: { storageKey: { contains: 'covers/' } },
@@ -640,7 +665,7 @@ export class FileService {
     const totalFiles = totalAgg._count._all;
     const storageUsedBytes = Number(totalAgg._sum.size || 0);
 
-    return {
+    const result = {
       totalFiles,
       countsByType: {
         images: countsMap.get('IMAGE') || 0,
@@ -658,6 +683,9 @@ export class FileService {
       recentFiles: recentFiles.map((f) => this.serializeFile(f, user.id)),
       recentActivity,
     };
+
+    dashboardStatsCache.set(user.id, { stats: result, cachedAt: now });
+    return result;
   }
 
   public static serializeFile(file: any, currentUserId?: string) {

@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
 import { config } from './config';
 import { authenticateToken } from './middleware/auth';
 import { errorHandler } from './middleware/errorHandler';
@@ -9,6 +10,20 @@ import { globalRateLimiter } from './middleware/rateLimiter';
 import apiRoutes from './routes';
 
 export const app = express();
+
+// High-performance gzip/deflate response compression (reduces payload by 80-90%)
+app.use(
+  compression({
+    filter: (req: Request, res: Response) => {
+      // Skip already-compressed media files or byte-range audio/video streams
+      if (req.headers.range || req.path.includes('/stream') || req.path.includes('/download')) {
+        return false;
+      }
+      return compression.filter(req, res);
+    },
+    threshold: 1024,
+  })
+);
 
 // Disable X-Powered-By header to prevent fingerprinting
 app.disable('x-powered-by');

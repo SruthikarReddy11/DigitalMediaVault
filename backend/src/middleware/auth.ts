@@ -15,8 +15,8 @@ interface CachedSession {
 }
 
 const sessionCache = new Map<string, CachedSession>();
-const CACHE_TTL_MS = 60 * 1000; // 60 seconds memory cache
-const TOUCH_THROTTLE_MS = 5 * 60 * 1000; // Throttle lastUsedAt writes to once every 5 minutes
+const CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes memory cache (avoids repeated DB roundtrips)
+const TOUCH_THROTTLE_MS = 15 * 60 * 1000; // Throttle lastUsedAt writes to once every 15 minutes
 
 export function invalidateSessionCache(tokenHash?: string): void {
   if (tokenHash) {

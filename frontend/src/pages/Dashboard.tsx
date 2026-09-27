@@ -37,8 +37,21 @@ export const Dashboard: React.FC = () => {
   const { success } = useToast();
   const { openUpload } = useOutletContext<{ openUpload: () => void }>() || { openUpload: () => {} };
 
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [stats, setStats] = useState<DashboardStats | null>(() => {
+    try {
+      const raw = localStorage.getItem('pdl_dashboard_stats');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      return !localStorage.getItem('pdl_dashboard_stats');
+    } catch {
+      return true;
+    }
+  });
 
   // Modals
   const [lightboxIndex, setLightboxIndex] = useState<number>(-1);
@@ -48,6 +61,9 @@ export const Dashboard: React.FC = () => {
     try {
       const data = await filesApi.getDashboardStats();
       setStats(data);
+      try {
+        localStorage.setItem('pdl_dashboard_stats', JSON.stringify(data));
+      } catch {}
       // Pre-warm browser cache for images in the background
       browserCache.preloadImages();
     } catch (err) {
