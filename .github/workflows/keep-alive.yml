@@ -1,0 +1,17 @@
+name: Anti-Hibernation Heartbeat
+
+on:
+  schedule:
+    # Run every 5 minutes around the clock
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping Backend & Layerbase Database
+        run: |
+          echo "Sending anti-hibernation heartbeat ping..."
+          curl -s -o /dev/null -w "%{http_code}\n" https://digital-media-vault-api-g2hc.onrender.com/api/ping || true
