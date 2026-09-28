@@ -15,3 +15,5 @@ declare module 'exif-parser' {
 
   export function create(buffer: Buffer): ExifParser;
 }
+
+declare module 'compression';
