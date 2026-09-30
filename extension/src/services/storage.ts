@@ -17,8 +17,13 @@ export const storage = {
       chrome.storage.local.get(
         ['apiUrl', 'webUrl', 'token', 'user', 'showFloatingButton'],
         (res) => {
+          let apiUrl = res.apiUrl || DEFAULT_SETTINGS.apiUrl;
+          if (apiUrl.includes('digital-media-vault-backend.onrender.com')) {
+            apiUrl = DEFAULT_SETTINGS.apiUrl;
+            chrome.storage.local.set({ apiUrl }).catch(() => {});
+          }
           resolve({
-            apiUrl: res.apiUrl || DEFAULT_SETTINGS.apiUrl,
+            apiUrl,
             webUrl: res.webUrl || DEFAULT_SETTINGS.webUrl,
             token: res.token || null,
             user: res.user || null,
