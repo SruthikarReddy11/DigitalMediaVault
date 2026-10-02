@@ -19,6 +19,7 @@ import expenseRoutes from './expense.routes';
 import noteRoutes from './note.routes';
 import placeRoutes from './place.routes';
 import tripPlanRoutes from './tripPlan.routes';
+import projectRoutes from './project.routes';
 
 const router = Router();
 
@@ -42,6 +43,7 @@ router.use('/expenses', expenseRoutes);
 router.use('/notes', noteRoutes);
 router.use('/places', placeRoutes);
 router.use('/trip-plans', tripPlanRoutes);
+router.use('/projects', projectRoutes);
 
 import { DatabaseKeepAliveService } from '../services/dbKeepAlive.service';
 import { prisma } from '../database/prisma';
