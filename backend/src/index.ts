@@ -1,8 +1,6 @@
 import { app } from './app';
 import { config } from './config';
 import { TrashService } from './services/trash.service';
-import { ReminderWorker } from './services/reminder.worker';
-import { DatabaseKeepAliveService } from './services/dbKeepAlive.service';
 
 const server = app.listen(config.port, () => {
   console.log(`=========================================`);
@@ -22,18 +20,10 @@ const server = app.listen(config.port, () => {
       console.error('[Trash Purge] Periodic auto-purge error:', err);
     });
   }, 6 * 60 * 60 * 1000);
-
-  // Start background reminder worker
-  ReminderWorker.start(30 * 1000);
-
-  // Start anti-hibernation heartbeat query every 10 seconds
-  DatabaseKeepAliveService.start(10 * 1000);
 });
 
 process.on('SIGTERM', () => {
   console.log('SIGTERM signal received. Closing HTTP server...');
-  ReminderWorker.stop();
-  DatabaseKeepAliveService.stop();
   server.close(() => {
     console.log('HTTP server closed.');
     process.exit(0);
