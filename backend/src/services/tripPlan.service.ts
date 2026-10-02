@@ -7,9 +7,16 @@ export interface CreateTripPlanInput {
   destination?: string;
   startDate?: string | Date;
   endDate?: string | Date;
+  daysCount?: number;
+  budget?: number;
   coverImage?: string;
   color?: string;
   status?: string;
+  hotelDetails?: any;
+  travelDetails?: any;
+  itinerary?: any;
+  checklist?: any;
+  customExpenses?: any;
   placeIds?: string[];
   noteIds?: string[];
   fileIds?: string[];
@@ -23,9 +30,16 @@ export interface UpdateTripPlanInput {
   destination?: string;
   startDate?: string | Date | null;
   endDate?: string | Date | null;
+  daysCount?: number | null;
+  budget?: number | null;
   coverImage?: string | null;
   color?: string;
   status?: string;
+  hotelDetails?: any;
+  travelDetails?: any;
+  itinerary?: any;
+  checklist?: any;
+  customExpenses?: any;
   placeIds?: string[];
   noteIds?: string[];
   fileIds?: string[];
@@ -52,9 +66,16 @@ export class TripPlanService {
         destination: input.destination?.trim() || null,
         startDate: input.startDate ? new Date(input.startDate) : null,
         endDate: input.endDate ? new Date(input.endDate) : null,
+        daysCount: input.daysCount !== undefined && input.daysCount !== null ? Number(input.daysCount) : null,
+        budget: input.budget !== undefined && input.budget !== null ? Number(input.budget) : null,
         coverImage: input.coverImage || null,
         color: input.color || '#ec4899',
         status: input.status || 'PLANNING',
+        hotelDetails: input.hotelDetails !== undefined ? input.hotelDetails : undefined,
+        travelDetails: input.travelDetails !== undefined ? input.travelDetails : undefined,
+        itinerary: input.itinerary !== undefined ? input.itinerary : undefined,
+        checklist: input.checklist !== undefined ? input.checklist : undefined,
+        customExpenses: input.customExpenses !== undefined ? input.customExpenses : undefined,
         places: input.placeIds && input.placeIds.length > 0
           ? { create: input.placeIds.map((placeId, idx) => ({ placeId, position: idx })) }
           : undefined,
@@ -197,9 +218,16 @@ export class TripPlanService {
     if (input.destination !== undefined) updateData.destination = input.destination?.trim() || null;
     if (input.startDate !== undefined) updateData.startDate = input.startDate ? new Date(input.startDate) : null;
     if (input.endDate !== undefined) updateData.endDate = input.endDate ? new Date(input.endDate) : null;
+    if (input.daysCount !== undefined) updateData.daysCount = input.daysCount !== null ? Number(input.daysCount) : null;
+    if (input.budget !== undefined) updateData.budget = input.budget !== null ? Number(input.budget) : null;
     if (input.coverImage !== undefined) updateData.coverImage = input.coverImage;
     if (input.color !== undefined) updateData.color = input.color;
     if (input.status !== undefined) updateData.status = input.status;
+    if (input.hotelDetails !== undefined) updateData.hotelDetails = input.hotelDetails;
+    if (input.travelDetails !== undefined) updateData.travelDetails = input.travelDetails;
+    if (input.itinerary !== undefined) updateData.itinerary = input.itinerary;
+    if (input.checklist !== undefined) updateData.checklist = input.checklist;
+    if (input.customExpenses !== undefined) updateData.customExpenses = input.customExpenses;
 
     // Handle associations
     if (input.placeIds !== undefined) {

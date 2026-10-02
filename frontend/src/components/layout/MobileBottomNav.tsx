@@ -33,6 +33,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({ onOpenSidebar 
     '/projects',
     '/expenses',
     '/places',
+    '/plans',
     '/notes',
     '/playlists',
     '/favorites',

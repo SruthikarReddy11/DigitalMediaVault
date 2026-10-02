@@ -28,6 +28,8 @@ import { ExpenseTrackerPage } from '../pages/ExpenseTrackerPage';
 import { NotesPage } from '../pages/NotesPage';
 import { PlacesPage } from '../pages/PlacesPage';
 import { PlaceDetailsPage } from '../pages/PlaceDetailsPage';
+import { TripPlansPage } from '../pages/TripPlansPage';
+import { TripDetailsPage } from '../pages/TripDetailsPage';
 import { ProjectsPage } from '../pages/ProjectsPage';
 
 // Admin Pages
@@ -119,6 +121,8 @@ export const AppRoutes: React.FC = () => {
         <Route path="/notes" element={<NotesPage />} />
         <Route path="/places" element={<PlacesPage />} />
         <Route path="/places/:id" element={<PlaceDetailsPage />} />
+        <Route path="/plans" element={<TripPlansPage />} />
+        <Route path="/plans/:id" element={<TripDetailsPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/products" element={<ProductsPage />} />
         <Route path="/products/:id" element={<ProductDetailPage />} />

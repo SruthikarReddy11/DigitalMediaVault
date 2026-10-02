@@ -28,6 +28,8 @@ import {
   Share2,
   ShieldCheck,
   Globe,
+  Compass,
+  Luggage,
   Wifi,
   WifiOff,
 } from 'lucide-react';
@@ -57,6 +59,8 @@ const getSectionInfo = (pathname: string) => {
   if (pathname.startsWith('/shared-links')) return { label: 'Shared Links', icon: Share2, color: 'text-cyan-400' };
   if (pathname.startsWith('/trash')) return { label: 'Trash Bin', icon: Trash2, color: 'text-rose-400' };
   if (pathname.startsWith('/calendar')) return { label: 'Calendar', icon: Calendar, color: 'text-indigo-400' };
+  if (pathname.startsWith('/places')) return { label: 'Saved Places', icon: Compass, color: 'text-cyan-400' };
+  if (pathname.startsWith('/plans')) return { label: 'Trip Planner', icon: Luggage, color: 'text-pink-400' };
   if (pathname.startsWith('/projects')) return { label: 'Web Projects', icon: Globe, color: 'text-cyan-400' };
   if (pathname.startsWith('/settings')) return { label: 'Vault Settings', icon: Settings, color: 'text-slate-400' };
   if (pathname.startsWith('/admin')) return { label: 'Admin Console', icon: Shield, color: 'text-purple-400' };

@@ -77,7 +77,6 @@ const STATUS_CONFIG: Record<
 
 export const PlacesPage: React.FC = () => {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState<'PLACES' | 'TRIPS'>('PLACES');
   const [places, setPlaces] = useState<Place[]>([]);
   const [trips, setTrips] = useState<TripPlan[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -123,21 +122,6 @@ export const PlacesPage: React.FC = () => {
   const [modalReminderDate, setModalReminderDate] = useState('');
   const [modalReminderTime, setModalReminderTime] = useState('09:00');
   const [modalReminderOption, setModalReminderOption] = useState('EXACT');
-
-  // Trip Creation Modal State
-  const [isTripModalOpen, setIsTripModalOpen] = useState(false);
-  const [tripName, setTripName] = useState('');
-  const [tripDestination, setTripDestination] = useState('');
-  const [tripDescription, setTripDescription] = useState('');
-  const [tripStartDate, setTripStartDate] = useState('');
-  const [tripEndDate, setTripEndDate] = useState('');
-  const [tripColor, setTripColor] = useState('#ec4899');
-  const [tripPlaceIds, setTripPlaceIds] = useState<string[]>([]);
-  const [isSavingTrip, setIsSavingTrip] = useState(false);
-
-  // Trip Detail Drawer State
-  const [selectedTripDetail, setSelectedTripDetail] = useState<TripPlan | null>(null);
-  const [isAddingPlacesToTrip, setIsAddingPlacesToTrip] = useState(false);
 
   // Delete Place Confirmation
   const [deletingPlace, setDeletingPlace] = useState<Place | null>(null);
@@ -345,65 +329,6 @@ export const PlacesPage: React.FC = () => {
     }
   };
 
-  // Handle Save Trip
-  const handleCreateTrip = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!tripName.trim()) return;
-
-    try {
-      setIsSavingTrip(true);
-      const payload: CreateTripPlanInput = {
-        name: tripName.trim(),
-        destination: tripDestination.trim() || undefined,
-        description: tripDescription.trim() || undefined,
-        startDate: tripStartDate || undefined,
-        endDate: tripEndDate || undefined,
-        color: tripColor,
-        placeIds: tripPlaceIds.length > 0 ? tripPlaceIds : undefined,
-      };
-      await placesApi.createTrip(payload);
-      setIsTripModalOpen(false);
-      setTripName('');
-      setTripDestination('');
-      setTripDescription('');
-      setTripStartDate('');
-      setTripEndDate('');
-      setTripPlaceIds([]);
-      fetchTrips();
-      fetchPlaces();
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsSavingTrip(false);
-    }
-  };
-
-  // Handle Add Place to Active Trip
-  const handleAddPlaceToTrip = async (placeId: string) => {
-    if (!selectedTripDetail) return;
-    try {
-      const updated = await placesApi.addPlaceToTrip(selectedTripDetail.id, placeId);
-      setSelectedTripDetail(updated);
-      fetchTrips();
-      fetchPlaces();
-    } catch (err) {
-      console.error('Failed to add place to trip:', err);
-    }
-  };
-
-  // Handle Remove Place from Active Trip
-  const handleRemovePlaceFromTrip = async (placeId: string) => {
-    if (!selectedTripDetail) return;
-    try {
-      const updated = await placesApi.removePlaceFromTrip(selectedTripDetail.id, placeId);
-      setSelectedTripDetail(updated);
-      fetchTrips();
-      fetchPlaces();
-    } catch (err) {
-      console.error('Failed to remove place from trip:', err);
-    }
-  };
-
   // Handle Delete Place
   const handleDeletePlaceConfirm = async () => {
     if (!deletingPlace) return;
@@ -413,17 +338,6 @@ export const PlacesPage: React.FC = () => {
       setDeletingPlace(null);
       fetchPlaces();
       window.dispatchEvent(new CustomEvent('calendar_events_updated'));
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  // Open Trip Details
-  const handleOpenTripDetail = async (tripId: string) => {
-    try {
-      const detail = await placesApi.getTripById(tripId);
-      setSelectedTripDetail(detail);
-      setIsAddingPlacesToTrip(false);
     } catch (err) {
       console.error(err);
     }
@@ -442,13 +356,13 @@ export const PlacesPage: React.FC = () => {
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <h1 className="text-xl font-extrabold text-white tracking-tight">Places & Plans</h1>
+                  <h1 className="text-xl font-extrabold text-white tracking-tight">Saved Places</h1>
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
-                    Google Places API
+                    Google Maps
                   </span>
                 </div>
                 <p className="text-xs text-slate-400">
-                  Save travel destinations, trip itineraries, reminders & visit plans
+                  Save travel destinations, Google Maps locations, photos & visit reminders
                 </p>
               </div>
             </div>
@@ -456,11 +370,11 @@ export const PlacesPage: React.FC = () => {
             {/* Actions */}
             <div className="flex items-center gap-2.5">
               <button
-                onClick={() => setIsTripModalOpen(true)}
-                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-700 text-slate-200 text-xs font-bold transition flex items-center gap-2 cursor-pointer"
+                onClick={() => navigate('/plans')}
+                className="px-3.5 py-2 rounded-xl bg-pink-500/10 hover:bg-pink-500/20 border border-pink-500/30 text-pink-300 text-xs font-bold transition flex items-center gap-2 cursor-pointer"
               >
                 <Luggage className="w-4 h-4 text-pink-400" />
-                <span>+ New Trip Plan</span>
+                <span>Trip Planner</span>
               </button>
 
               <button
@@ -480,29 +394,19 @@ export const PlacesPage: React.FC = () => {
 
           {/* Subheader: Tabs, Search & Sort */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-3 border-t border-white/[0.06]">
-            {/* View Tabs */}
-            <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-white/[0.08]">
-              <button
-                onClick={() => setActiveTab('PLACES')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                  activeTab === 'PLACES'
-                    ? 'bg-cyan-600 text-white shadow'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
+            {/* View Header */}
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1.5 rounded-xl text-xs font-bold bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5" />
                 <span>Saved Places ({places.length})</span>
-              </button>
+              </span>
+
               <button
-                onClick={() => setActiveTab('TRIPS')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
-                  activeTab === 'TRIPS'
-                    ? 'bg-pink-600 text-white shadow'
-                    : 'text-slate-400 hover:text-white'
-                }`}
+                onClick={() => navigate('/plans')}
+                className="px-3 py-1.5 rounded-xl bg-pink-500/10 hover:bg-pink-500/20 text-pink-300 border border-pink-500/30 text-xs font-semibold flex items-center gap-1.5 transition"
               >
-                <Luggage className="w-3.5 h-3.5" />
-                <span>Trips & Plans ({trips.length})</span>
+                <Luggage className="w-3.5 h-3.5 text-pink-400" />
+                <span>Trip Planner →</span>
               </button>
             </div>
 
@@ -532,74 +436,63 @@ export const PlacesPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Status Filter Tabs (Only in Places View) */}
-          {activeTab === 'PLACES' && (
-            <div className="flex items-center gap-1.5 overflow-x-auto py-2.5 scrollbar-none">
-              {(['ALL', 'WANT_TO_VISIT', 'PLANNED', 'UPCOMING', 'VISITED'] as const).map((st) => (
-                <button
-                  key={st}
-                  onClick={() => setStatusFilter(st)}
-                  className={`px-3 py-1 rounded-full text-xs font-semibold transition shrink-0 ${
-                    statusFilter === st
-                      ? 'bg-cyan-500 text-slate-950 font-bold shadow'
-                      : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
-                  }`}
-                >
-                  {st === 'ALL' ? 'All Places' : STATUS_CONFIG[st].label}
-                </button>
-              ))}
-            </div>
-          )}
+          {/* Status Filter Tabs */}
+          <div className="flex items-center gap-1.5 overflow-x-auto py-2.5 scrollbar-none">
+            {(['ALL', 'WANT_TO_VISIT', 'PLANNED', 'UPCOMING', 'VISITED'] as const).map((st) => (
+              <button
+                key={st}
+                onClick={() => setStatusFilter(st)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition shrink-0 ${
+                  statusFilter === st
+                    ? 'bg-cyan-500 text-slate-950 font-bold shadow'
+                    : 'bg-slate-900/60 text-slate-400 hover:text-slate-200 border border-slate-800'
+                }`}
+              >
+                {st === 'ALL' ? 'All Places' : STATUS_CONFIG[st].label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Main Body */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        {activeTab === 'PLACES' ? (
-          <>
-            {isLoading ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {[1, 2, 3, 4, 5, 6].map((i) => (
-                  <div
-                    key={i}
-                    className="h-80 rounded-3xl bg-slate-900/50 border border-slate-800 animate-pulse"
-                  />
-                ))}
-              </div>
-            ) : places.length === 0 ? (
-              <div className="py-20 text-center space-y-3">
-                <div className="w-14 h-14 mx-auto rounded-3xl bg-slate-900/90 border border-slate-800 flex items-center justify-center text-slate-500">
-                  <Compass className="w-6 h-6" />
-                </div>
-                <h3 className="text-base font-bold text-slate-300">No saved places found</h3>
-                <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                  Paste any Google Maps link to instantly resolve place photos, ratings, address, and set future visit reminders.
-                </p>
-                <button
-                  onClick={() => setIsSaveModalOpen(true)}
-                  className="mt-2 px-4 py-2 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition inline-flex items-center gap-2 cursor-pointer"
-                >
-                  <MapPin className="w-4 h-4" />
-                  <span>Save Your First Place</span>
-                </button>
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {places.map((place) => renderPlaceCard(place))}
-              </div>
-            )}
-          </>
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div
+                key={i}
+                className="h-80 rounded-3xl bg-slate-900/50 border border-slate-800 animate-pulse"
+              />
+            ))}
+          </div>
+        ) : places.length === 0 ? (
+          <div className="py-20 text-center space-y-3">
+            <div className="w-14 h-14 mx-auto rounded-3xl bg-slate-900/90 border border-slate-800 flex items-center justify-center text-slate-500">
+              <Compass className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-slate-300">No saved places found</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto">
+              Paste any Google Maps link to instantly resolve place photos, ratings, address, and set future visit reminders.
+            </p>
+            <button
+              onClick={() => setIsSaveModalOpen(true)}
+              className="mt-2 px-4 py-2 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 border border-cyan-500/40 text-cyan-300 text-xs font-bold transition inline-flex items-center gap-2 cursor-pointer"
+            >
+              <MapPin className="w-4 h-4" />
+              <span>Save Your First Place</span>
+            </button>
+          </div>
         ) : (
-          /* TRIPS & PLANS VIEW */
-          renderTripsView()
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {places.map((place) => renderPlaceCard(place))}
+          </div>
         )}
       </div>
 
       {/* MODALS */}
       {renderSavePlaceModal()}
       {renderReminderModal()}
-      {renderTripCreateModal()}
-      {renderTripDetailDrawer()}
       {renderDeletePlaceModal()}
 
       <EditPlaceModal
@@ -801,101 +694,6 @@ export const PlacesPage: React.FC = () => {
             </button>
           </div>
         </div>
-      </div>
-    );
-  }
-
-  /**
-   * Render Trips & Plans View (e.g. "Japan Trip" collections)
-   */
-  function renderTripsView() {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-extrabold text-white">Trip Itineraries & Collections</h2>
-            <p className="text-xs text-slate-400">
-              Connect saved places, travel notes, photos, expense receipts & calendar events under a shared trip
-            </p>
-          </div>
-
-          <button
-            onClick={() => setIsTripModalOpen(true)}
-            className="px-3.5 py-1.5 rounded-xl bg-pink-600 hover:bg-pink-500 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-pink-500/25 transition cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Create Trip Plan</span>
-          </button>
-        </div>
-
-        {trips.length === 0 ? (
-          <div className="py-16 text-center space-y-3 bg-slate-900/40 rounded-3xl border border-slate-800">
-            <Luggage className="w-10 h-10 text-pink-400 mx-auto opacity-70" />
-            <h3 className="text-sm font-bold text-slate-300">No trips planned yet</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Plan your next getaway, like "Japan Trip 2027", and group places to visit with notes, expenses and photos.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {trips.map((trip) => (
-              <div
-                key={trip.id}
-                onClick={() => handleOpenTripDetail(trip.id)}
-                className="rounded-3xl bg-slate-900/80 border border-slate-800/80 hover:border-pink-500/40 p-5 space-y-4 hover:shadow-xl hover:shadow-pink-500/5 transition cursor-pointer group"
-                style={{ borderTopColor: trip.color || '#ec4899', borderTopWidth: 4 }}
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <h3 className="text-base font-bold text-white group-hover:text-pink-300 transition">
-                      {trip.name}
-                    </h3>
-                    {trip.destination && (
-                      <p className="text-xs text-cyan-400 font-semibold mt-0.5 flex items-center gap-1">
-                        <MapPin className="w-3 h-3" />
-                        <span>{trip.destination}</span>
-                      </p>
-                    )}
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/20 text-pink-300 border border-pink-500/30">
-                    {trip.status}
-                  </span>
-                </div>
-
-                {trip.description && (
-                  <p className="text-xs text-slate-400 line-clamp-2">{trip.description}</p>
-                )}
-
-                {/* Counts */}
-                <div className="grid grid-cols-3 gap-2 pt-2 border-t border-slate-800 text-center text-[11px]">
-                  <div className="bg-slate-950/60 p-2 rounded-xl">
-                    <span className="font-bold text-white">{trip._count?.places || 0}</span>
-                    <p className="text-[10px] text-slate-500">Places</p>
-                  </div>
-                  <div className="bg-slate-950/60 p-2 rounded-xl">
-                    <span className="font-bold text-white">{trip._count?.notes || 0}</span>
-                    <p className="text-[10px] text-slate-500">Notes</p>
-                  </div>
-                  <div className="bg-slate-950/60 p-2 rounded-xl">
-                    <span className="font-bold text-white">{trip._count?.files || 0}</span>
-                    <p className="text-[10px] text-slate-500">Photos</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-slate-500 pt-1">
-                  <span>
-                    {trip.startDate
-                      ? new Date(trip.startDate).toLocaleDateString()
-                      : 'Flexible dates'}
-                  </span>
-                  <span className="text-pink-400 font-semibold flex items-center gap-1 group-hover:translate-x-1 transition">
-                    View Trip Details <ChevronRight className="w-3.5 h-3.5" />
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
     );
   }
@@ -1362,341 +1160,7 @@ export const PlacesPage: React.FC = () => {
   }
 
   /**
-   * 3. CREATE TRIP PLAN MODAL
-   */
-  function renderTripCreateModal() {
-    if (!isTripModalOpen) return null;
-
-    return (
-      <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-150">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div className="flex items-center gap-2">
-              <Luggage className="w-5 h-5 text-pink-400" />
-              <h3 className="text-sm font-bold text-white">Create Trip Plan</h3>
-            </div>
-            <button onClick={() => setIsTripModalOpen(false)} className="text-slate-400 hover:text-white">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          <form onSubmit={handleCreateTrip} className="space-y-3">
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1">Trip Name *</label>
-              <input
-                type="text"
-                value={tripName}
-                onChange={(e) => setTripName(e.target.value)}
-                placeholder="e.g. Japan Trip 2027"
-                required
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1">Destination / Country</label>
-              <input
-                type="text"
-                value={tripDestination}
-                onChange={(e) => setTripDestination(e.target.value)}
-                placeholder="e.g. Tokyo & Kyoto, Japan"
-                className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1">Start Date</label>
-                <input
-                  type="date"
-                  value={tripStartDate}
-                  onChange={(e) => setTripStartDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="block text-[11px] text-slate-400 mb-1">End Date</label>
-                <input
-                  type="date"
-                  value={tripEndDate}
-                  onChange={(e) => setTripEndDate(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-slate-400 mb-1">Notes / Description</label>
-              <textarea
-                rows={2}
-                value={tripDescription}
-                onChange={(e) => setTripDescription(e.target.value)}
-                placeholder="Trip overview, packing checklist reminders..."
-                className="w-full p-2 bg-slate-950 border border-slate-800 rounded-xl text-xs text-white focus:outline-none resize-none"
-              />
-            </div>
-
-            {/* Select Places to Add */}
-            {places.length > 0 && (
-              <div>
-                <label className="block text-[11px] font-bold text-slate-400 mb-1 flex items-center justify-between">
-                  <span>Add Saved Places ({tripPlaceIds.length} selected)</span>
-                  <span className="text-[10px] text-slate-500">Optional</span>
-                </label>
-                <div className="max-h-36 overflow-y-auto space-y-1.5 p-2 bg-slate-950 border border-slate-800 rounded-xl">
-                  {places.map((p) => {
-                    const isSelected = tripPlaceIds.includes(p.id);
-                    return (
-                      <button
-                        key={p.id}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            setTripPlaceIds(tripPlaceIds.filter((id) => id !== p.id));
-                          } else {
-                            setTripPlaceIds([...tripPlaceIds, p.id]);
-                          }
-                        }}
-                        className={`w-full text-left p-2 rounded-lg text-xs flex items-center justify-between transition cursor-pointer ${
-                          isSelected
-                            ? 'bg-pink-500/20 text-pink-300 border border-pink-500/40'
-                            : 'bg-slate-900/60 hover:bg-slate-900 text-slate-300 border border-transparent'
-                        }`}
-                      >
-                        <div className="min-w-0 pr-2">
-                          <p className="font-semibold truncate">{p.name}</p>
-                          {p.city && <p className="text-[10px] text-slate-500 truncate">{p.city}</p>}
-                        </div>
-                        <span className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] ${
-                          isSelected ? 'bg-pink-600 border-pink-500 text-white font-bold' : 'border-slate-700'
-                        }`}>
-                          {isSelected ? '✓' : ''}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsTripModalOpen(false)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSavingTrip || !tripName.trim()}
-                className="px-4 py-2 rounded-xl bg-pink-600 hover:bg-pink-500 text-white font-bold text-xs shadow-lg shadow-pink-500/25 transition cursor-pointer"
-              >
-                Create Trip
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  /**
-   * 4. TRIP DETAIL DRAWER (Shows associated Places, Notes, Photos, Expenses, Calendar)
-   */
-  function renderTripDetailDrawer() {
-    if (!selectedTripDetail) return null;
-
-    return (
-      <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex justify-end animate-in fade-in duration-150">
-        <div className="w-full max-w-2xl bg-slate-950 border-l border-slate-800 h-full overflow-y-auto p-6 space-y-6 flex flex-col justify-between shadow-2xl">
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="flex items-start justify-between border-b border-slate-800 pb-4">
-              <div>
-                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-pink-500/20 text-pink-300 border border-pink-500/30">
-                  {selectedTripDetail.status}
-                </span>
-                <h2 className="text-xl font-extrabold text-white mt-1">
-                  {selectedTripDetail.name}
-                </h2>
-                {selectedTripDetail.destination && (
-                  <p className="text-xs text-cyan-400 font-semibold flex items-center gap-1 mt-0.5">
-                    <MapPin className="w-3.5 h-3.5" />
-                    <span>{selectedTripDetail.destination}</span>
-                  </p>
-                )}
-              </div>
-
-              <button
-                onClick={() => setSelectedTripDetail(null)}
-                className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-900 transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Places associated with this trip */}
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <MapPin className="w-4 h-4 text-cyan-400" />
-                  <span>Trip Places ({selectedTripDetail.places?.length || 0})</span>
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setIsAddingPlacesToTrip(!isAddingPlacesToTrip)}
-                  className="px-2.5 py-1 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>{isAddingPlacesToTrip ? 'Done' : '+ Add Places'}</span>
-                </button>
-              </div>
-
-              {/* Add Places to Trip Drawer Picker */}
-              {isAddingPlacesToTrip && (
-                <div className="p-3.5 rounded-2xl bg-slate-900 border border-cyan-500/40 space-y-2.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-cyan-400">Select places to attach:</span>
-                    <span className="text-[10px] text-slate-400">Click Add to attach instantly</span>
-                  </div>
-
-                  {places.filter((p) => !selectedTripDetail.places?.some((tp) => (tp.place?.id || tp.placeId) === p.id)).length === 0 ? (
-                    <p className="text-xs text-slate-500 italic py-2">
-                      All your saved places are already added to this trip plan!
-                    </p>
-                  ) : (
-                    <div className="max-h-48 overflow-y-auto space-y-1.5 pr-1">
-                      {places
-                        .filter((p) => !selectedTripDetail.places?.some((tp) => (tp.place?.id || tp.placeId) === p.id))
-                        .map((p) => (
-                          <div
-                            key={p.id}
-                            className="p-2 rounded-xl bg-slate-950/70 border border-slate-800 hover:border-cyan-500/40 flex items-center justify-between gap-2"
-                          >
-                            <div className="min-w-0">
-                              <p className="text-xs font-bold text-white truncate">{p.name}</p>
-                              <p className="text-[10px] text-slate-400 truncate">{p.city || p.address || 'No address'}</p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleAddPlaceToTrip(p.id)}
-                              className="px-2.5 py-1 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-bold text-[11px] shrink-0 transition cursor-pointer flex items-center gap-1"
-                            >
-                              <Plus className="w-3 h-3" />
-                              <span>Add</span>
-                            </button>
-                          </div>
-                        ))}
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {(!selectedTripDetail.places || selectedTripDetail.places.length === 0) ? (
-                <div className="p-4 bg-slate-900/40 rounded-xl border border-slate-800 text-center space-y-2">
-                  <p className="text-xs text-slate-400">
-                    No places saved under this trip yet.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setIsAddingPlacesToTrip(true)}
-                    className="text-xs text-cyan-400 font-bold hover:underline"
-                  >
-                    + Add your first place to this trip
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {selectedTripDetail.places.map((tp) => {
-                    const placeId = tp.place?.id || tp.placeId;
-                    return (
-                      <div
-                        key={tp.id}
-                        className="p-3 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 flex items-center justify-between gap-3 group"
-                      >
-                        <div
-                          onClick={() => {
-                            if (placeId) navigate(`/places/${placeId}`);
-                          }}
-                          className="min-w-0 cursor-pointer flex-1"
-                        >
-                          <p className="text-xs font-bold text-white hover:text-cyan-300 transition truncate">
-                            {tp.place?.name}
-                          </p>
-                          <p className="text-[11px] text-slate-400 truncate">{tp.place?.address || tp.place?.city}</p>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          {tp.place?.googleMapsUrl && (
-                            <a
-                              href={tp.place.googleMapsUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-slate-400 hover:text-cyan-300 p-1.5 rounded-lg hover:bg-slate-800 transition"
-                              title="Open in Google Maps"
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                            </a>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (placeId) handleRemovePlaceFromTrip(placeId);
-                            }}
-                            className="text-slate-500 hover:text-rose-400 p-1.5 rounded-lg hover:bg-rose-500/10 transition cursor-pointer"
-                            title="Remove from trip"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Notes connected with this trip */}
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Tag className="w-4 h-4 text-brand-400" />
-                <span>Connected Notes ({selectedTripDetail.notes?.length || 0})</span>
-              </h3>
-              {(!selectedTripDetail.notes || selectedTripDetail.notes.length === 0) ? (
-                <p className="text-xs text-slate-500 italic p-3 bg-slate-900/40 rounded-xl">
-                  No notes linked to this trip.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {selectedTripDetail.notes.map((tn) => (
-                    <div
-                      key={tn.id}
-                      className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between"
-                    >
-                      <span className="text-xs font-semibold text-white">{tn.note.title}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="pt-4 border-t border-slate-800 flex items-center justify-between">
-            <button
-              onClick={() => setSelectedTripDetail(null)}
-              className="px-4 py-2 rounded-xl bg-slate-900 text-slate-300 text-xs font-bold hover:bg-slate-800 transition"
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /**
-   * 5. DELETE PLACE CONFIRMATION MODAL
+   * 3. DELETE PLACE CONFIRMATION MODAL
    */
   function renderDeletePlaceModal() {
     if (!deletingPlace) return null;

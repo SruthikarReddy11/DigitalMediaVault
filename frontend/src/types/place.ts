@@ -144,6 +144,54 @@ export interface UpdatePlaceInput {
   visitedAt?: string | Date | null;
 }
 
+export interface TripExpenseItem {
+  id: string;
+  category: string; // 'Hotel', 'Travel', 'Food', 'Activities', 'Shopping', 'Miscellaneous', or custom
+  title: string;
+  amount: number;
+  currency?: string;
+  notes?: string;
+  date?: string;
+}
+
+export interface TripHotelDetails {
+  name?: string;
+  address?: string;
+  bookingUrl?: string;
+  checkIn?: string;
+  checkOut?: string;
+  cost?: number;
+  notes?: string;
+  roomType?: string;
+}
+
+export interface TripTravelDetails {
+  mode?: string; // 'Flight', 'Train', 'Car/Drive', 'Bus', 'Cruise', 'Other'
+  departureLocation?: string;
+  arrivalLocation?: string;
+  departureTime?: string;
+  arrivalTime?: string;
+  pnrOrBookingRef?: string;
+  cost?: number;
+  notes?: string;
+}
+
+export interface TripItineraryDay {
+  dayNumber: number;
+  date?: string;
+  title: string;
+  places?: string[];
+  activities?: { time?: string; title: string; notes?: string; placeId?: string }[];
+  notes?: string;
+}
+
+export interface TripChecklistItem {
+  id: string;
+  text: string;
+  isDone: boolean;
+  category?: string;
+}
+
 export interface TripPlan {
   id: string;
   userId: string;
@@ -152,9 +200,16 @@ export interface TripPlan {
   destination?: string | null;
   startDate?: string | null;
   endDate?: string | null;
+  daysCount?: number | null;
+  budget?: number | null;
   coverImage?: string | null;
   color: string;
   status: string;
+  hotelDetails?: TripHotelDetails | null;
+  travelDetails?: TripTravelDetails | null;
+  itinerary?: TripItineraryDay[] | null;
+  checklist?: TripChecklistItem[] | null;
+  customExpenses?: TripExpenseItem[] | null;
   createdAt: string;
   updatedAt: string;
   _count?: {
@@ -213,12 +268,20 @@ export interface CreateTripPlanInput {
   destination?: string;
   startDate?: string | Date;
   endDate?: string | Date;
+  daysCount?: number;
+  budget?: number;
   coverImage?: string;
   color?: string;
   status?: string;
+  hotelDetails?: TripHotelDetails;
+  travelDetails?: TripTravelDetails;
+  itinerary?: TripItineraryDay[];
+  checklist?: TripChecklistItem[];
+  customExpenses?: TripExpenseItem[];
   placeIds?: string[];
   noteIds?: string[];
   fileIds?: string[];
   expenseIds?: string[];
   eventIds?: string[];
 }
+

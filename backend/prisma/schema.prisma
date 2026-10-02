@@ -851,13 +851,20 @@ model TripPlan {
   name        String            // e.g. "Japan Trip"
   description String?
   destination String?
-  startDate   DateTime?
-  endDate     DateTime?
-  coverImage  String?
-  color       String?           @default("#ec4899")
-  status      String            @default("PLANNING")
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
+  startDate      DateTime?
+  endDate        DateTime?
+  daysCount      Int?
+  budget         Float?
+  coverImage     String?
+  color          String?           @default("#ec4899")
+  status         String            @default("PLANNING")
+  hotelDetails   Json?
+  travelDetails  Json?
+  itinerary      Json?
+  checklist      Json?
+  customExpenses Json?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
 
   user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   places      TripPlanPlace[]
