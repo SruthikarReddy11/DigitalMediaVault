@@ -31,6 +31,7 @@ import { PlaceDetailsPage } from '../pages/PlaceDetailsPage';
 import { TripPlansPage } from '../pages/TripPlansPage';
 import { TripDetailsPage } from '../pages/TripDetailsPage';
 import { ProjectsPage } from '../pages/ProjectsPage';
+import { LandingPage } from '../pages/LandingPage';
 
 // Admin Pages
 import { AdminDashboard } from '../pages/admin/AdminDashboard';
@@ -81,7 +82,7 @@ const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 };
 
 export const AppRoutes: React.FC = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
 
   return (
     <Routes>
@@ -99,6 +100,26 @@ export const AppRoutes: React.FC = () => {
         element={isAuthenticated ? <Navigate to="/" replace /> : <ForgotPassword />}
       />
       <Route path="/share/:token" element={<SharePublicPage />} />
+      <Route path="/landing" element={<LandingPage />} />
+
+      {/* Unauthenticated visitors visiting '/' see the LandingPage */}
+      {!isAuthenticated && (
+        <Route
+          path="/"
+          element={
+            isLoading ? (
+              <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-10 h-10 border-4 border-cyan-500/20 border-t-cyan-500 rounded-full animate-spin" />
+                  <p className="text-sm font-medium text-slate-400">Loading VaultXMedia...</p>
+                </div>
+              </div>
+            ) : (
+              <LandingPage />
+            )
+          }
+        />
+      )}
 
       {/* Protected App Routes wrapped in AppLayout */}
       <Route
@@ -109,6 +130,7 @@ export const AppRoutes: React.FC = () => {
         }
       >
         <Route path="/" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/gallery" element={<Gallery />} />
         <Route path="/videos" element={<Videos />} />
         <Route path="/music" element={<Music />} />
