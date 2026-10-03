@@ -131,6 +131,13 @@ export interface DashboardStats {
     archives: number;
     others: number;
   };
+  storageByType?: {
+    images: number;
+    videos: number;
+    music: number;
+    documents: number;
+    others: number;
+  };
   favorites: number;
   storageUsedBytes: number;
   storageLimitBytes: number;

@@ -634,6 +634,7 @@ export class FileService {
           by: ['fileType'],
           where: { userId: user.id, isSecret: false, deletedAt: null, ...notCoverFilter },
           _count: { _all: true },
+          _sum: { size: true },
         }),
         prisma.file.aggregate({
           where: { userId: user.id, isSecret: false, deletedAt: null, ...notCoverFilter },
@@ -658,8 +659,10 @@ export class FileService {
       ]);
 
     const countsMap = new Map<string, number>();
+    const storageMap = new Map<string, number>();
     for (const g of typeGroups) {
       countsMap.set(g.fileType, g._count._all);
+      storageMap.set(g.fileType, Number(g._sum.size || 0));
     }
 
     const totalFiles = totalAgg._count._all;
@@ -676,6 +679,13 @@ export class FileService {
         spreadsheets: countsMap.get('SPREADSHEET') || 0,
         archives: countsMap.get('ARCHIVE') || 0,
         others: countsMap.get('OTHER') || 0,
+      },
+      storageByType: {
+        images: storageMap.get('IMAGE') || 0,
+        videos: storageMap.get('VIDEO') || 0,
+        music: storageMap.get('AUDIO') || 0,
+        documents: (storageMap.get('DOCUMENT') || 0) + (storageMap.get('PDF') || 0) + (storageMap.get('SPREADSHEET') || 0),
+        others: (storageMap.get('ARCHIVE') || 0) + (storageMap.get('OTHER') || 0),
       },
       favorites,
       storageUsedBytes,

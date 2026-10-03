@@ -31,7 +31,6 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { formatBytes } from '../../utils/formatters';
 import { Logo3D } from '../common/Logo3D';
-import { VaultXLogo } from '../common/VaultXLogo';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -78,14 +77,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* Brand Logo & Tagline */}
+        {/* Brand Logo */}
         <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.08]">
-          <div className="flex flex-col">
-            <VaultXLogo size="md" withText withBadge badgeText="PRO" to="/" />
-            <span className="text-[8px] font-mono tracking-widest text-cyan-400 font-extrabold uppercase mt-1 pl-0.5">
-              QUANTUM CLOUD VAULT
-            </span>
-          </div>
+          <Logo3D size="md" withText badge="PRO" to="/" />
 
           <button
             onClick={onClose}
